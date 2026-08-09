@@ -1,0 +1,37 @@
+[package]
+name = "dagger-sdk-engine"
+description = "Private engine integration tooling for the Dagger Rust SDK"
+publish = false
+readme = "README.md"
+
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "dagger-rust-engine"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+dagger-codegen.workspace = true
+fs4.workspace = true
+semver.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+toml_edit.workspace = true
+tokio.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+proptest.workspace = true

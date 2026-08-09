@@ -15,6 +15,7 @@ workspace = true
 
 [dependencies]
 dagger-codegen.workspace = true
+dagger-sdk-engine.workspace = true
 clap.workspace = true
 semver.workspace = true
 serde.workspace = true
