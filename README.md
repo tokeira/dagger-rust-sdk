@@ -1,9 +1,16 @@
-# Dagger Rust SDK workspace
+# Rust SDK for Dagger
 
-This workspace contains Dagger's beta Rust SDK, code generator, module-authoring
-runtime, standalone-client generator, and engine integration. The current SDK version
-is `0.1.0` and targets
-the Dagger `v1.0.0-beta.18` engine contract.
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![MSRV 1.97.1](https://img.shields.io/badge/MSRV-1.97.1-orange?logo=rust)](Cargo.toml)
+[![Dagger v1.0.0-beta.18](https://img.shields.io/badge/Dagger-v1.0.0--beta.18-informational)](https://github.com/dagger/dagger/tree/v1.0.0-beta.18)
+[![Built with Codex & Claude](https://img.shields.io/badge/built%20with-Codex%20%26%20Claude-blueviolet)](#built-with-claude)
+
+Rust SDK for [Dagger](https://dagger.io), maintained by Tokeira. Not affiliated with
+Dagger, Inc.
+
+This workspace contains the SDK, its code generator, module-authoring runtime,
+standalone-client generator, and engine integration. The current SDK version is `0.1.0`
+and targets the Dagger `v1.0.0-beta.18` engine contract.
 
 Application users normally depend on [`tokeira-dagger-sdk`](crates/dagger-sdk). The client is
 owned and asynchronous: it supports generated and raw GraphQL operations,
@@ -252,3 +259,9 @@ Commits credit every agent that took part with a `Co-authored-by` or `Assisted-b
 trailer, such as `Co-authored-by: Claude <noreply@anthropic.com>`, and pull requests name
 them, as [`AGENTS.md`](AGENTS.md) sets out. Earlier work in this history credits Codex and
 Kiro in the same way.
+
+## License
+
+Licensed under the [Apache License, Version 2.0](LICENSE). The SDK derives from the Rust
+SDK in the [Dagger repository](https://github.com/dagger/dagger); [`NOTICE`](NOTICE) carries
+its attribution.

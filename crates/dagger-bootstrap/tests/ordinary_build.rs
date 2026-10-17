@@ -47,6 +47,7 @@ fn valid_package_contract(seed: u16) -> (MetadataView, Vec<PackageArchive>) {
         files: BTreeSet::from([
             "Cargo.toml".to_owned(),
             "LICENSE".to_owned(),
+            "NOTICE".to_owned(),
             "README.md".to_owned(),
             "examples/first-pipeline/main.rs".to_owned(),
             "src/gen/mod.rs".to_owned(),
@@ -66,6 +67,7 @@ fn valid_package_contract(seed: u16) -> (MetadataView, Vec<PackageArchive>) {
         root: format!("tokeira-dagger-sdk-macros-{version}"),
         files: BTreeSet::from([
             "Cargo.toml".to_owned(),
+            "NOTICE".to_owned(),
             "README.md".to_owned(),
             "src/lib.rs".to_owned(),
         ]),

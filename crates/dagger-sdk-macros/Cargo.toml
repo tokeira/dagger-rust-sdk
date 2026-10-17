@@ -1,9 +1,9 @@
 [package]
 name = "tokeira-dagger-sdk-macros"
-description = "Procedural authoring attributes for the Dagger Rust SDK"
+description = "Authoring macros for the Rust SDK for Dagger, maintained by Tokeira. Not affiliated with Dagger, Inc."
 publish = true
 readme = "README.md"
-include = ["/src/**", "/README.md", "/LICENSE"]
+include = ["/src/**", "/README.md", "/LICENSE", "/NOTICE"]
 
 version.workspace = true
 edition.workspace = true

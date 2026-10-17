@@ -3,7 +3,7 @@ name = "tokeira-dagger-sdk"
 description = "Rust SDK for Dagger, maintained by Tokeira. Not affiliated with Dagger, Inc."
 publish = true
 readme = "README.md"
-include = ["/src/**", "/examples/**", "!/examples/*/app/**", "/README.md", "/LICENSE"]
+include = ["/src/**", "/examples/**", "!/examples/*/app/**", "/README.md", "/LICENSE", "/NOTICE"]
 
 version.workspace = true
 edition.workspace = true

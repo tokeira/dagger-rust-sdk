@@ -6,7 +6,11 @@ resolver = "2"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.97.1"
-authors = ["kjuulh <contact@kasperhermansen.com>", "Dagger <hello@dagger.io>"]
+authors = [
+    "Ian Wilkinson <32589+iw@users.noreply.github.com>",
+    "Codex <codex@openai.com>",
+    "Claude <noreply@anthropic.com>",
+]
 repository = "https://github.com/tokeira/dagger-rust-sdk"
 license = "Apache-2.0"
 

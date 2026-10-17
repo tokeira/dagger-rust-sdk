@@ -1,6 +1,6 @@
 [package]
 name = "dagger-sdk-engine"
-description = "Private engine integration tooling for the Dagger Rust SDK"
+description = "Private engine integration tooling for the Rust SDK for Dagger"
 publish = false
 readme = "README.md"
 

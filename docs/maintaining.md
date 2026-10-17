@@ -1,4 +1,4 @@
-# Maintaining the Dagger Rust SDK
+# Maintaining the Rust SDK for Dagger
 
 This runbook covers generated-client ownership, target refresh, recovery, local
 acceptance, and non-publishing artifact assembly. It has six ordered steps.

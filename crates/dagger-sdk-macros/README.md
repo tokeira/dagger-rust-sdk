@@ -1,4 +1,7 @@
-# Dagger Rust SDK authoring macros
+# tokeira-dagger-sdk-macros
+
+Authoring macros for the Rust SDK for [Dagger](https://dagger.io), maintained by Tokeira.
+Not affiliated with Dagger, Inc.
 
 This crate is the exact-version procedural-macro companion to `tokeira-dagger-sdk`. Applications
 normally use the `object`, `interface`, `enum_type`, `scalar`, and `methods` attributes

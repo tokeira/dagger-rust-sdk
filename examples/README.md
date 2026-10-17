@@ -1,4 +1,4 @@
-# Dagger Rust SDK examples
+# Rust SDK for Dagger examples
 
 These standalone workspaces consume the local `dagger-sdk` crate and exercise realistic
 application pipelines. Run commands from the repository root; each program starts its own SDK

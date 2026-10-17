@@ -2,7 +2,7 @@
 
 ## Mission and scope
 
-Elevate the Dagger Rust SDK to stable, Go-level capability while making its public API
+Elevate the Rust SDK for Dagger to stable, Go-level capability while making its public API
 feel native to Rust. These instructions apply to the whole repository.
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) for the human-facing workflow and

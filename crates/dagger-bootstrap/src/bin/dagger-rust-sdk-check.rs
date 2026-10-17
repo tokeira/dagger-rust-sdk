@@ -456,12 +456,13 @@ fn validate_archive_set(archives: &[PackageArchive]) -> Result<PackageSet, Check
     let sdk_required = [
         "Cargo.toml",
         "LICENSE",
+        "NOTICE",
         "README.md",
         "examples/first-pipeline/main.rs",
         "src/gen/mod.rs",
         "src/lib.rs",
     ];
-    let macros_required = ["Cargo.toml", "README.md", "src/lib.rs"];
+    let macros_required = ["Cargo.toml", "NOTICE", "README.md", "src/lib.rs"];
     if sdk_required
         .iter()
         .any(|required| !sdk.files.contains(*required))

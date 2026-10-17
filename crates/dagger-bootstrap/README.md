@@ -1,8 +1,9 @@
 # dagger-bootstrap
 
 `dagger-bootstrap` provides the internal `dagger-rust` command used to verify or
-publish the [Dagger Rust SDK](https://github.com/tokeira/dagger-rust-sdk)
-generated client from checked repository inputs.
+publish the generated client of the
+[Rust SDK for Dagger](https://github.com/tokeira/dagger-rust-sdk) from checked
+repository inputs.
 
 It connects two workspace components:
 

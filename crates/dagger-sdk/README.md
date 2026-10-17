@@ -1,6 +1,9 @@
-# Dagger Rust SDK
+# Rust SDK for Dagger
 
-The Rust SDK provides an owned, asynchronous client for the Dagger GraphQL API. Its
+Rust SDK for [Dagger](https://dagger.io), maintained by Tokeira. Not affiliated with
+Dagger, Inc.
+
+The SDK provides an owned, asynchronous client for the Dagger GraphQL API. Its
 default connector can reuse a session created by `dagger run` or provision and launch
 the exact Dagger CLI release compiled into the SDK.
 
@@ -163,3 +166,9 @@ application examples live in [`../../examples`](../../examples).
 Development and verification commands are documented in
 [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md); generated-client maintenance and
 release assembly are documented in [`../../docs/maintaining.md`](../../docs/maintaining.md).
+
+## License
+
+Licensed under the [Apache License, Version 2.0](LICENSE). The SDK derives from the Rust
+SDK in the [Dagger repository](https://github.com/dagger/dagger); [`NOTICE`](NOTICE) carries
+its attribution.

@@ -1,4 +1,4 @@
-# Contributing to the Dagger Rust SDK
+# Contributing to the Rust SDK for Dagger
 
 Thanks for helping improve the Rust SDK. Read the [agent guidance](AGENTS.md) before
 making a substantial change.
