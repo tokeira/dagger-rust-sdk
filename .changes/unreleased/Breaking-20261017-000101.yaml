@@ -1,0 +1,7 @@
+kind: Breaking
+body: |
+    The SDK targets stock Dagger `v1.0.0-beta.18` engines and CLIs instead of the fork's `v1.0.0-beta.11.rust.N` builds, and its compiled CLI downloads from dl.dagger.io. The generated client follows the beta.18 schema. It adds types such as `AgentMessage`, `Artifact`, `GitRemote` and the `Bytes` scalar, and drops those beta.18 removed, including `CurrentModule.asSDK`, `AgentGroup`, `CheckGroup`, `GeneratorGroup` and `UpGroup`.
+time: 2026-10-17T00:01:01Z
+custom:
+    Author: iw
+    PR: "3"
