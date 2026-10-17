@@ -1,24 +1,12 @@
-//! Validation and Cargo rendering for immutable packaged-engine coordinates.
+//! Cross-field validation for immutable packaged-engine coordinates.
 //!
 //! Scalar construction makes mutable dependency shapes unrepresentable. This module
 //! adds the cross-field checks which bind registry packages to the exact SDK release
-//! while allowing an independently immutable Git source for fork-built engines.
+//! while allowing an independently immutable Git source, which content sealed from a
+//! pinned commit uses before the SDK is on a registry.
 
 use crate::diagnostic::{EngineDiagnostic, EngineDiagnosticCode};
 use crate::{EngineSourceDescriptor, PublishedSdkDependency};
-
-impl PublishedSdkDependency {
-    /// Renders the exact Cargo value admitted by the immutable dependency model.
-    #[must_use]
-    pub fn cargo_value(&self) -> String {
-        match self {
-            Self::Registry { exact_version, .. } => format!("={exact_version}"),
-            Self::Git { url, revision, .. } => {
-                format!("{{ git = \"{url}\", rev = \"{revision}\" }}")
-            }
-        }
-    }
-}
 
 impl EngineSourceDescriptor {
     /// Verifies cross-field invariants not already guaranteed by the scalar types.

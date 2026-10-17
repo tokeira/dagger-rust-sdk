@@ -24,8 +24,9 @@ pub const DESCRIPTOR_PATH: &str = "dist/engine-source.json";
 /// Canonical packaged-asset manifest path beneath Rust SDK content.
 pub const PACKAGED_ASSET_MANIFEST_PATH: &str = "dist/packaged-assets.json";
 
-const REQUIRED_PAYLOADS: [&str; 17] = [
+const REQUIRED_PAYLOADS: [&str; 18] = [
     "LICENSE",
+    "NOTICE",
     "dist/client-generation.json",
     "dist/dagger-rust-engine",
     "dist/rustfmt",
