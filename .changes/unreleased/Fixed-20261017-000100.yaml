@@ -1,0 +1,7 @@
+kind: Fixed
+body: |
+    Void results decode from stock Dagger engines, which return either `null` or an empty object; any other shape is still refused.
+time: 2026-10-17T00:01:00Z
+custom:
+    Author: iw
+    PR: "3"
