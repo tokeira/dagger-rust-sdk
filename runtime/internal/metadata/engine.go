@@ -101,7 +101,7 @@ func DecodeEngineSource(data []byte) (EngineSource, error) {
 	if err := decodeCanonical(data, &value); err != nil {
 		return EngineSource{}, fmt.Errorf("decode engine source: %w", err)
 	}
-	if value.FormatVersion != 1 || value.SDKDependency.Package != "dagger-sdk" {
+	if value.FormatVersion != 1 || value.SDKDependency.Package != "tokeira-dagger-sdk" {
 		return EngineSource{}, fmt.Errorf("engine source has an unsupported format or package")
 	}
 	return value, nil

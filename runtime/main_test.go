@@ -24,7 +24,7 @@ func TestGenerationRequestKeepsAuthoringSemanticsInRust(t *testing.T) {
 		SDKDependency: metadata.PublishedSDKDependency{
 			Source:       "registry",
 			Registry:     "crates-io",
-			Package:      "dagger-sdk",
+			Package:      "tokeira-dagger-sdk",
 			ExactVersion: "1.0.0-beta.11.rust.5",
 		},
 	}
@@ -70,7 +70,7 @@ func TestProperty19ModernLegacyGenerationSemanticallyConverge(t *testing.T) {
 		RustSDKVersion: "1.0.0-beta.11.rust.5", RustToolchain: "1.97.1",
 		CoreSchemaDigest: "sha256:" + strings.Repeat("b", 64),
 		SDKDependency: metadata.PublishedSDKDependency{
-			Source: "registry", Registry: "crates-io", Package: "dagger-sdk", ExactVersion: "1.0.0-beta.11.rust.5",
+			Source: "registry", Registry: "crates-io", Package: "tokeira-dagger-sdk", ExactVersion: "1.0.0-beta.11.rust.5",
 		},
 	}
 	for seed := 0; seed < 256; seed++ {

@@ -120,7 +120,8 @@ func sealWorkspaceContent(ctx context.Context, workspace *dagger.Directory, depe
 		WithFile(formatterToolPath, buildCtr.File(rustfmtPath), dagger.DirectoryWithFileOpts{Permissions: 0o755}).
 		WithFile(clientGenerationPath, workspace.File("crates/dagger-codegen/assets/client-generation.json")).
 		WithFile(runtimePolicyPath, workspace.File("runtime/assets/runtime-policy.json")).
-		WithFile("LICENSE", workspace.File("LICENSE"))
+		WithFile("LICENSE", workspace.File("LICENSE")).
+		WithFile("NOTICE", workspace.File("NOTICE"))
 
 	sealed := buildCtr.
 		// A scratch mount makes the package tool's writes available as a clean
