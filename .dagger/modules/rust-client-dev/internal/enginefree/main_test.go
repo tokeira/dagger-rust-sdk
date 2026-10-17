@@ -211,59 +211,10 @@ func TestOperationsFixtureSeparatesCheckedGenerationFromClientSchemaLoading(t *t
 	}
 }
 
-func TestForkSDKDependencyRevisionIsExplicitAndContentChecked(t *testing.T) {
-	t.Parallel()
-
-	engineContent := findFunction(t, parseGoFile(t, "../../main.go"), "engineContentFor")
-	if got := selectorCount(engineContent, "SDKDependencyRevision"); got != 2 {
-		t.Fatalf("engineContentFor must test and forward the explicit SDK dependency revision, got %d references", got)
-	}
-
-	generatedClient := findFunction(t, parseGoFile(t, "../dagger/dagger-engine.gen.go"), "RustSdkcontent")
-	for _, argument := range []string{"dependencyRepository", "dependencyRevision"} {
-		if got := stringLiteralCount(generatedClient, argument); got != 1 {
-			t.Fatalf("generated engine client must forward %s exactly once, got %d", argument, got)
-		}
-	}
-
-	builderSource := parseGoFile(t, "../../../engine-dev/build/sdk.go")
-	builder := findFunction(t, builderSource, "RustSDKContent")
-	if got := identifierCount(builder, "validateRustSDKGitDependency"); got != 1 {
-		t.Fatalf("Rust SDK content must validate its Git dependency exactly once, got %d", got)
-	}
-	validator := findFunction(t, builderSource, "validateRustSDKGitDependency")
-	if got := selectorCount(validator, "Filter"); got != 2 {
-		t.Fatalf("Git dependency validation must compare the same focused source closure, got %d filters", got)
-	}
-	if got := selectorCount(validator, "Diff"); got != 2 {
-		t.Fatalf("Git dependency validation must compare local and remote package entries bidirectionally, got %d diffs", got)
-	}
-	rawBuilder, err := os.ReadFile("../../../engine-dev/build/sdk.go")
-	if err != nil {
-		t.Fatalf("read engine Rust SDK builder: %v", err)
-	}
-	if strings.Contains(string(rawBuilder), "dependencyValue = build.vcsCommit") {
-		t.Fatalf("local engine provenance must not become the public SDK dependency revision")
-	}
-}
-
-func TestFocusedEngineStateFollowsRustContentIdentity(t *testing.T) {
-	t.Parallel()
-
-	engineSource := parseGoFile(t, "../../../engine-dev/main.go")
-	cacheIdentity := findFunction(t, engineSource, "engineStateCacheVolume")
-	if got := selectorCount(cacheIdentity, "TrimPrefix"); got != 1 {
-		t.Fatalf("engine state cache must normalize exactly one Rust manifest digest, got %d", got)
-	}
-	if got := stringLiteralCount(cacheIdentity, "sha256:"); got != 1 {
-		t.Fatalf("engine state cache must key the canonical Rust manifest identity")
-	}
-}
-
 func TestRuntimeSemanticDigestExcludesOnlyGeneratedRepresentations(t *testing.T) {
 	t.Parallel()
 
-	runtimeSource := parseGoFile(t, "../../../../../sdk/rust/runtime/main.go")
+	runtimeSource := parseGoFile(t, "../../../../../runtime/main.go")
 	identity := findFunction(t, runtimeSource, "semanticModuleSourceDigest")
 	for _, generated := range []string{
 		".dagger/rust", ".dagger/rust/**",
@@ -285,68 +236,6 @@ func TestRuntimeSemanticDigestExcludesOnlyGeneratedRepresentations(t *testing.T)
 	}
 	if got := selectorCount(identity, "UpdatedConfigDirectory"); got != 1 {
 		t.Fatalf("semantic module digest must overlay normalized module config exactly once, got %d", got)
-	}
-}
-
-func TestRuntimeBuildAuditPreservesCrossSDKHygiene(t *testing.T) {
-	t.Parallel()
-
-	goRuntime := findFunction(t, parseGoFile(t, "../../../../../core/sdk/go_sdk.go"), "Runtime")
-	for field, expected := range map[string]int{
-		"withEntrypoint": 1,
-		"withWorkdir":    1,
-		"withoutMount":   2,
-	} {
-		if got := stringLiteralCount(goRuntime, field); got != expected {
-			t.Fatalf("definitive Go runtime audit anchor %s changed: got %d, want %d", field, got, expected)
-		}
-	}
-
-	pythonTrusted := findFunction(t, parseGoFile(t, "../../../../../sdk/python/runtime/main.go"), "moduleRuntimeTrusted")
-	for call := range map[string]struct{}{
-		"requireGeneratedFiles": {},
-		"WithInstall":           {},
-	} {
-		if got := selectorCount(pythonTrusted, call); got != 1 {
-			t.Fatalf("Python checked-generation audit anchor %s changed: got %d", call, got)
-		}
-	}
-
-	typescriptRuntime := findFunction(t, parseGoFile(t, "../../../../../sdk/typescript/runtime/main.go"), "ModuleRuntime")
-	if got := selectorCount(typescriptRuntime, "SetupContainer"); got != 3 {
-		t.Fatalf("TypeScript runtime variants changed: got %d SetupContainer branches", got)
-	}
-
-	javaRuntime := findFunction(t, parseGoFile(t, "../../../../../sdk/java/runtime/main.go"), "ModuleRuntime")
-	for call := range map[string]struct{}{
-		"jreContainer":   {},
-		"WithFile":       {},
-		"WithEntrypoint": {},
-	} {
-		if got := selectorCount(javaRuntime, call); got != 1 {
-			t.Fatalf("Java promoted-runtime audit anchor %s changed: got %d", call, got)
-		}
-	}
-
-	rustRuntime := findFunction(t, parseGoFile(t, "../../../../../sdk/rust/runtime/runtime.go"), "ModuleRuntime")
-	for call, expected := range map[string]int{
-		"From":               2,
-		"WithMountedCache":   3,
-		"WithoutDefaultArgs": 1,
-		"WithEntrypoint":     1,
-	} {
-		if got := selectorCount(rustRuntime, call); got != expected {
-			t.Fatalf("Rust runtime must preserve audited %s count: got %d, want %d", call, got, expected)
-		}
-	}
-	for path := range map[string]struct{}{
-		"/usr/local/cargo/registry": {},
-		"/usr/local/cargo/git":      {},
-		"/scratch":                  {},
-	} {
-		if got := stringLiteralCount(rustRuntime, path); got != 1 {
-			t.Fatalf("Rust runtime audit path %q changed: got %d", path, got)
-		}
 	}
 }
 

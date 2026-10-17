@@ -3,10 +3,7 @@
 ## Mission and scope
 
 Elevate the Dagger Rust SDK to stable, Go-level capability while making its public API
-feel native to Rust. These instructions apply to `sdk/rust/**`. Repository-wide
-instructions and [the shared SDK contribution guide](../CONTRIBUTING.md) also apply;
-when guidance differs, follow the more specific rule without weakening a
-repository-wide requirement.
+feel native to Rust. These instructions apply to the whole repository.
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) for the human-facing workflow and
 [docs/architecture.md](docs/architecture.md) before changing component boundaries.
@@ -108,16 +105,13 @@ defect, even when formatting, compilation, and tests pass.
 
 ## Generated code and parity
 
-Regenerate from the repository root with the Rust-only selector:
+Regenerate from the repository root:
 
 ```console
-./hack/with-dev ./bin/dagger generate -y rust-sdk:apiclient
+cargo run -p dagger-bootstrap --bin dagger-rust --locked -- generate --workspace . --update
 ```
 
 Inspect generated output and keep generator changes together with their expected output.
-The unscoped `dagger generate -y` runs every registered workspace generator and is not
-a Rust SDK development gate; reserve it for changes intentionally spanning the whole
-repository.
 
 For work represented in the Go SDK:
 
@@ -130,7 +124,7 @@ For work represented in the Go SDK:
 
 ## Verification
 
-Run from `sdk/rust` before pushing:
+Run from the repository root before pushing:
 
 ```console
 cargo fmt --all --check
@@ -141,10 +135,11 @@ RUSTDOCFLAGS="-D warnings" cargo doc --workspace --all-features --no-deps --lock
 cargo deny check
 ```
 
-Also run `./hack/with-dev ./bin/dagger generate -y rust-sdk:apiclient` and the relevant
-repository Dagger checks when the change touches code generation, engine integration,
-examples, or release automation. State every command actually run in the pull request
-and explain any omission.
+Also run the generated-output check
+(`cargo run -p dagger-bootstrap --bin dagger-rust --locked -- generate --workspace . --check`)
+when the change touches code generation, engine integration, examples, or release
+automation. State every command actually run in the pull request and explain any
+omission.
 
 ## Worktree and Git safety
 

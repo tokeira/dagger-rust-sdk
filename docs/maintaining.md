@@ -22,7 +22,7 @@ and pinned Rust toolchain agree with the intended target.
 
 ## 2. Check and update generated output
 
-Run read-only generation from `sdk/rust`:
+Run read-only generation from the repository root:
 
 ```console
 cargo run -p dagger-bootstrap --bin dagger-rust --locked -- \
@@ -40,15 +40,6 @@ cargo run -p dagger-bootstrap --bin dagger-rust --locked -- \
 The update is failure-atomic and may replace only manifest-authorized paths. Run check
 mode again and inspect `git diff --stat` and `git diff`. The diff must match the
 binding manifest; unknown or authored content must remain unchanged.
-
-From the repository root, the scoped integration fence is:
-
-```console
-./hack/with-dev ./bin/dagger generate -y rust-sdk:apiclient
-```
-
-It must leave the checked generated client unchanged. Do not substitute unscoped
-workspace generation.
 
 ## 3. Refresh the target deliberately
 
@@ -134,7 +125,7 @@ not recovery tools.
 
 ## 5. Run engine-free acceptance
 
-From `sdk/rust`:
+From the repository root:
 
 ```console
 export RUSTC_WRAPPER=

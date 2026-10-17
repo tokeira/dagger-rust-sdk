@@ -1,7 +1,7 @@
 # dagger-bootstrap
 
 `dagger-bootstrap` provides the internal `dagger-rust` command used to verify or
-publish the [Dagger Rust SDK](https://github.com/dagger/dagger/tree/main/sdk/rust)
+publish the [Dagger Rust SDK](https://github.com/tokeira/dagger-rust-sdk)
 generated client from checked repository inputs.
 
 It connects two workspace components:
@@ -16,7 +16,7 @@ should use the two checked repository artifacts described by the
 
 ## Repository generation
 
-Run the command from `sdk/rust`, passing that directory as the explicit publication
+Run the command from the repository root, passing that directory as the explicit publication
 boundary:
 
 ```console

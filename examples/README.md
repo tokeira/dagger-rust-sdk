@@ -1,7 +1,7 @@
 # Dagger Rust SDK examples
 
 These standalone workspaces consume the local `dagger-sdk` crate and exercise realistic
-application pipelines. Run commands from `sdk/rust`; each program starts its own SDK
+application pipelines. Run commands from the repository root; each program starts its own SDK
 client and therefore also works under `dagger run` when an existing session is desired.
 
 | Example | What it demonstrates | Command |

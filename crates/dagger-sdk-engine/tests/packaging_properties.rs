@@ -286,10 +286,9 @@ fn repository_security_inputs_cover_derived_shipped_graph() {
     const CARGO_LOCK: &str = include_str!("../../../Cargo.lock");
     const RUNTIME_GO_MOD: &str = include_str!("../../../runtime/go.mod");
     const RUNTIME_GO_SUM: &str = include_str!("../../../runtime/go.sum");
-    const ENGINE_BUILDER: &str =
-        include_str!("../../../../../.dagger/modules/engine-dev/build/sdk.go");
-    const RUST_TOOLCHAIN: &str =
-        include_str!("../../../../../.dagger/modules/rust-client-dev/main.go");
+    // The runtime policy pins the builder image every shipped operation runs in.
+    const RUNTIME_POLICY: &str = include_str!("../../../runtime/assets/runtime-policy.json");
+    const RUST_TOOLCHAIN: &str = include_str!("../../../.dagger/modules/rust-client-dev/main.go");
 
     let manifest = synthetic_manifest(1);
     let graph = derive_shipped_audit_graph(&manifest).unwrap();
@@ -308,7 +307,7 @@ fn repository_security_inputs_cover_derived_shipped_graph() {
             "go:sdk/rust/runtime" => {
                 RUNTIME_GO_MOD.contains("module rust-sdk") && !RUNTIME_GO_SUM.is_empty()
             }
-            "image:rust-1.97.1" => ENGINE_BUILDER.contains(
+            "image:rust-1.97.1" => RUNTIME_POLICY.contains(
                 "rust:1.97.1-bookworm@sha256:705e294093973d7c10e83400393dce7b3611f8e03e55a80af7fff6d02ae1affb",
             ),
             "distribution:rust-sdk" => {

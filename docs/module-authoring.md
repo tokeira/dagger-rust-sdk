@@ -86,8 +86,8 @@ credential-bearing URLs, arbitrary panic payloads, host paths, or unbounded valu
 ## Development build and test: engine-free and Rust-first
 
 During implementation, run the narrowest owning package or fixture. The local
-development loop uses Cargo directly from `sdk/rust` and the direct Go ABI package under
-`sdk/rust/runtime`. It exercises the production source compiler, descriptor,
+development loop uses Cargo directly from the repository root and the direct Go ABI
+package under `runtime`. It exercises the production source compiler, descriptor,
 projections, registration, codecs, context, dispatcher, entrypoint adapter, and
 result sink with Rust values and a recording transport.
 

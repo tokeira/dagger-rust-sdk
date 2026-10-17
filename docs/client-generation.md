@@ -98,7 +98,7 @@ outside that region is authored and preserved.
 
 ## Contributor checkpoint
 
-Standalone-client development is Rust-first and engine-free. From `sdk/rust`, run only
+Standalone-client development is Rust-first and engine-free. From the repository root, run only
 the affected typed slices and reuse current checked assets and the materialized fixture
 baseline:
 

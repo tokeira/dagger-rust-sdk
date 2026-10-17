@@ -38,7 +38,7 @@ second release gate and do not replace the ordinary build.
 
 ## Engine-free development workflow
 
-From `sdk/rust`, run the canonical Rust commands in `AGENTS.md`. Useful focused suites
+From the repository root, run the canonical Rust commands in `AGENTS.md`. Useful focused suites
 include:
 
 ```console

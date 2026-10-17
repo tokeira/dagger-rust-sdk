@@ -1,7 +1,7 @@
 # dagger-codegen
 
 `dagger-codegen` is the schema compiler used to build the generated client surface of
-the [Dagger Rust SDK](https://github.com/dagger/dagger/tree/main/sdk/rust). It is
+the [Dagger Rust SDK](https://github.com/tokeira/dagger-rust-sdk). It is
 development tooling for the SDK rather than an application-facing client library.
 Application authors should use the two repository release artifacts described in the
 [`dagger-sdk` README](../dagger-sdk/README.md).
@@ -55,9 +55,9 @@ reviewed before enabling publication. It is not a supported replacement for
 `dagger-sdk`.
 
 Contributors should read the Rust SDK
-[`CONTRIBUTING.md`](https://github.com/dagger/dagger/blob/main/sdk/rust/CONTRIBUTING.md)
+[`CONTRIBUTING.md`](https://github.com/tokeira/dagger-rust-sdk/blob/main/CONTRIBUTING.md)
 and
-[`docs/architecture.md`](https://github.com/dagger/dagger/blob/main/sdk/rust/docs/architecture.md)
+[`docs/architecture.md`](https://github.com/tokeira/dagger-rust-sdk/blob/main/docs/architecture.md)
 before changing schema, projection, rendering, or publication boundaries.
 The end-to-end standalone-client ownership and checkpoint contract is documented in
-[`docs/client-generation.md`](https://github.com/dagger/dagger/blob/main/sdk/rust/docs/client-generation.md).
+[`docs/client-generation.md`](https://github.com/tokeira/dagger-rust-sdk/blob/main/docs/client-generation.md).

@@ -98,7 +98,7 @@ Disabling it never changes the raw request/response or client lifecycle contract
 
 ## Examples and contributing
 
-Small examples are packaged with the crate. From `sdk/rust`, run one with
+Small examples are packaged with the crate. From the repository root, run one with
 `cargo run -p dagger-sdk --example first-pipeline`. Standalone application examples
 live in [`../../examples`](../../examples).
 

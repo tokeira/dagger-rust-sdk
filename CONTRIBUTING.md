@@ -1,9 +1,7 @@
 # Contributing to the Dagger Rust SDK
 
-Thanks for helping improve the Rust SDK. Read the repository-wide
-[contribution guide](../../CONTRIBUTING.md), the shared
-[SDK guide](../CONTRIBUTING.md), and the Rust-specific
-[agent guidance](AGENTS.md) before making a substantial change.
+Thanks for helping improve the Rust SDK. Read the [agent guidance](AGENTS.md) before
+making a substantial change.
 
 For substantial features or public API changes, open an issue or discussion before
 implementation. This is especially important while module support and the path to a
@@ -72,7 +70,7 @@ release notes.
 
 ## Development workflow
 
-From `sdk/rust`:
+From the repository root:
 
 ```console
 cargo fmt --all --check
@@ -109,7 +107,7 @@ Run that command from the repository root.
 
 ## Generated code
 
-During generator development, run the direct read-only check from `sdk/rust`:
+During generator development, run the direct read-only check from the repository root:
 
 ```console
 cargo run -p dagger-bootstrap --bin dagger-rust --locked -- \
@@ -117,17 +115,16 @@ cargo run -p dagger-bootstrap --bin dagger-rust --locked -- \
 ```
 
 Use `--update` only when intentionally replacing the complete generator-owned output
-set. Before submitting, run repository generation from the repository root:
+set:
 
 ```console
-./hack/with-dev ./bin/dagger generate -y rust-sdk:apiclient
+cargo run -p dagger-bootstrap --bin dagger-rust --locked -- \
+  generate --workspace . --update
 ```
 
 Generation must be deterministic. Include generated changes that result from an
 intentional generator or schema change, and inspect them as part of review. Do not
-hide unrelated generated churn in a feature commit. The unscoped `dagger generate -y`
-runs every generator registered by the repository workspace and is not required for a
-Rust-only change.
+hide unrelated generated churn in a feature commit.
 
 ## Testing parity
 
@@ -153,12 +150,11 @@ cannot replace the direct compiler/dispatch closure.
 - Keep each pull request to one coherent change.
 - Explain what changed, why the design is idiomatic Rust, and how parity was verified.
 - List the commands actually run and explain any omissions.
-- Run `./hack/with-dev ./bin/dagger generate -y rust-sdk:apiclient` and include
-  intentional generated output.
+- Run the generated-output check and include intentional generated output.
 - Run the relevant format, check, test, and lint commands.
 - Keep `cargo deny check` green for advisories, licenses, dependency bans, and sources.
-- Add a Changie fragment for user-facing changes as required by the root contribution
-  guide. From this directory, `changie new` uses the Rust SDK changelog configuration.
+- Add a Changie fragment for user-facing changes. From the repository root,
+  `changie new` uses the Rust SDK changelog configuration.
 - Sign every commit under the Developer Certificate of Origin with `git commit -s`.
   The `Signed-off-by` identity is the human Git author.
 - Credit agent authorship and assistance using the trailers defined in
