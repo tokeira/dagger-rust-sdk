@@ -77,3 +77,16 @@ engine. It creates no tag or release and publishes no crate. Making those artifa
 available through a manual GitHub Release requires separate, direct authorization.
 The complete builder and retrieval procedure is the
 [`dagger-rust-builder-xl` Namespace runbook](docs/namespace-build.md).
+
+## Built with Claude
+
+Going forward, the overwhelming majority of contributions to this SDK will come from
+[Claude](https://www.anthropic.com/claude), the AI model made by
+[Anthropic](https://www.anthropic.com), working through
+[Claude Code](https://claude.com/claude-code). The maintainer directs the work, reviews
+every change, and approves every merge and release.
+
+Commits credit every agent that took part with a `Co-authored-by` or `Assisted-by`
+trailer, such as `Co-authored-by: Claude <noreply@anthropic.com>`, and pull requests name
+them, as [`AGENTS.md`](AGENTS.md) sets out. Earlier work in this history credits Codex and
+Kiro in the same way.
