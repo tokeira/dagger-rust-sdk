@@ -67,6 +67,11 @@ path = "examples/caching/main.rs"
 required-features = ["gen"]
 
 [[example]]
+name = "ci-checks"
+path = "examples/ci-checks.rs"
+required-features = ["gen"]
+
+[[example]]
 name = "existing-dockerfile"
 path = "examples/existing-dockerfile/main.rs"
 required-features = ["gen"]
