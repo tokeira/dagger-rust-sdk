@@ -11,7 +11,7 @@ client and therefore also works under `dagger run` when an existing session is d
 | [Frontend](frontend/src/main.rs) | Build and evaluate a Leptos web image | `cargo run --locked --manifest-path examples/frontend/Cargo.toml` |
 
 The smaller API-focused examples packaged inside `dagger-sdk` run with
-`cargo run -p dagger-sdk --example first-pipeline` and related example names.
+`cargo run -p tokeira-dagger-sdk --example first-pipeline` and related example names.
 
 The backend and frontend examples are build-only by default and make no registry write.
 Publishing is deliberately separate: select the `publish` subcommand, provide the complete

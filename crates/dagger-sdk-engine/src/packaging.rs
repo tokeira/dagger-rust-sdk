@@ -233,9 +233,12 @@ pub fn derive_shipped_audit_graph(
     let mut distribution_edges = BTreeSet::new();
 
     for (id, kind) in [
-        ("cargo:dagger-sdk", SecuritySubjectKind::PublishableCrate),
         (
-            "cargo:dagger-sdk-macros",
+            "cargo:tokeira-dagger-sdk",
+            SecuritySubjectKind::PublishableCrate,
+        ),
+        (
+            "cargo:tokeira-dagger-sdk-macros",
             SecuritySubjectKind::PublishableCrate,
         ),
         ("cargo:dagger-codegen", SecuritySubjectKind::PrivateCrate),
@@ -296,25 +299,25 @@ pub fn validate_packaged_distribution(
     generated_dependency: &PublishedSdkDependency,
 ) -> Result<SecurityAuditGraph, EngineDiagnostic> {
     let expected = BTreeSet::from([
-        coordinate("cargo:dagger-sdk")?,
-        coordinate("cargo:dagger-sdk-macros")?,
+        coordinate("cargo:tokeira-dagger-sdk")?,
+        coordinate("cargo:tokeira-dagger-sdk-macros")?,
     ]);
     if publishable_crates != &expected {
         return Err(packaging_error(
             EngineDiagnosticCode::PackagedAssetInvalid,
             "cargo-publication",
-            "dagger-sdk and its macro companion must be the complete public Rust workspace graph",
+            "tokeira-dagger-sdk and its macro companion must be the complete public Rust workspace graph",
         ));
     }
     match generated_dependency {
         PublishedSdkDependency::Registry { package, .. }
         | PublishedSdkDependency::Git { package, .. }
-            if package.as_str() == "dagger-sdk" => {}
+            if package.as_str() == crate::SDK_PACKAGE => {}
         _ => {
             return Err(packaging_error(
                 EngineDiagnosticCode::PackagedAssetInvalid,
                 "generated-dependency",
-                "generated projects may depend only on the public dagger-sdk crate",
+                "generated projects may depend only on the public tokeira-dagger-sdk crate",
             ));
         }
     }

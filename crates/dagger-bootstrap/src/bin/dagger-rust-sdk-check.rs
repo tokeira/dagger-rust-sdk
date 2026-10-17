@@ -13,8 +13,8 @@ use serde::Deserialize;
 use thiserror::Error;
 use toml_edit::{DocumentMut, Item, Value};
 
-const SDK_PACKAGE: &str = "dagger-sdk";
-const MACRO_PACKAGE: &str = "dagger-sdk-macros";
+const SDK_PACKAGE: &str = "tokeira-dagger-sdk";
+const MACRO_PACKAGE: &str = "tokeira-dagger-sdk-macros";
 const MAX_ARCHIVE_BYTES: u64 = 128 * 1024 * 1024;
 const MAX_MANIFEST_BYTES: u64 = 1024 * 1024;
 
@@ -363,9 +363,9 @@ pub(crate) fn validate_package_contract(
         ("gen".to_owned(), Vec::new()),
     ]);
     if sdk.features != expected_features {
-        return Err(CheckError::PackageContract(
-            "dagger-sdk features differ from the ordinary public surface".to_owned(),
-        ));
+        return Err(CheckError::PackageContract(format!(
+            "{SDK_PACKAGE} features differ from the ordinary public surface"
+        )));
     }
     let expected_requirement = format!("={}", sdk.version);
     let macro_edges = sdk
@@ -378,9 +378,9 @@ pub(crate) fn validate_package_contract(
         })
         .count();
     if macro_edges != 1 {
-        return Err(CheckError::PackageContract(
-            "dagger-sdk must have one exact normal macro dependency".to_owned(),
-        ));
+        return Err(CheckError::PackageContract(format!(
+            "{SDK_PACKAGE} must have one exact normal macro dependency"
+        )));
     }
     if sdk.dependencies.iter().any(|dependency| {
         dependency.requirement == "*"
@@ -388,9 +388,9 @@ pub(crate) fn validate_package_contract(
                 !source.starts_with("registry+https://github.com/rust-lang/crates.io-index")
             })
     }) {
-        return Err(CheckError::PackageContract(
-            "dagger-sdk contains a wildcard or unsupported registry dependency".to_owned(),
-        ));
+        return Err(CheckError::PackageContract(format!(
+            "{SDK_PACKAGE} contains a wildcard or unsupported registry dependency"
+        )));
     }
     if macros.edition != "2024"
         || macros.rust_version.as_deref() != Some("1.97.1")
@@ -474,9 +474,9 @@ fn validate_archive_set(archives: &[PackageArchive]) -> Result<PackageSet, Check
         ));
     }
     if sdk.manifest.features != BTreeSet::from(["default".to_owned(), "gen".to_owned()]) {
-        return Err(CheckError::PackageContract(
-            "dagger-sdk archive features differ from the ordinary public surface".to_owned(),
-        ));
+        return Err(CheckError::PackageContract(format!(
+            "{SDK_PACKAGE} archive features differ from the ordinary public surface"
+        )));
     }
     let expected_requirement = format!("={version}");
     if sdk.manifest.macro_dependency.as_deref() != Some(expected_requirement.as_str())

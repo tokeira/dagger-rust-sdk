@@ -116,6 +116,18 @@ pub struct ClientProjectIdentity {
     pub crate_name: RustIdentifier,
 }
 
+/// The public SDK package generated projects depend on.
+pub const SDK_PACKAGE: &str = "tokeira-dagger-sdk";
+/// The exact-version companion package that carries the SDK's procedural macros.
+pub const SDK_MACROS_PACKAGE: &str = "tokeira-dagger-sdk-macros";
+/// The library name the SDK package declares, so code names the SDK `dagger_sdk`.
+pub const SDK_LIBRARY: &str = "dagger_sdk";
+/// The dependency key generated projects give the SDK. Cargo exposes a dependency
+/// to code under its key, so this key keeps the `dagger_sdk` path whatever the
+/// package is called; a package published under another name is recorded with an
+/// explicit `package` field.
+pub const SDK_DEPENDENCY_KEY: &str = "dagger-sdk";
+
 /// Immutable dependency descriptor for generated projects.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 #[serde(tag = "source", rename_all = "kebab-case", deny_unknown_fields)]
@@ -138,6 +150,16 @@ pub enum PublishedSdkDependency {
         /// The sole public SDK package.
         package: SdkPackageName,
     },
+}
+
+impl PublishedSdkDependency {
+    /// The public SDK package this dependency names.
+    #[must_use]
+    pub fn package(&self) -> &SdkPackageName {
+        match self {
+            Self::Registry { package, .. } | Self::Git { package, .. } => package,
+        }
+    }
 }
 
 /// Complete semantic input to one engine operation.

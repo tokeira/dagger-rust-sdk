@@ -888,7 +888,7 @@ fn module_authoring_input(
         diagnostic(
             EngineDiagnosticCode::CargoManifestInvalid,
             manifest_path.as_str(),
-            "selected Cargo package has no dagger-sdk dependency",
+            "selected Cargo package has no tokeira-dagger-sdk dependency",
         )
     })?;
     let cargo_package = crate::CargoPackage {
@@ -946,12 +946,13 @@ fn child_path(
 
 fn sdk_dependency_alias(manifest: &toml_edit::DocumentMut) -> Option<String> {
     let dependencies = manifest.get("dependencies")?.as_table_like()?;
-    dependencies.iter().find_map(|(alias, dependency)| {
-        let package = dependency
-            .get("package")
-            .and_then(toml_edit::Item::as_str)
-            .unwrap_or(alias);
-        (package == "dagger-sdk").then(|| alias.replace('-', "_"))
+    dependencies.iter().find_map(|(key, dependency)| {
+        match dependency.get("package").and_then(toml_edit::Item::as_str) {
+            // A renamed dependency reaches code under its key.
+            Some(package) => (package == crate::SDK_PACKAGE).then(|| key.replace('-', "_")),
+            // An unrenamed dependency reaches code under the package's library name.
+            None => (key == crate::SDK_PACKAGE).then(|| crate::SDK_LIBRARY.to_owned()),
+        }
     })
 }
 
@@ -1053,7 +1054,7 @@ mod tests {
             output_root: client.clone(),
         };
         let cargo = format!(
-            "[package]\nname = \"dagger-rust-client\"\nversion = \"0.0.0\"\npublish = false\nedition = \"2024\"\nrust-version = \"1.97.1\"\n\n[package.metadata.dagger]\ncontent-domain = \"engine-hook-baseline\"\nvisible-schema-digest = \"{}\"\nmodule-source-digest = \"{}\"\n\n[dependencies]\ndagger-sdk = {{ version = \"=1.0.0-beta.11.rust.5\" }}\n",
+            "[package]\nname = \"dagger-rust-client\"\nversion = \"0.0.0\"\npublish = false\nedition = \"2024\"\nrust-version = \"1.97.1\"\n\n[package.metadata.dagger]\ncontent-domain = \"engine-hook-baseline\"\nvisible-schema-digest = \"{}\"\nmodule-source-digest = \"{}\"\n\n[dependencies]\ndagger-sdk = {{ package = \"tokeira-dagger-sdk\", version = \"=1.0.0-beta.11.rust.5\" }}\n",
             request.visible_schema.digest, module.source_digest
         )
         .into_bytes();
@@ -1173,7 +1174,8 @@ mod tests {
     fn dependency() -> PublishedSdkDependency {
         PublishedSdkDependency::Registry {
             registry: CanonicalRegistry::new("crates-io".to_owned()).expect("registry must parse"),
-            package: SdkPackageName::new("dagger-sdk".to_owned()).expect("package must parse"),
+            package: SdkPackageName::new(crate::SDK_PACKAGE.to_owned())
+                .expect("package must parse"),
             exact_version: exact("1.0.0-beta.11.rust.5"),
         }
     }

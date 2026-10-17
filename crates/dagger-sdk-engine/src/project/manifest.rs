@@ -12,7 +12,7 @@ use sha2::{Digest as _, Sha256};
 use toml_edit::{ArrayOfTables, DocumentMut, InlineTable, Item, Table, Value, value};
 
 use crate::diagnostic::{EngineDiagnostic, EngineDiagnosticCode};
-use crate::{PublishedSdkDependency, RelativeOperationPath, Sha256Digest};
+use crate::{PublishedSdkDependency, RelativeOperationPath, SDK_DEPENDENCY_KEY, Sha256Digest};
 
 const RUST_EDITION: &str = "2024";
 const RUST_MSRV: &str = "1.97.1";
@@ -93,7 +93,7 @@ pub fn plan_manifest_with_workspace(
     let inherited = package_document
         .get("dependencies")
         .and_then(Item::as_table)
-        .and_then(|table| table.get("dagger-sdk"))
+        .and_then(|table| table.get(SDK_DEPENDENCY_KEY))
         .is_some_and(is_workspace_dependency);
     if !inherited {
         return Err(conflict());
@@ -123,11 +123,12 @@ pub fn plan_manifest_with_workspace(
             "workspace dependencies must be a TOML table",
         )
     })?;
-    let workspace_dependency_changed = if let Some(existing) = dependencies.get("dagger-sdk") {
+    let workspace_dependency_changed = if let Some(existing) = dependencies.get(SDK_DEPENDENCY_KEY)
+    {
         validate_dependency(existing, dependency)?;
         false
     } else {
-        dependencies.insert("dagger-sdk", dependency_item(dependency));
+        dependencies.insert(SDK_DEPENDENCY_KEY, dependency_item(dependency));
         true
     };
     Ok(CargoWorkspaceAdoptionPlan {
@@ -196,26 +197,32 @@ fn plan_dependency(
             "dependencies must be represented by a TOML table",
         )
     })?;
-    if let Some(existing) = table.get("dagger-sdk") {
+    if let Some(existing) = table.get(SDK_DEPENDENCY_KEY) {
         validate_dependency(existing, dependency)?;
         return Ok(false);
     }
-    table.insert("dagger-sdk", dependency_item(dependency));
+    table.insert(SDK_DEPENDENCY_KEY, dependency_item(dependency));
     Ok(true)
 }
 
 fn dependency_item(dependency: &PublishedSdkDependency) -> Item {
+    let mut table = InlineTable::new();
+    if dependency.package().as_str() != SDK_DEPENDENCY_KEY {
+        table.insert("package", Value::from(dependency.package().as_str()));
+    }
     match dependency {
         PublishedSdkDependency::Registry { exact_version, .. } => {
-            value(format!("={exact_version}"))
+            if table.is_empty() {
+                return value(format!("={exact_version}"));
+            }
+            table.insert("version", Value::from(format!("={exact_version}")));
         }
         PublishedSdkDependency::Git { url, revision, .. } => {
-            let mut table = InlineTable::new();
             table.insert("git", Value::from(url.as_str()));
             table.insert("rev", Value::from(revision.as_str()));
-            Item::Value(Value::InlineTable(table))
         }
     }
+    Item::Value(Value::InlineTable(table))
 }
 
 fn plan_runtime_dependency(document: &mut DocumentMut) -> Result<bool, EngineDiagnostic> {
@@ -268,8 +275,12 @@ fn validate_dependency(
 ) -> Result<(), EngineDiagnostic> {
     if let Some(version) = item.as_str() {
         return match expected {
-            PublishedSdkDependency::Registry { exact_version, .. }
-                if version == format!("={exact_version}") =>
+            PublishedSdkDependency::Registry {
+                exact_version,
+                package,
+                ..
+            } if package.as_str() == SDK_DEPENDENCY_KEY
+                && version == format!("={exact_version}") =>
             {
                 Ok(())
             }
@@ -295,6 +306,13 @@ fn validate_dependency(
         if table.contains_key(mutable) {
             return Err(mutable_dependency());
         }
+    }
+    let package = table
+        .get("package")
+        .and_then(Value::as_str)
+        .unwrap_or(SDK_DEPENDENCY_KEY);
+    if package != expected.package().as_str() {
+        return Err(conflict());
     }
     match expected {
         PublishedSdkDependency::Registry { exact_version, .. } => {

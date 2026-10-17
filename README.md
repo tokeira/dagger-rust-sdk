@@ -2,10 +2,10 @@
 
 This workspace contains Dagger's beta Rust SDK, code generator, module-authoring
 runtime, standalone-client generator, and engine integration. The current SDK version
-is `1.0.0-beta.11.rust.5` and targets
-the Dagger `v1.0.0-beta.11` engine contract.
+is `0.1.0` and targets
+the Dagger `v1.0.0-beta.18` engine contract.
 
-Application users normally depend on [`dagger-sdk`](crates/dagger-sdk). The client is
+Application users normally depend on [`tokeira-dagger-sdk`](crates/dagger-sdk). The client is
 owned and asynchronous: it supports generated and raw GraphQL operations,
 caller-supplied connections, exact CLI provisioning, existing `dagger run` sessions,
 typed failures, diagnostics, W3C context propagation, and explicit shared shutdown.
@@ -56,7 +56,7 @@ impl Greeter {
 Small crate examples can be run from this directory:
 
 ```bash
-cargo run -p dagger-sdk --example first-pipeline
+cargo run -p tokeira-dagger-sdk --example first-pipeline
 ```
 
 The standalone application examples under [`examples`](examples) each have their own

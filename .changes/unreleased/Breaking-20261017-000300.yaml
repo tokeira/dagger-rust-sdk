@@ -1,0 +1,7 @@
+kind: Breaking
+body: |
+    The SDK is published as `tokeira-dagger-sdk`, with the `tokeira-dagger-sdk-macros` companion, and its versions start at `0.1.0`. Code still names the crate `dagger_sdk`, so a project changes only its `Cargo.toml` dependency. Generated projects record it as `dagger-sdk = { package = "tokeira-dagger-sdk", … }`.
+time: 2026-10-17T00:03:00Z
+custom:
+    Author: iw
+    PR: "5"

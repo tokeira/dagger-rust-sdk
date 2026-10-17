@@ -154,18 +154,19 @@ fn dependency(seed: u16, use_git: bool) -> PublishedSdkDependency {
         PublishedSdkDependency::Git {
             url: "https://github.com/dagger/dagger".parse().unwrap(),
             revision: format!("{seed:040x}").parse().unwrap(),
-            package: "dagger-sdk".parse().unwrap(),
+            package: "tokeira-dagger-sdk".parse().unwrap(),
         }
     } else {
         PublishedSdkDependency::Registry {
             registry: "crates-io".parse().unwrap(),
-            package: "dagger-sdk".parse().unwrap(),
+            package: "tokeira-dagger-sdk".parse().unwrap(),
             exact_version: format!("1.0.0-beta.{}", seed % 10).parse().unwrap(),
         }
     }
 }
 
 fn assert_dependency(rendered: &str, dependency: &PublishedSdkDependency) {
+    assert!(rendered.contains("package = \"tokeira-dagger-sdk\""));
     match dependency {
         PublishedSdkDependency::Registry { exact_version, .. } => {
             assert!(rendered.contains(&format!("={exact_version}")));

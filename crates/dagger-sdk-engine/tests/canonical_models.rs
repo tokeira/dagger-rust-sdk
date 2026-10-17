@@ -106,7 +106,7 @@ fn reject_invalid_boundary(corpus: &ModelCorpus, invalid_kind: u8) {
         }),
         2 => reject_request(corpus, |value| {
             value["sdk_dependency"] = json!({
-                "package": "dagger-sdk",
+                "package": "tokeira-dagger-sdk",
                 "revision": "main",
                 "source": "git",
                 "url": "https://github.com/dagger/dagger"

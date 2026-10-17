@@ -19,7 +19,8 @@ use crate::project::vcs::{append_missing_lines, generated_attributes, ignored_pa
 use crate::{
     AmendmentCoordinate, AmendmentKind, CargoPackageName, ClientProjectIdentity, EngineDiagnostic,
     EngineDiagnosticCode, ExactRustToolchain, OperationRoot, PublishedSdkDependency,
-    RelativeOperationPath, RustIdentifier, Sha256Digest, StableCoordinate, ToolchainSelection,
+    RelativeOperationPath, RustIdentifier, SDK_DEPENDENCY_KEY, Sha256Digest, StableCoordinate,
+    ToolchainSelection,
 };
 
 const RUST_EDITION: &str = "2024";
@@ -494,10 +495,13 @@ fn reconcile_manifest(
             "dependencies must be a TOML table",
         )
     })?;
-    if let Some(existing) = dependencies.get("dagger-sdk") {
+    if let Some(existing) = dependencies.get(SDK_DEPENDENCY_KEY) {
         validate_sdk_dependency(existing, &request.sdk_dependency)?;
     } else {
-        dependencies.insert("dagger-sdk", sdk_dependency_item(&request.sdk_dependency));
+        dependencies.insert(
+            SDK_DEPENDENCY_KEY,
+            sdk_dependency_item(&request.sdk_dependency),
+        );
     }
     if let Some(existing) = dependencies.get("tokio") {
         validate_tokio(existing)?;
@@ -556,17 +560,23 @@ fn require_or_insert_bool(
 }
 
 fn sdk_dependency_item(dependency: &PublishedSdkDependency) -> TomlItem {
+    let mut table = InlineTable::new();
+    if dependency.package().as_str() != SDK_DEPENDENCY_KEY {
+        table.insert("package", Value::from(dependency.package().as_str()));
+    }
     match dependency {
         PublishedSdkDependency::Registry { exact_version, .. } => {
-            value(format!("={exact_version}"))
+            if table.is_empty() {
+                return value(format!("={exact_version}"));
+            }
+            table.insert("version", Value::from(format!("={exact_version}")));
         }
         PublishedSdkDependency::Git { url, revision, .. } => {
-            let mut table = InlineTable::new();
             table.insert("git", Value::from(url.as_str()));
             table.insert("rev", Value::from(revision.as_str()));
-            TomlItem::Value(Value::InlineTable(table))
         }
     }
+    TomlItem::Value(Value::InlineTable(table))
 }
 
 fn validate_sdk_dependency(
@@ -575,8 +585,12 @@ fn validate_sdk_dependency(
 ) -> Result<(), EngineDiagnostic> {
     if let Some(version) = item.as_str() {
         return match expected {
-            PublishedSdkDependency::Registry { exact_version, .. }
-                if version == format!("={exact_version}") =>
+            PublishedSdkDependency::Registry {
+                exact_version,
+                package,
+                ..
+            } if package.as_str() == SDK_DEPENDENCY_KEY
+                && version == format!("={exact_version}") =>
             {
                 Ok(())
             }
@@ -592,6 +606,13 @@ fn validate_sdk_dependency(
             .any(|key| table.get(key).is_some())
     {
         return Err(sdk_mutable());
+    }
+    let package = table
+        .get("package")
+        .and_then(TomlItem::as_str)
+        .unwrap_or(SDK_DEPENDENCY_KEY);
+    if package != expected.package().as_str() {
+        return Err(sdk_conflict());
     }
     match expected {
         PublishedSdkDependency::Registry {
@@ -728,7 +749,7 @@ fn reconcile_readme(
             "## Dagger client\n\nThis Cargo project is ready for generated bindings. Run `dagger generate`; generation binds Core plus this client's one selected module. Bind each dependency through its own client.\n"
         }
         ClientDocumentationState::Generated => {
-            "## Dagger client\n\nBindings under `src/dagger_client` reuse the public `dagger-sdk` lifecycle and bind Core plus this client's one selected module. Run `cargo run --example dagger-client-quickstart`; bind each dependency through its own client. Files outside this generated region remain authored.\n"
+            "## Dagger client\n\nBindings under `src/dagger_client` reuse the public `tokeira-dagger-sdk` lifecycle and bind Core plus this client's one selected module. Run `cargo run --example dagger-client-quickstart`; bind each dependency through its own client. Files outside this generated region remain authored.\n"
         }
     };
     let region = render_readme_region(body);
@@ -862,7 +883,7 @@ fn cargo_semantic_value(key: &str, bytes: &[u8]) -> Result<Vec<u8>, EngineDiagno
         "dependencies.dagger-sdk" => document
             .get("dependencies")
             .and_then(TomlItem::as_table)
-            .and_then(|table| table.get("dagger-sdk")),
+            .and_then(|table| table.get(SDK_DEPENDENCY_KEY)),
         "dependencies.tokio" => document
             .get("dependencies")
             .and_then(TomlItem::as_table)
@@ -915,7 +936,7 @@ fn cargo_semantic_value_optional(
         "dependencies.dagger-sdk" => document
             .get("dependencies")
             .and_then(TomlItem::as_table)
-            .and_then(|table| table.get("dagger-sdk")),
+            .and_then(|table| table.get(SDK_DEPENDENCY_KEY)),
         "dependencies.tokio" => document
             .get("dependencies")
             .and_then(TomlItem::as_table)

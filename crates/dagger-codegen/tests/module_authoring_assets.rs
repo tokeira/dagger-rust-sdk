@@ -389,7 +389,7 @@ fn representative_generated_module_executes_directly_offline() {
     fs::write(
         root.join("Cargo.toml"),
         format!(
-            "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\n[dependencies]\nrenamed_sdk = {{ package = \"dagger-sdk\", path = {:?} }}\ntokio = {{ version = \"1\", features = [\"rt\"] }}\nasync-trait = \"0.1\"\n",
+            "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\n[dependencies]\nrenamed_sdk = {{ package = \"tokeira-dagger-sdk\", path = {:?} }}\ntokio = {{ version = \"1\", features = [\"rt\"] }}\nasync-trait = \"0.1\"\n",
             sdk
         ),
     )

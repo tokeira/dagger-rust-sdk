@@ -83,7 +83,7 @@ fn exact_candidate_compiles_with_supported_features_and_warning_free_docs() {
         &[
             "check",
             "-p",
-            "dagger-sdk",
+            "tokeira-dagger-sdk",
             "--all-features",
             "--locked",
             "--offline",
@@ -95,7 +95,7 @@ fn exact_candidate_compiles_with_supported_features_and_warning_free_docs() {
         &[
             "test",
             "-p",
-            "dagger-sdk",
+            "tokeira-dagger-sdk",
             "--test",
             "core_projection",
             "--all-features",
@@ -109,7 +109,7 @@ fn exact_candidate_compiles_with_supported_features_and_warning_free_docs() {
         &[
             "check",
             "-p",
-            "dagger-sdk",
+            "tokeira-dagger-sdk",
             "--test",
             "core_reachability",
             "--all-features",
@@ -123,7 +123,7 @@ fn exact_candidate_compiles_with_supported_features_and_warning_free_docs() {
         &[
             "check",
             "-p",
-            "dagger-sdk",
+            "tokeira-dagger-sdk",
             "--no-default-features",
             "--locked",
             "--offline",
@@ -135,7 +135,7 @@ fn exact_candidate_compiles_with_supported_features_and_warning_free_docs() {
         &[
             "rustdoc",
             "-p",
-            "dagger-sdk",
+            "tokeira-dagger-sdk",
             "--all-features",
             "--locked",
             "--offline",

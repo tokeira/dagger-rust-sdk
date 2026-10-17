@@ -130,7 +130,7 @@ proptest! {
             3 => corpus.request.target.rust_sdk_version = value("1.0.0-beta.11"),
             4 => corpus.request.target.rust_toolchain = value("1.98.0"),
             5 => corpus.request.target.core_schema_digest = digest(seed, 201),
-            6 => corpus.request.sdk_dependency = registry_dependency("1.0.0-beta.11", "dagger-sdk"),
+            6 => corpus.request.sdk_dependency = registry_dependency("1.0.0-beta.11", "tokeira-dagger-sdk"),
             7 => {
                 let mut changed = manifest.clone();
                 changed.assets.remove(&path(REQUIRED_PAYLOADS[usize::from(seed) % REQUIRED_PAYLOADS.len()]));
@@ -168,7 +168,7 @@ proptest! {
             }
             12 => {
                 let mut changed = descriptor.clone();
-                changed.sdk_dependency = registry_dependency("1.0.0-beta.11", "dagger-sdk");
+                changed.sdk_dependency = registry_dependency("1.0.0-beta.11", "tokeira-dagger-sdk");
                 prop_assert!(changed.validate().is_err());
                 return Ok(());
             }
@@ -207,29 +207,29 @@ proptest! {
         }
         let publishable = match publication_shape {
             0 => BTreeSet::from([
-                coordinate("cargo:dagger-sdk"),
-                coordinate("cargo:dagger-sdk-macros"),
+                coordinate("cargo:tokeira-dagger-sdk"),
+                coordinate("cargo:tokeira-dagger-sdk-macros"),
             ]),
             1 => BTreeSet::new(),
             2 => BTreeSet::from([coordinate("cargo:dagger-codegen")]),
             _ => BTreeSet::from([
-                coordinate("cargo:dagger-sdk"),
+                coordinate("cargo:tokeira-dagger-sdk"),
                 coordinate("cargo:dagger-sdk-engine"),
             ]),
         };
         if dependency_shape == 1 {
-            let valid = registry_dependency("1.0.0-beta.11.rust.5", "dagger-sdk");
+            let valid = registry_dependency("1.0.0-beta.11.rust.5", "tokeira-dagger-sdk");
             let mut invalid = serde_json::to_value(valid).unwrap();
             invalid["package"] = serde_json::json!("dagger-codegen");
             prop_assert!(decode_canonical::<PublishedSdkDependency>(&canonical_bytes(&invalid).unwrap()).is_err());
             return Ok(());
         }
         let dependency = match dependency_shape {
-            0 => registry_dependency("1.0.0-beta.11.rust.5", "dagger-sdk"),
+            0 => registry_dependency("1.0.0-beta.11.rust.5", "tokeira-dagger-sdk"),
             _ => PublishedSdkDependency::Git {
                 url: value("https://github.com/acme/dagger"),
                 revision: revision(seed),
-                package: value("dagger-sdk"),
+                package: value("tokeira-dagger-sdk"),
             },
         };
         let result = validate_packaged_distribution(&manifest, &publishable, &dependency);
@@ -246,7 +246,7 @@ proptest! {
                     .iter()
                     .map(|subject| subject.id.as_str())
                     .collect::<BTreeSet<_>>(),
-                BTreeSet::from(["cargo:dagger-sdk", "cargo:dagger-sdk-macros"]),
+                BTreeSet::from(["cargo:tokeira-dagger-sdk", "cargo:tokeira-dagger-sdk-macros"]),
             );
             let digest_before = canonical_digest(DigestDomain::PackagedAssets, &manifest).unwrap();
             manifest.assets.values_mut().next().unwrap().digest = digest(seed, 204);
@@ -297,9 +297,9 @@ fn repository_security_inputs_cover_derived_shipped_graph() {
     let mut audited = BTreeSet::new();
     for subject in graph.subjects().values() {
         let covered = match subject.id.as_str() {
-            "cargo:dagger-sdk" => CARGO_LOCK.contains("name = \"dagger-sdk\""),
-            "cargo:dagger-sdk-macros" => {
-                CARGO_LOCK.contains("name = \"dagger-sdk-macros\"")
+            "cargo:tokeira-dagger-sdk" => CARGO_LOCK.contains("name = \"tokeira-dagger-sdk\""),
+            "cargo:tokeira-dagger-sdk-macros" => {
+                CARGO_LOCK.contains("name = \"tokeira-dagger-sdk-macros\"")
             }
             "cargo:dagger-codegen" => CARGO_LOCK.contains("name = \"dagger-codegen\""),
             "cargo:dagger-bootstrap" => CARGO_LOCK.contains("name = \"dagger-bootstrap\""),
@@ -473,10 +473,10 @@ fn package_identity(seed: u8, fork: bool) -> PackageIdentity {
         PublishedSdkDependency::Git {
             url: value("https://github.com/acme/dagger"),
             revision: revision(seed.wrapping_add(1)),
-            package: value("dagger-sdk"),
+            package: value("tokeira-dagger-sdk"),
         }
     } else {
-        registry_dependency("1.0.0-beta.11.rust.5", "dagger-sdk")
+        registry_dependency("1.0.0-beta.11.rust.5", "tokeira-dagger-sdk")
     };
     PackageIdentity {
         repository,

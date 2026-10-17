@@ -142,7 +142,7 @@ cargo check --workspace --all-features --locked
 cargo test --workspace --all-features --locked
 cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --all-features --no-deps --locked
-cargo test -p dagger-sdk --no-default-features --locked
+cargo test -p tokeira-dagger-sdk --no-default-features --locked
 cargo deny check
 cargo run -p dagger-bootstrap --bin dagger-rust --locked -- \
   generate --workspace . --check
@@ -150,7 +150,7 @@ cargo run -p dagger-bootstrap --bin dagger-rust --locked -- \
 
 Also run the direct Go ABI and Dagger-module Go tests listed in
 [engine-integration.md](engine-integration.md). Review dependency activation with
-`cargo tree -p dagger-sdk -e features` and inspect every Cargo Deny advisory, license,
+`cargo tree -p tokeira-dagger-sdk -e features` and inspect every Cargo Deny advisory, license,
 ban, and source result. These checks do not construct an engine.
 
 Acceptance confirms `unsafe_code = "deny"`, both public package contents, default and

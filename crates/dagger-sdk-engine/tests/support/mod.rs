@@ -98,14 +98,14 @@ fn build_corpus(seed: u8, use_registry: bool, operation: u8, content: Vec<u8>) -
     let dependency = if use_registry {
         PublishedSdkDependency::Registry {
             registry: value("crates-io"),
-            package: value("dagger-sdk"),
+            package: value("tokeira-dagger-sdk"),
             exact_version: value("1.0.0-beta.11.rust.5"),
         }
     } else {
         PublishedSdkDependency::Git {
             url: value("https://github.com/dagger/dagger"),
             revision: value(&format!("{:040x}", u16::from(seed) + 1)),
-            package: value("dagger-sdk"),
+            package: value("tokeira-dagger-sdk"),
         }
     };
     let client_module = ClientModuleIdentity::from(&module);

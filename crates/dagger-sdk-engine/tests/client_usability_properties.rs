@@ -182,7 +182,7 @@ fn write_adopted_project(root: &Path) {
     fs::create_dir_all(root.join("src")).unwrap();
     fs::write(
         root.join("Cargo.toml"),
-        "[package]\nname = \"adopted-client\"\nversion = \"0.1.0\"\npublish = false\nedition = \"2024\"\nrust-version = \"1.97.1\"\n\n[dependencies]\ndagger-sdk = \"=1.0.0-beta.11.rust.5\"\n",
+        "[package]\nname = \"adopted-client\"\nversion = \"0.1.0\"\npublish = false\nedition = \"2024\"\nrust-version = \"1.97.1\"\n\n[dependencies]\ndagger-sdk = { package = \"tokeira-dagger-sdk\", version = \"=0.1.0\" }\n",
     )
     .unwrap();
     fs::write(
@@ -241,7 +241,7 @@ fn write_fixture_workspace(root: &Path, candidates: &[PathBuf], baseline: &Local
     fs::write(
         root.join("Cargo.toml"),
         format!(
-            "[workspace]\nmembers = [{members}]\nresolver = \"3\"\n\n[patch.crates-io]\ndagger-sdk = {{ path = \"{sdk}\" }}\ndagger-sdk-macros = {{ path = \"{macros}\" }}\n"
+            "[workspace]\nmembers = [{members}]\nresolver = \"3\"\n\n[patch.crates-io]\ntokeira-dagger-sdk = {{ path = \"{sdk}\" }}\ntokeira-dagger-sdk-macros = {{ path = \"{macros}\" }}\n"
         ),
     )
     .unwrap();
@@ -375,7 +375,7 @@ fn target() -> TargetIdentity {
         repository: CanonicalRepositoryUrl::new("https://github.com/dagger/dagger").unwrap(),
         dagger_revision: FullRevision::new(REVISION).unwrap(),
         engine_version: ExactVersion::new("1.0.0-beta.18").unwrap(),
-        rust_sdk_version: ExactVersion::new("1.0.0-beta.11.rust.5").unwrap(),
+        rust_sdk_version: ExactVersion::new("0.1.0").unwrap(),
         rust_toolchain: ExactRustToolchain::new("1.97.1").unwrap(),
         core_schema_digest: Sha256Digest::new(CORE_SCHEMA_DIGEST).unwrap(),
     }
@@ -384,8 +384,8 @@ fn target() -> TargetIdentity {
 fn dependency() -> PublishedSdkDependency {
     PublishedSdkDependency::Registry {
         registry: CanonicalRegistry::new("crates-io").unwrap(),
-        package: SdkPackageName::new("dagger-sdk").unwrap(),
-        exact_version: ExactVersion::new("1.0.0-beta.11.rust.5").unwrap(),
+        package: SdkPackageName::new("tokeira-dagger-sdk").unwrap(),
+        exact_version: ExactVersion::new("0.1.0").unwrap(),
     }
 }
 

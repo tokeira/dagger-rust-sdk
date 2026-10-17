@@ -407,44 +407,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dagger-sdk"
-version = "1.0.0-beta.11.rust.5"
-dependencies = [
- "async-trait",
- "base64 0.21.7",
- "dagger-sdk-macros",
- "dirs",
- "flate2",
- "futures",
- "hex",
- "opentelemetry",
- "opentelemetry_sdk",
- "reqwest",
- "semver",
- "serde",
- "serde_graphql_input",
- "serde_json",
- "sha2",
- "tar",
- "tempfile",
- "tokio",
- "tracing",
- "tracing-opentelemetry",
- "tracing-subscriber",
- "url",
- "zip",
-]
-
-[[package]]
-name = "dagger-sdk-macros"
-version = "1.0.0-beta.11.rust.5"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.119",
-]
-
-[[package]]
 name = "dashmap"
 version = "5.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -596,8 +558,8 @@ name = "frontend"
 version = "0.1.0"
 dependencies = [
  "clap",
- "dagger-sdk",
  "eyre",
+ "tokeira-dagger-sdk",
  "tokio",
 ]
 
@@ -2433,6 +2395,44 @@ name = "tinyvec_macros"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
+
+[[package]]
+name = "tokeira-dagger-sdk"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "base64 0.21.7",
+ "dirs",
+ "flate2",
+ "futures",
+ "hex",
+ "opentelemetry",
+ "opentelemetry_sdk",
+ "reqwest",
+ "semver",
+ "serde",
+ "serde_graphql_input",
+ "serde_json",
+ "sha2",
+ "tar",
+ "tempfile",
+ "tokeira-dagger-sdk-macros",
+ "tokio",
+ "tracing",
+ "tracing-opentelemetry",
+ "tracing-subscriber",
+ "url",
+ "zip",
+]
+
+[[package]]
+name = "tokeira-dagger-sdk-macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
 
 [[package]]
 name = "tokio"

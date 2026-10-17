@@ -110,7 +110,7 @@ cargo test -p dagger-sdk-engine \
 cargo test -p dagger-codegen \
   --test module_authoring_assets \
   --test module_diagnostics --locked
-cargo test -p dagger-sdk --test module_authoring_compile --locked
+cargo test -p tokeira-dagger-sdk --test module_authoring_compile --locked
 ```
 
 The complete local gate additionally runs the canonical workspace format, check, test,

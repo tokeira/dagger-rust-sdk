@@ -252,7 +252,7 @@ fn package_content(matches: &clap::ArgMatches) -> Result<(), EngineDiagnostic> {
         "registry" => PublishedSdkDependency::Registry {
             registry: CanonicalRegistry::new("crates-io".to_owned())
                 .expect("the canonical registry constant is valid"),
-            package: SdkPackageName::new("dagger-sdk".to_owned())
+            package: SdkPackageName::new(crate::SDK_PACKAGE.to_owned())
                 .expect("the public SDK package constant is valid"),
             exact_version: dependency_value.parse().map_err(|_| {
                 invalid(
@@ -269,7 +269,7 @@ fn package_content(matches: &clap::ArgMatches) -> Result<(), EngineDiagnostic> {
                     "Git dependency must be a full immutable revision",
                 )
             })?,
-            package: SdkPackageName::new("dagger-sdk".to_owned())
+            package: SdkPackageName::new(crate::SDK_PACKAGE.to_owned())
                 .expect("the public SDK package constant is valid"),
         },
         _ => {

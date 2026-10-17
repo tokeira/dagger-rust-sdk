@@ -59,7 +59,7 @@ proptest! {
     fn property_12_sdk_dependency_exact_immutable_fixture_independent(
         seed in any::<u16>(),
         use_git in any::<bool>(),
-        mutation in 0_u8..8,
+        mutation in 0_u8..9,
         fixture_state in any::<u64>(),
     ) {
         let package = format!("client-{seed}");
@@ -467,7 +467,7 @@ fn project_request(
 fn registry_dependency() -> PublishedSdkDependency {
     PublishedSdkDependency::Registry {
         registry: CanonicalRegistry::new("crates-io".to_owned()).unwrap(),
-        package: SdkPackageName::new("dagger-sdk".to_owned()).unwrap(),
+        package: SdkPackageName::new("tokeira-dagger-sdk".to_owned()).unwrap(),
         exact_version: ExactVersion::new("1.0.0-beta.11.rust.5".to_owned()).unwrap(),
     }
 }
@@ -476,30 +476,36 @@ fn git_dependency(seed: u16) -> PublishedSdkDependency {
     PublishedSdkDependency::Git {
         url: CanonicalRepositoryUrl::new("https://github.com/dagger/dagger".to_owned()).unwrap(),
         revision: FullRevision::new(format!("{seed:040x}")).unwrap(),
-        package: SdkPackageName::new("dagger-sdk".to_owned()).unwrap(),
+        package: SdkPackageName::new("tokeira-dagger-sdk".to_owned()).unwrap(),
     }
 }
 
 fn dependency_declaration(dependency: &PublishedSdkDependency, mutation: u8) -> String {
     match dependency {
         PublishedSdkDependency::Registry { exact_version, .. } => match mutation {
-            0 => format!("{{ version = \"={exact_version}\", registry = \"crates-io\" }}"),
+            0 => format!(
+                "{{ package = \"tokeira-dagger-sdk\", version = \"={exact_version}\", registry = \"crates-io\" }}"
+            ),
             1 => "\"*\"".to_owned(),
             2 => "\"^1\"".to_owned(),
             3 => "{ path = \"../dagger-sdk\" }".to_owned(),
             4 => "{ workspace = true }".to_owned(),
             5 => "{ version = \"=9.9.9\" }".to_owned(),
             6 => "{ git = \"https://github.com/dagger/dagger\" }".to_owned(),
+            7 => format!("{{ version = \"={exact_version}\", registry = \"crates-io\" }}"),
             _ => format!("{{ version = \"={exact_version}\", registry = \"private\" }}"),
         },
         PublishedSdkDependency::Git { url, revision, .. } => match mutation {
-            0 => format!("{{ git = \"{url}\", rev = \"{revision}\" }}"),
+            0 => format!(
+                "{{ package = \"tokeira-dagger-sdk\", git = \"{url}\", rev = \"{revision}\" }}"
+            ),
             1 => format!("{{ git = \"{url}\", branch = \"main\" }}"),
             2 => format!("{{ git = \"{url}\", tag = \"v1\" }}"),
             3 => "{ path = \"../dagger-sdk\" }".to_owned(),
             4 => "{ workspace = true }".to_owned(),
             5 => format!("{{ git = \"{url}\", rev = \"{:040x}\" }}", 999_u16),
             6 => format!("{{ git = \"{url}\" }}"),
+            7 => format!("{{ git = \"{url}\", rev = \"{revision}\" }}"),
             _ => format!("{{ git = \"https://github.com/other/dagger\", rev = \"{revision}\" }}"),
         },
     }

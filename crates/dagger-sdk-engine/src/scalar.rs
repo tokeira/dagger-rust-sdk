@@ -210,8 +210,11 @@ fn validate_registry(value: &str) -> Result<(), String> {
 }
 
 fn validate_sdk_package(value: &str) -> Result<(), String> {
-    if value != "dagger-sdk" {
-        return Err("must name the public dagger-sdk package".to_owned());
+    if value != crate::SDK_PACKAGE {
+        return Err(format!(
+            "must name the public {} package",
+            crate::SDK_PACKAGE
+        ));
     }
     Ok(())
 }

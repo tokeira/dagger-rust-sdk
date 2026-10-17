@@ -30,7 +30,7 @@ pub struct ModuleCompilationRequest<'a> {
     pub visible_type_names: &'a BTreeSet<super::model::WireName>,
     /// Immutable module compiler and renderer identity.
     pub generator_digest: &'a Sha256Digest,
-    /// Actual Cargo alias through which generated support reaches `dagger-sdk`.
+    /// Actual Cargo alias through which generated support reaches `tokeira-dagger-sdk`.
     pub sdk_dependency_alias: &'a str,
     /// Checked visible bindings copied without invoking Core generation.
     pub checked_bindings: &'a BTreeMap<GeneratedAssetPath, Vec<u8>>,

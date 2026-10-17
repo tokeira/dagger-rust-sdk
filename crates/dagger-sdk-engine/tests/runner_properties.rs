@@ -356,7 +356,7 @@ fn snapshot_tree(root: &Path) -> BTreeMap<String, Option<Vec<u8>>> {
 fn alternate_dependency(seed: u8) -> PublishedSdkDependency {
     PublishedSdkDependency::Registry {
         registry: "crates-io".parse().unwrap(),
-        package: "dagger-sdk".parse().unwrap(),
+        package: "tokeira-dagger-sdk".parse().unwrap(),
         exact_version: format!("1.0.0-beta.{}", (seed % 8) + 1).parse().unwrap(),
     }
 }

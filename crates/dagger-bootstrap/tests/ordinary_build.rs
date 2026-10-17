@@ -27,23 +27,23 @@ fn package(name: &str, version: &str, publishable: bool) -> PackageView {
 
 fn valid_package_contract(seed: u16) -> (MetadataView, Vec<PackageArchive>) {
     let version = format!("1.0.0-beta.{}", seed % 32 + 1);
-    let mut sdk = package("dagger-sdk", &version, true);
+    let mut sdk = package("tokeira-dagger-sdk", &version, true);
     sdk.features = BTreeMap::from([
         ("default".to_owned(), vec!["gen".to_owned()]),
         ("gen".to_owned(), Vec::new()),
     ]);
     sdk.dependencies.push(DependencyView {
-        name: "dagger-sdk-macros".to_owned(),
+        name: "tokeira-dagger-sdk-macros".to_owned(),
         requirement: format!("={version}"),
         kind: None,
         source: None,
     });
-    let macros = package("dagger-sdk-macros", &version, true);
+    let macros = package("tokeira-dagger-sdk-macros", &version, true);
     let internal = package("dagger-bootstrap", &version, false);
 
     let sdk_archive = PackageArchive {
-        file_name: format!("dagger-sdk-{version}.crate"),
-        root: format!("dagger-sdk-{version}"),
+        file_name: format!("tokeira-dagger-sdk-{version}.crate"),
+        root: format!("tokeira-dagger-sdk-{version}"),
         files: BTreeSet::from([
             "Cargo.toml".to_owned(),
             "LICENSE".to_owned(),
@@ -53,7 +53,7 @@ fn valid_package_contract(seed: u16) -> (MetadataView, Vec<PackageArchive>) {
             "src/lib.rs".to_owned(),
         ]),
         manifest: PackageManifestView {
-            name: "dagger-sdk".to_owned(),
+            name: "tokeira-dagger-sdk".to_owned(),
             version: version.clone(),
             features: BTreeSet::from(["default".to_owned(), "gen".to_owned()]),
             macro_dependency: Some(format!("={version}")),
@@ -62,15 +62,15 @@ fn valid_package_contract(seed: u16) -> (MetadataView, Vec<PackageArchive>) {
         safe: true,
     };
     let macro_archive = PackageArchive {
-        file_name: format!("dagger-sdk-macros-{version}.crate"),
-        root: format!("dagger-sdk-macros-{version}"),
+        file_name: format!("tokeira-dagger-sdk-macros-{version}.crate"),
+        root: format!("tokeira-dagger-sdk-macros-{version}"),
         files: BTreeSet::from([
             "Cargo.toml".to_owned(),
             "README.md".to_owned(),
             "src/lib.rs".to_owned(),
         ]),
         manifest: PackageManifestView {
-            name: "dagger-sdk-macros".to_owned(),
+            name: "tokeira-dagger-sdk-macros".to_owned(),
             version,
             features: BTreeSet::new(),
             macro_dependency: None,
@@ -127,7 +127,7 @@ fn mutate_package_contract(
             metadata
                 .packages
                 .iter_mut()
-                .find(|package| package.name == "dagger-sdk-macros")
+                .find(|package| package.name == "tokeira-dagger-sdk-macros")
                 .expect("fixture contains macros")
                 .rust_version = Some("1.96.0".to_owned());
         }
@@ -139,16 +139,16 @@ fn sdk(metadata: &mut MetadataView) -> &mut PackageView {
     metadata
         .packages
         .iter_mut()
-        .find(|package| package.name == "dagger-sdk")
+        .find(|package| package.name == "tokeira-dagger-sdk")
         .expect("fixture contains SDK")
 }
 
 fn sdk_archive(archives: &mut [PackageArchive]) -> &mut PackageArchive {
-    archive(archives, "dagger-sdk")
+    archive(archives, "tokeira-dagger-sdk")
 }
 
 fn macro_archive(archives: &mut [PackageArchive]) -> &mut PackageArchive {
-    archive(archives, "dagger-sdk-macros")
+    archive(archives, "tokeira-dagger-sdk-macros")
 }
 
 fn archive<'a>(archives: &'a mut [PackageArchive], name: &str) -> &'a mut PackageArchive {

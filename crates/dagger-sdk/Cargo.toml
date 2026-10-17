@@ -1,6 +1,6 @@
 [package]
-name = "dagger-sdk"
-description = "A dagger sdk for rust, written in rust"
+name = "tokeira-dagger-sdk"
+description = "Rust SDK for Dagger, maintained by Tokeira. Not affiliated with Dagger, Inc."
 publish = true
 readme = "README.md"
 include = ["/src/**", "/examples/**", "!/examples/*/app/**", "/README.md", "/LICENSE"]
@@ -12,11 +12,15 @@ authors.workspace = true
 repository.workspace = true
 license.workspace = true
 
+[lib]
+# Code names the SDK `dagger_sdk` whichever package name a project depends on.
+name = "dagger_sdk"
+
 [lints]
 workspace = true
 
 [dependencies]
-dagger-sdk-macros.workspace = true
+tokeira-dagger-sdk-macros.workspace = true
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

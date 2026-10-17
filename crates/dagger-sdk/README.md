@@ -75,7 +75,7 @@ trace propagation, compatibility policy, injected connections, and shutdown deta
 
 Module authors use the `object`, `interface`, `enum_type`, `scalar`, and `methods`
 attributes re-exported from this crate. Their exact-version procedural implementation
-lives in `dagger-sdk-macros`; applications should not add that companion directly.
+lives in `tokeira-dagger-sdk-macros`; applications should not add that companion directly.
 The authoring syntax, state/dispatch model, and current verification boundary are
 documented in [`../../docs/module-authoring.md`](../../docs/module-authoring.md).
 
@@ -99,7 +99,7 @@ Disabling it never changes the raw request/response or client lifecycle contract
 ## Examples and contributing
 
 Small examples are packaged with the crate. From the repository root, run one with
-`cargo run -p dagger-sdk --example first-pipeline`. Standalone application examples
+`cargo run -p tokeira-dagger-sdk --example first-pipeline`. Standalone application examples
 live in [`../../examples`](../../examples).
 
 Development and verification commands are documented in

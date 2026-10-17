@@ -1,5 +1,5 @@
 [package]
-name = "dagger-sdk-macros"
+name = "tokeira-dagger-sdk-macros"
 description = "Procedural authoring attributes for the Dagger Rust SDK"
 publish = true
 readme = "README.md"
@@ -13,6 +13,7 @@ repository.workspace = true
 license.workspace = true
 
 [lib]
+name = "dagger_sdk_macros"
 proc-macro = true
 
 [lints]
