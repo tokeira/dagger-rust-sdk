@@ -1,14 +1,14 @@
-# Runs the ci module (docs/ci.md) on Namespace's Buildkite agents with the same commands as
-# the GitHub Actions workflows. Each step keeps its engine's state on a Namespace cache
-# volume, so the build cache outlives the job, and stops the engine before the job ends so
-# the volume is saved after a clean shutdown. `$$` defers expansion to the job's shell.
+# Runs the ci module (docs/ci.md) on Namespace's Buildkite agents. Each step keeps its
+# engine's state on a Namespace cache volume, so the build cache outlives the job, and stops
+# the engine before the job ends so the volume is saved after a clean shutdown. `$$` defers
+# expansion to the job's shell.
 
 agents:
   nsc-shape: "8x32"
 
 env:
   # Jobs run in a terminal, where `dagger` would draw its interactive UI. The report is
-  # what it prints without one, as in the workflows.
+  # what it prints without one.
   DAGGER_PROGRESS: report
 
 steps:
@@ -32,8 +32,8 @@ steps:
 
   - label: "acceptance"
     key: acceptance
-    # Runs when the commit can change what users install or copy, as the acceptance
-    # workflow does. The agent diffs the commit against its merge base with `main`.
+    # Runs when the commit can change what users install or copy: the agent diffs the
+    # commit against its merge base with `main`.
     if_changed:
       - runtime/**
       - crates/**
