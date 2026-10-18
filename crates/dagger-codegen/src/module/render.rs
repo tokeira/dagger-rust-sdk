@@ -304,6 +304,8 @@ fn checked_source(source: String) -> Result<Vec<u8>, ModuleDiagnosticSet> {
 fn render_mod(alias: &str, checked_bindings: &BTreeMap<GeneratedAssetPath, Vec<u8>>) -> Vec<u8> {
     let mut source = format!(
         "//! Generated module support for the checked authoring descriptor.\n\n\
+         // Generated code handles every authored item, deprecated ones included.\n\
+         #![allow(deprecated)]\n\n\
          #[doc(hidden)]\npub mod __private {{\n    pub use {alias}::__private::*;\n}}\n\n\
          mod module_codec;\nmod module_context;\nmod module_descriptor;\nmod module_dispatch;\nmod module_registration;\n\n\
          #[doc(hidden)]\npub use module_dispatch::GeneratedDispatchRegistry;\n\
@@ -449,9 +451,22 @@ fn render_registration(
         .values()
         .filter(|ty| ty.wire_name.as_str() != "Query")
     {
+        let attach = match ty.kind {
+            ProjectedTypeKind::Object => "with_object",
+            ProjectedTypeKind::Interface => "with_interface",
+            ProjectedTypeKind::Enum => "with_enum",
+            // A module does not attach scalars, so their definition would go unused.
+            ProjectedTypeKind::Scalar => continue,
+        };
         let variable = format!("type_{}", ty.wire_name.as_str().to_ascii_lowercase());
+        // Fields and functions are added after the definition. An enum's members are
+        // part of it, so a type that gains neither is bound immutably.
+        let mutable = !ty.fields.is_empty()
+            || ty.functions.iter().any(|function| !function.constructor)
+            || ty.wire_name.as_str() == root_wire_name;
         output.push_str(&format!(
-            "            let mut {variable} = {};\n",
+            "            let {}{variable} = {};\n",
+            if mutable { "mut " } else { "" },
             render_type_definition(ty, alias)
         ));
         for field in &ty.fields {
@@ -478,12 +493,6 @@ fn render_registration(
                 true,
             )?);
         }
-        let attach = match ty.kind {
-            ProjectedTypeKind::Object => "with_object",
-            ProjectedTypeKind::Interface => "with_interface",
-            ProjectedTypeKind::Enum => "with_enum",
-            ProjectedTypeKind::Scalar => continue,
-        };
         output.push_str(&format!(
             "            module = module.{attach}({variable});\n"
         ));
@@ -1041,8 +1050,14 @@ fn render_dispatch_arm(
     }
     for (index, argument) in function.compiled.arguments.iter().enumerate() {
         let argument_type = rust_type(&argument.ty, generated_type_paths)?;
+        // `get(0)` would trip `clippy::get_first` in the module that compiles this.
+        let lookup = if index == 0 {
+            "first()".to_owned()
+        } else {
+            format!("get({index})")
+        };
         output.push_str(&format!(
-            "                        let argument_{index}: {argument_type} = <{argument_type} as super::__private::ModuleInputCodec>::decode_input(call.arguments.get({index}).ok_or_else(|| super::__private::InvocationError::ArgumentDecode {{ coordinate: coordinate.clone(), argument_wire_name: {:?}.to_owned() }})?, &context).map_err(|_| super::__private::InvocationError::ArgumentDecode {{ coordinate: coordinate.clone(), argument_wire_name: {:?}.to_owned() }})?;\n",
+            "                        let argument_{index}: {argument_type} = <{argument_type} as super::__private::ModuleInputCodec>::decode_input(call.arguments.{lookup}.ok_or_else(|| super::__private::InvocationError::ArgumentDecode {{ coordinate: coordinate.clone(), argument_wire_name: {:?}.to_owned() }})?, &context).map_err(|_| super::__private::InvocationError::ArgumentDecode {{ coordinate: coordinate.clone(), argument_wire_name: {:?}.to_owned() }})?;\n",
             argument.wire_name.as_str(),
             argument.wire_name.as_str()
         ));

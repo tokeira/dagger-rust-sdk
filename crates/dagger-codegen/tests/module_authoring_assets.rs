@@ -435,6 +435,26 @@ fn representative_generated_module_executes_directly_offline() {
         "generated fixture failed:\n{}",
         String::from_utf8_lossy(&output.stderr)
     );
+    // A module that compiles generated code must not need lint exceptions for it.
+    let lints = Command::new(env!("CARGO"))
+        .args([
+            "clippy",
+            "--all-targets",
+            "--offline",
+            "--quiet",
+            "--",
+            "-D",
+            "warnings",
+        ])
+        .env("CARGO_TARGET_DIR", &target_dir)
+        .current_dir(root)
+        .output()
+        .expect("offline fixture clippy must start");
+    assert!(
+        lints.status.success(),
+        "generated fixture has lints:\n{}",
+        String::from_utf8_lossy(&lints.stderr)
+    );
 }
 
 fn direct_harness_source() -> &'static str {
@@ -754,6 +774,11 @@ impl Root {
     #[dagger(function)]
     pub(crate) fn model(&self, model: renamed_sdk::Llm) -> renamed_sdk::Llm {
         model
+    }
+
+    #[dagger(function)]
+    pub(crate) fn mood(&self, mood: Mood) -> Mood {
+        mood
     }
 }
 "#
