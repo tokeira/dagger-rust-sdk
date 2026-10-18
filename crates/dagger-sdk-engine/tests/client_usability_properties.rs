@@ -245,11 +245,19 @@ fn write_fixture_workspace(root: &Path, candidates: &[PathBuf], baseline: &Local
         ),
     )
     .unwrap();
+    // The SDK workspace's lockfile pins its dependency versions, so the offline lock phase
+    // does not depend on what the registry has yanked since.
+    let workspace = baseline
+        .sdk
+        .parent()
+        .and_then(Path::parent)
+        .expect("the SDK crate sits two levels below its workspace root");
+    fs::copy(workspace.join("Cargo.lock"), root.join("Cargo.lock")).unwrap();
 }
 
 fn run_scoped_cargo_contract(root: &Path, baseline: &LocalSdkBaseline) -> Vec<CargoPhaseRecord> {
     let phases = [
-        ("lock", vec!["generate-lockfile", "--offline"]),
+        ("lock", vec!["update", "--workspace", "--offline"]),
         ("rustfmt", vec!["fmt", "--all", "--", "--check"]),
         (
             "check",

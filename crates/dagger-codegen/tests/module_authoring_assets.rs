@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use dagger_codegen::module::{
@@ -394,6 +394,14 @@ fn representative_generated_module_executes_directly_offline() {
         ),
     )
     .expect("fixture manifest must write");
+    // The workspace lockfile pins the SDK's dependency versions, so offline resolution does
+    // not depend on what the registry has yanked since.
+    let workspace = manifest_dir
+        .parent()
+        .and_then(Path::parent)
+        .expect("codegen sits two levels below the workspace root");
+    fs::copy(workspace.join("Cargo.lock"), root.join("Cargo.lock"))
+        .expect("workspace lockfile must copy");
     for document in source.documents.values() {
         let destination = root.join(document.path.as_str());
         fs::create_dir_all(destination.parent().expect("document has a parent"))
