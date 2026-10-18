@@ -5,9 +5,12 @@ use std::error::Error;
 use std::fmt;
 
 use serde::Serialize;
-use serde_json::Value;
+use serde_json::{Map, Value};
 
-use crate::QueryError;
+use crate::{
+    EngineConnectionError, QueryBuildError, QueryError, RequestEncodingError, RequestError,
+    ResponseDecodingError,
+};
 
 const MAX_DETAIL_NAME_BYTES: usize = 128;
 const MAX_DETAIL_COUNT: usize = 64;
@@ -189,41 +192,118 @@ impl From<&str> for ModuleError {
 
 impl From<QueryError> for ModuleError {
     fn from(error: QueryError) -> Self {
-        if let QueryError::GraphQl { response } = &error
-            && let [graphql_error] = response.errors()
-        {
-            let message = graphql_error.message().to_owned();
-            let mut module_error = Self::new(message.clone());
-            if let Some(extensions) = graphql_error.extensions() {
-                for (name, value) in extensions {
-                    let Ok(updated) = module_error
-                        .clone()
-                        .with_detail(name.clone(), ModuleErrorDetail::new(value.clone()))
-                    else {
-                        // An application error must never evade the public bounds just
-                        // because an engine extension set is unexpectedly large.
-                        return Self::new(message);
-                    };
-                    module_error = updated;
+        match &error {
+            QueryError::GraphQl { response } => {
+                if let [graphql_error] = response.errors() {
+                    return Self::with_engine_extensions(
+                        graphql_error.message(),
+                        graphql_error.extensions(),
+                    );
                 }
             }
-            return module_error;
+            // The engine's message ends with the failed command's trace origin, which
+            // the CLI follows to show that command and its output, so it stays verbatim.
+            QueryError::Exec { error: exec, .. } => {
+                return Self::with_engine_extensions(exec.message(), Some(exec.extensions()));
+            }
+            // An argument that failed to resolve carries the engine's own error.
+            QueryError::Build(_) => {
+                if let Some(cause) = query_cause(&error) {
+                    return Self::from(cause.clone());
+                }
+            }
+            _ => {}
         }
-
-        // Other query failures deliberately retain their credential-safe ordinary
-        // display instead of importing transport bodies or opaque causes.
-        Self::new(error.to_string())
+        Self::new(sdk_causes(&error))
     }
+}
+
+impl ModuleError {
+    /// An engine error's message with each of its extensions that fits the detail
+    /// bounds. One too large to keep is left out, so the bounds always hold.
+    fn with_engine_extensions(message: &str, extensions: Option<&Map<String, Value>>) -> Self {
+        let mut error = Self::new(message);
+        for (name, value) in extensions.into_iter().flatten() {
+            if let Ok(updated) = error
+                .clone()
+                .with_detail(name.clone(), ModuleErrorDetail::new(value.clone()))
+            {
+                error = updated;
+            }
+        }
+        error
+    }
+}
+
+/// The first query error below `error` in its cause chain.
+fn query_cause(error: &QueryError) -> Option<&QueryError> {
+    let mut cause = Error::source(error);
+    while let Some(current) = cause {
+        if let Some(query) = current.downcast_ref::<QueryError>() {
+            return Some(query);
+        }
+        cause = current.source();
+    }
+    None
+}
+
+/// The display of `error` and of each SDK error below it. The chain stops at the first
+/// error from another crate, such as a transport library's: only the SDK's own
+/// renderings are guaranteed free of credentials and response bodies.
+fn sdk_causes(error: &QueryError) -> String {
+    let mut message = error.to_string();
+    let mut cause = Error::source(error);
+    while let Some(current) = cause {
+        if !(current.is::<QueryError>()
+            || current.is::<RequestError>()
+            || current.is::<EngineConnectionError>()
+            || current.is::<QueryBuildError>()
+            || current.is::<RequestEncodingError>()
+            || current.is::<ResponseDecodingError>())
+        {
+            break;
+        }
+        message.push_str(": ");
+        message.push_str(&current.to_string());
+        cause = current.source();
+    }
+    message
 }
 
 #[cfg(test)]
 mod tests {
+    use std::io;
+
     use serde_json::{Map, json};
 
-    use crate::QueryError;
     use crate::graphql::{GraphQlError, RawResponse, ResponseData};
+    use crate::{
+        EngineConnectionError, EngineConnectionErrorKind, ExecError, QueryBuildError,
+        QueryBuildErrorKind, QueryError, RequestError,
+    };
 
     use super::{ModuleError, ModuleErrorBuildError, ModuleErrorDetail};
+
+    const ORIGIN: &str = " [traceparent:0123456789abcdef0123456789abcdef-0123456789abcdef]";
+
+    fn exec_failure(stdout: &str) -> QueryError {
+        let response = RawResponse::new(ResponseData::Null).with_errors(vec![
+            GraphQlError::new(format!(
+                "process \"false\" did not complete successfully: exit code: 1{ORIGIN}"
+            ))
+            .with_extensions(Map::from_iter([
+                ("_type".to_owned(), json!("EXEC_ERROR")),
+                ("cmd".to_owned(), json!(["false"])),
+                ("exitCode".to_owned(), json!(1)),
+                ("stdout".to_owned(), json!(stdout)),
+                ("stderr".to_owned(), json!("failed")),
+            ])),
+        ]);
+        QueryError::Exec {
+            error: ExecError::from_response(&response).expect("the response is an exec failure"),
+            response,
+        }
+    }
 
     #[test]
     fn details_are_sorted_and_display_is_only_the_message() {
@@ -262,6 +342,59 @@ mod tests {
         assert_eq!(
             error.details().map(|(name, _)| name).collect::<Vec<_>>(),
             ["alpha", "zeta"]
+        );
+    }
+
+    // The trace origin at the end of the engine's message is how the CLI finds the
+    // failed command and shows its output.
+    #[test]
+    fn an_exec_failure_keeps_the_engine_message_and_its_origin() {
+        let error = ModuleError::from(exec_failure("ran"));
+
+        assert_eq!(
+            error.message(),
+            format!("process \"false\" did not complete successfully: exit code: 1{ORIGIN}")
+        );
+        assert_eq!(
+            error.details().map(|(name, _)| name).collect::<Vec<_>>(),
+            ["_type", "cmd", "exitCode", "stderr", "stdout"]
+        );
+    }
+
+    #[test]
+    fn an_exec_failure_keeps_every_detail_that_fits() {
+        let error = ModuleError::from(exec_failure(&"x".repeat(16 * 1024)));
+
+        assert!(error.message().ends_with(ORIGIN));
+        assert_eq!(
+            error.details().map(|(name, _)| name).collect::<Vec<_>>(),
+            ["_type", "cmd", "exitCode", "stderr"]
+        );
+    }
+
+    #[test]
+    fn an_argument_that_failed_to_resolve_reports_the_engine_error() {
+        let response = RawResponse::new(ResponseData::Null).with_errors(vec![GraphQlError::new(
+            "acceptance: no such file or directory",
+        )]);
+        let error = ModuleError::from(QueryError::Build(QueryBuildError::with_source(
+            QueryBuildErrorKind::LazyIdentifier,
+            QueryError::GraphQl { response },
+        )));
+
+        assert_eq!(error.message(), "acceptance: no such file or directory");
+    }
+
+    #[test]
+    fn a_request_failure_names_its_sdk_causes_and_not_the_transport_error() {
+        let transport = io::Error::other("connection reset; Authorization: Bearer secret");
+        let error = ModuleError::from(QueryError::Request(RequestError::Connection(
+            EngineConnectionError::with_source(EngineConnectionErrorKind::Transport, transport),
+        )));
+
+        assert_eq!(
+            error.message(),
+            "the GraphQL query request failed: the engine connection failed: the engine transport failed"
         );
     }
 }

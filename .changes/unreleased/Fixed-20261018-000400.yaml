@@ -1,0 +1,7 @@
+kind: Fixed
+body: |
+    A module function that returns a failed query with `?` reports the engine's error. An execution failure keeps the engine's message, whose trace origin lets the CLI show the failed command and its output, and its command, exit code and output as details, where they fit. An argument that failed to resolve reports the engine's error behind it, and a request failure names its SDK causes, such as "the engine transport failed". Before, these read only "the engine execution failed", "the GraphQL query could not be built" and "the GraphQL query request failed".
+time: 2026-10-18T00:04:00Z
+custom:
+    Author: iw
+    PR: "14"
