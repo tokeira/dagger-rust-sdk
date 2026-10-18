@@ -45,8 +45,14 @@ dagger call ci gates
 
 The first run downloads the CLI into `~/.cache/dagger-rust-sdk/dagger/`, checks it against
 its pinned SHA-256, and starts the `dagger-rust-sdk-engine-v1.0.0-beta.18` container from
-the image pinned by digest. Later runs reuse the container. `.dagger/engine.sh stop`
-removes the container and keeps its cache volume.
+the image pinned by digest. Later runs reuse the container. The engine keeps its state in
+the `dagger-rust-sdk-engine-v1.0.0-beta.18-state` volume and collects its cache above
+30 GB, because the disk it sees, such as a container VM's on a Mac, can be far larger than
+the space really free.
+
+`.dagger/engine.sh stop` stops the engine and removes its container, keeping the volume.
+Stop it this way rather than with `docker rm -f`: an engine that is killed rather than
+stopped discards its whole cache when it next starts.
 
 The acceptance installs the runtime from GitHub, so push the commit first:
 
