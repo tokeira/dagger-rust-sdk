@@ -92,9 +92,9 @@ every target refresh.
 `dagger call ci acceptance --commit <commit>` performs every step below for a commit
 pushed to this repository and checks each result, except the README module's `publish`
 ([ci.md](ci.md)). It runs on the engine that calls the ci module, which
-`.dagger/engine.sh` starts as a stock engine of the target release. The `acceptance`
-workflow runs it for each push that touches the runtime, the crates, the target, the
-README, or CI.
+`.dagger/engine.sh` starts as a stock engine of the target release. CI runs it for each
+push that touches the runtime, the crates, the target, the README, or CI, as
+[ci.md](ci.md) describes.
 
 By hand, run the acceptance with the target release's stock CLI, downloaded from
 `https://dl.dagger.io/dagger/releases/<version>/` and verified against that release's

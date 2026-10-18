@@ -1,9 +1,9 @@
 # CI
 
 This repository's CI is a Dagger module written in Rust with this SDK. The same functions
-run on a laptop and in CI. GitHub Actions only starts the pinned engine and calls the
-module, so moving to another CI system, such as Buildkite on Namespace agents, changes
-only the trigger.
+run on a laptop and in CI. A CI system only starts the pinned engine and calls the module:
+Buildkite does so on Namespace's agents, and GitHub Actions runs the same calls until
+Buildkite replaces it.
 
 ## Layout
 
@@ -13,6 +13,7 @@ only the trigger.
 | `.dagger/modules/ci/` | The module, a Cargo project whose generated files are committed |
 | `.dagger/modules/ci/acceptance/` | The acceptance's fixtures: the module it authors, its plain client, and the sample service that the README's module builds |
 | `.dagger/engine.sh` | Downloads and verifies the pinned CLI, starts the pinned engine, and prints the environment |
+| `.buildkite/pipeline.yml` | Runs `gates` for every pushed commit and `acceptance` for commits that touch the runtime, the crates, the target, the README, or CI, on Namespace's agents |
 | `.github/workflows/gates.yml` | Runs `dagger call ci gates` for every pushed commit; `main` requires it |
 | `.github/workflows/acceptance.yml` | Runs `dagger call ci acceptance` for pushes that touch the runtime, the crates, the target, the README, or CI |
 
@@ -91,9 +92,23 @@ The SDK talks only to an engine of exactly its target release, so a target refre
 - `DAGGER_VERSION` and the CLI checksums that the acceptance uses, in
   `.dagger/modules/ci/src/lib.rs`.
 
-## Moving to Buildkite on Namespace
+## Buildkite on Namespace
 
-Pipeline steps run the same commands as the workflows: `eval "$(.dagger/engine.sh)"`, for
-example in a pre-command hook, then `dagger call ci gates` or
-`dagger call ci acceptance --commit "$BUILDKITE_COMMIT"`. Agents need a Docker daemon that
-can run privileged containers.
+The [Buildkite pipeline](https://buildkite.com/tokeira/dagger-rust-sdk) has one configured
+step, which uploads `.buildkite/pipeline.yml` from the commit being built. That file's steps
+run the workflows' commands on Namespace's agents, with 8 vCPUs and 32 GB of memory each.
+
+Each step keeps its engine's state on a Namespace cache volume of its own by setting
+`DAGGER_RUST_SDK_ENGINE_STATE`, so the engine's build cache, Cargo's included, outlives the
+job. Namespace saves a volume only when its job passes, and the step stops the engine before
+the job ends, so the saved state comes from a clean shutdown. A volume must stay larger
+than the engine's 30 GB cache cap: a cache that outgrows its volume starts empty on the next
+job.
+
+Each step posts its own commit status, `buildkite/gates` or `buildkite/acceptance`, and the
+pipeline's own GitHub status is off. `acceptance` runs when the commit changes one of its
+paths since its merge base with `main`, so a build of `main` itself skips it: the commit
+already passed on its branch before `main` was fast-forwarded to it.
+
+The agents reach the host's Docker daemon, which starts the engine's privileged container,
+so the agents need no privileges of their own.

@@ -168,8 +168,8 @@ cargo run -p dagger-bootstrap --bin dagger-rust --locked -- \
 
 Also run the direct Go ABI and Dagger-module Go tests listed in
 [engine-integration.md](engine-integration.md). `dagger call ci gates` runs all of these
-in containers ([ci.md](ci.md)); the `gates` workflow calls it for every pushed commit, and
-`main` requires it to pass. Review dependency activation with
+in containers ([ci.md](ci.md)); CI calls it for every pushed commit, and `main` requires
+it to pass. Review dependency activation with
 `cargo tree -p tokeira-dagger-sdk -e features` and inspect every Cargo Deny advisory, license,
 ban, and source result. These checks do not construct an engine.
 
