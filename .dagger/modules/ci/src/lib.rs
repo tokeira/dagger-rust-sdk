@@ -10,7 +10,11 @@
 pub mod dagger_generated;
 
 use dagger_generated::ModuleContext;
-use dagger_sdk::{Container, Directory, ModuleError, Query, QueryError, QueryHttpOpts};
+use dagger_sdk::{
+    Container, ContainerWithExecOpts, Directory, ModuleError, Query, QueryError, QueryHttpOpts,
+    ReturnType,
+};
+use serde_json::Value;
 
 /// The runtime's digest-pinned builder, so CI compiles with the inputs module builds use.
 const RUST_IMAGE: &str =
@@ -22,6 +26,15 @@ const CARGO_DENY_VERSION: &str = "0.19.9";
 const OUTPUT_TAIL: usize = 16 * 1024;
 const GATES_PASSED: &str = "cargo fmt, check, clippy, doc, test (all and no default features), \
     deny and the generated-output check, and the runtime and rust-client-dev Go tests passed";
+/// The repository the acceptance installs the runtime from and builds the client against.
+const REPOSITORY: &str = "github.com/tokeira/dagger-rust-sdk";
+/// The release of the CLI the acceptance drives the engine with: the one the SDK targets.
+const DAGGER_VERSION: &str = "1.0.0-beta.18";
+/// Introduces the README's module block, which the acceptance runs as written.
+const README_MARKER: &str = "<!-- The ci module's acceptance runs the module below as written. -->";
+/// The manifest of the application that asks for a Rust client scope.
+const APP_MANIFEST: &str =
+    "[package]\nname = \"app\"\nversion = \"0.0.0\"\nedition = \"2024\"\npublish = false\n";
 
 #[dagger_sdk::object(root, rename = "Ci")]
 pub struct Ci {
@@ -55,6 +68,80 @@ impl Ci {
         let go = go_gates(dag, &self.source);
         tokio::try_join!(cargo.sync(), go.sync()).map_err(step_failure)?;
         Ok(GATES_PASSED.to_owned())
+    }
+
+    /// Runs the stock-engine acceptance of docs/engine-integration.md for a pushed commit:
+    /// the runtime installed from it, a module initialized, regenerated, loaded and called,
+    /// a plain client, a refused client scope, and the README module's test and build. It
+    /// needs an engine of the release the commit targets.
+    #[dagger(function)]
+    pub async fn acceptance(
+        &self,
+        #[dagger(context)] context: ModuleContext,
+        #[dagger(doc = "Full hash of a commit pushed to github.com/tokeira/dagger-rust-sdk.")]
+        commit: String,
+    ) -> Result<String, ModuleError> {
+        let dag = context.query();
+        if commit.len() != 40
+            || !commit
+                .bytes()
+                .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
+        {
+            return Err(ModuleError::new(format!(
+                "{commit:?} is not a full lowercase commit hash"
+            )));
+        }
+        let tree = dag
+            .git(format!("https://{REPOSITORY}"))
+            .commit(&commit)
+            .tree();
+        // The engine's error for a commit it cannot fetch does not name the usual cause.
+        tree.sync().await.map_err(|error| {
+            let cause = ModuleError::from(error);
+            ModuleError::new(format!(
+                "cannot fetch {commit} from https://{REPOSITORY}; push it first: {}",
+                cause.message()
+            ))
+        })?;
+        let target = json_file(&tree, "codegen/target.json").await?;
+        let engine_version = string_field(&target, "codegen/target.json", "engine_version")?;
+        let revision = string_field(&target, "codegen/target.json", "dagger_revision")?;
+        if engine_version != format!("v{DAGGER_VERSION}") {
+            return Err(ModuleError::new(format!(
+                "{commit} targets {engine_version}, but the acceptance drives v{DAGGER_VERSION}"
+            )));
+        }
+        let expected = format!("{engine_version}+{}", revision.get(..8).unwrap_or(revision));
+        let engine = dag.version().await?;
+        if engine != expected {
+            return Err(ModuleError::new(format!(
+                "{commit} needs a {expected} engine; this one is {engine}"
+            )));
+        }
+        // The line `dagger module init` must write into the module's Cargo.toml.
+        let pin = json_file(&tree, "runtime/assets/sdk-dependency.json").await?;
+        let dependency = format!(
+            "dagger-sdk = {{ package = \"tokeira-dagger-sdk\", git = \"{}\", rev = \"{}\" }}",
+            string_field(&pin, "runtime/assets/sdk-dependency.json", "repository")?,
+            string_field(&pin, "runtime/assets/sdk-dependency.json", "revision")?,
+        );
+
+        let cli = dagger_cli(dag).await?;
+        // From the checkout: the module's own loaded source would regenerate it, which fails
+        // when the committed generated files come from an engine of another platform.
+        let fixtures = self.source.directory(".dagger/modules/ci/acceptance");
+        let runtime = format!("{REPOSITORY}/runtime@{commit}");
+        tokio::try_join!(
+            module_flows(&cli, &fixtures, &runtime, &dependency),
+            plain_client(dag, &cli, &fixtures, &tree, &engine),
+            readme_module(&cli, &fixtures, &tree, &runtime),
+        )?;
+        Ok(format!(
+            "{commit} passed on {engine}: the runtime installed; a module initialized, \
+             regenerated, loaded and answered calls; a plain client made Void calls and exported \
+             an image; a Rust client scope was refused; and the README module's test and build \
+             passed"
+        ))
     }
 }
 
@@ -196,9 +283,395 @@ fn go_gates(dag: &Query, source: &Directory) -> Container {
         ])
 }
 
+/// A Rust container with the target release's CLI, for the `dagger` commands that the
+/// acceptance runs as new sessions of this engine.
+async fn dagger_cli(dag: &Query) -> Result<Container, ModuleError> {
+    let (platform, sha256) = match dag.default_platform().await?.as_str() {
+        "linux/amd64" => (
+            "linux_amd64",
+            "5326f48825b64008705290cb2a8109c28e4a88d341ef765be8234860acf32fdb",
+        ),
+        "linux/arm64" => (
+            "linux_arm64",
+            "abcc2e70154498e7933758e7d81b3be79f7a5699d30b0d04ea33ed70d6edf827",
+        ),
+        other => {
+            return Err(ModuleError::new(format!(
+                "no pinned Dagger CLI for {other}"
+            )));
+        }
+    };
+    let archive = dag.http_opts(
+        format!(
+            "https://dl.dagger.io/dagger/releases/{DAGGER_VERSION}/dagger_v{DAGGER_VERSION}_{platform}.tar.gz"
+        ),
+        &QueryHttpOpts::default().with_checksum(format!("sha256:{sha256}")),
+    );
+    Ok(dag
+        .container()
+        .from(RUST_IMAGE)
+        .with_mounted_file("/tmp/dagger.tar.gz", archive)
+        .with_exec(vec![
+            "tar",
+            "-xzf",
+            "/tmp/dagger.tar.gz",
+            "-C",
+            "/usr/local/bin",
+            "dagger",
+        ])
+        .with_env_variable("DAGGER_NO_NAG", "1")
+        .with_env_variable("GIT_AUTHOR_NAME", "acceptance")
+        .with_env_variable("GIT_AUTHOR_EMAIL", "acceptance@example.invalid")
+        .with_env_variable("GIT_COMMITTER_NAME", "acceptance")
+        .with_env_variable("GIT_COMMITTER_EMAIL", "acceptance@example.invalid"))
+}
+
+/// Steps 1 to 5 and 7 of the acceptance: install the runtime, initialize a module, load it
+/// before regeneration, regenerate it twice, call its exports, and refuse a client scope.
+async fn module_flows(
+    cli: &Container,
+    fixtures: &Directory,
+    runtime: &str,
+    dependency: &str,
+) -> Result<(), ModuleError> {
+    let workspace = dagger(&repository(cli, "/ws"), &["install", runtime]);
+    let workspace = dagger(
+        &workspace,
+        &["-y", "module", "init", "rust", "--name", "gate"],
+    );
+    let manifest = workspace
+        .file("/ws/.dagger/modules/gate/Cargo.toml")
+        .contents()
+        .await
+        .map_err(step_failure)?;
+    if !manifest.lines().any(|line| line == dependency) {
+        return Err(check_failed(
+            "dagger module init",
+            format!("the module's Cargo.toml lacks `{dependency}`:\n{manifest}"),
+        ));
+    }
+    let workspace = commit_all(&workspace, "initialize gate module")
+        .with_file(
+            "/ws/.dagger/modules/gate/src/lib.rs",
+            fixtures.file("gate.rs"),
+        )
+        .with_new_file("rust module gate\n", "/ws/gate-input/note.txt");
+    let note = ["call", "gate", "note", "--source", "gate-input", "contents"];
+    refused(&workspace, &note, "run `dagger generate`").await?;
+
+    let workspace = commit_all(
+        &dagger(&workspace, &["generate", "-y"]),
+        "regenerate gate module",
+    );
+    let workspace = dagger(&workspace, &["generate", "-y"]);
+    unchanged(&workspace, "a second dagger generate").await?;
+    let attributes = workspace
+        .file("/ws/.dagger/modules/gate/.gitattributes")
+        .contents()
+        .await
+        .map_err(step_failure)?;
+    if attributes.contains("/.dagger/modules/gate/") {
+        return Err(check_failed(
+            "dagger generate",
+            format!("the module's .gitattributes names paths outside it:\n{attributes}"),
+        ));
+    }
+    tokio::try_join!(
+        prints(&workspace, &note, "rust module gate"),
+        prints(
+            &workspace,
+            &["call", "gate", "count", "--source", "gate-input"],
+            "1"
+        ),
+        client_scope_refused(&workspace),
+    )?;
+    Ok(())
+}
+
+/// Step 7: adding a Rust client scope is refused before anything is written.
+async fn client_scope_refused(workspace: &Container) -> Result<(), ModuleError> {
+    let app = commit_all(
+        &workspace
+            .with_new_file(APP_MANIFEST, "/ws/app/Cargo.toml")
+            .with_new_file("fn main() {}\n", "/ws/app/src/main.rs"),
+        "client app",
+    )
+    .with_workdir("/ws/app/src");
+    let refusal = refused(
+        &app,
+        &[
+            "-y",
+            "module",
+            "client",
+            "add",
+            "../../.dagger/modules/gate",
+        ],
+        "the Rust SDK does not generate module clients",
+    )
+    .await?;
+    unchanged(&refusal, "the refused client scope").await?;
+    let config = refusal
+        .file("/ws/dagger.toml")
+        .contents()
+        .await
+        .map_err(step_failure)?;
+    if config.contains("clients") {
+        return Err(check_failed(
+            "the refused client scope",
+            format!("dagger.toml records it:\n{config}"),
+        ));
+    }
+    Ok(())
+}
+
+/// Step 6: a plain client, built from the commit, runs under `dagger run`, makes Void calls,
+/// and exports an image.
+async fn plain_client(
+    dag: &Query,
+    cli: &Container,
+    fixtures: &Directory,
+    tree: &Directory,
+    engine: &str,
+) -> Result<(), ModuleError> {
+    let client = cli
+        .with_mounted_cache(
+            dag.cache_volume("cargo-registry"),
+            "/usr/local/cargo/registry",
+        )
+        .with_directory("/sdk", tree.clone())
+        .with_directory("/client", fixtures.directory("client"));
+    // `Workspace.export` needs a Git workspace.
+    let client = repository(&client, "/client")
+        .with_exec(vec!["cargo", "generate-lockfile", "--quiet"])
+        .with_exec(vec!["cargo", "build", "--quiet", "--locked"]);
+    let run = dagger(&client, &["run", "cargo", "run", "--quiet", "--locked"]);
+    let output = run.stdout().await.map_err(step_failure)?;
+    let expected = format!("ACCEPTANCE-CLIENT-OK {engine}");
+    if !output.lines().any(|line| line == expected) {
+        return Err(check_failed(
+            "the plain client",
+            format!("printed no `{expected}`:\n{}", tail(&output)),
+        ));
+    }
+    let image = run
+        .with_exec(vec!["tar", "-tf", "canary.tar"])
+        .stdout()
+        .await
+        .map_err(step_failure)?;
+    if !image.lines().any(|line| line == "index.json") {
+        return Err(check_failed(
+            "the plain client",
+            format!("exported no OCI image:\n{image}"),
+        ));
+    }
+    Ok(())
+}
+
+/// The README's module, as readers copy it: generated into a sample service, then its
+/// test against PostgreSQL and its build. Its publish needs a registry, so it is checked by
+/// hand.
+async fn readme_module(
+    cli: &Container,
+    fixtures: &Directory,
+    tree: &Directory,
+    runtime: &str,
+) -> Result<(), ModuleError> {
+    let readme = tree.file("README.md").contents().await?;
+    let module = marked_module(&readme)?;
+    let service = repository(
+        &cli.with_directory("/api", fixtures.directory("api")),
+        "/api",
+    );
+    let service = dagger(&service, &["install", runtime]);
+    let service = commit_all(
+        &dagger(&service, &["-y", "module", "init", "rust", "--name", "ci"]),
+        "initialize ci module",
+    )
+    .with_new_file(module, "/api/.dagger/modules/ci/src/lib.rs");
+    let service = commit_all(
+        &dagger(&service, &["generate", "-y"]),
+        "ci module functions",
+    );
+
+    let test = async {
+        let report = dagger(&service, &["call", "ci", "test"])
+            .stdout()
+            .await
+            .map_err(step_failure)?;
+        if report.contains("test database_accepts_connections ... ok") {
+            Ok(())
+        } else {
+            Err(check_failed(
+                "dagger call ci test",
+                format!("the database test did not pass:\n{}", tail(&report)),
+            ))
+        }
+    };
+    let build = prints(
+        &service,
+        &[
+            "call",
+            "ci",
+            "build",
+            "with-exec",
+            "--args=/usr/local/bin/api",
+            "stdout",
+        ],
+        "api 0.1.0",
+    );
+    tokio::try_join!(test, build)?;
+    Ok(())
+}
+
+/// The module block that `README_MARKER` introduces in the README.
+fn marked_module(readme: &str) -> Result<String, ModuleError> {
+    let unmarked =
+        || ModuleError::new(format!("README.md has no Rust block after {README_MARKER}"));
+    let (_, marked) = readme.split_once(README_MARKER).ok_or_else(unmarked)?;
+    let (_, block) = marked.split_once("```rust\n").ok_or_else(unmarked)?;
+    let (module, _) = block.split_once("\n```").ok_or_else(unmarked)?;
+    Ok(format!("{module}\n"))
+}
+
+/// A Git repository at `path` that commits whatever the container already holds there, as
+/// beta.18's workspaces require.
+fn repository(container: &Container, path: &str) -> Container {
+    commit_all(
+        &container
+            .with_exec(vec!["git", "init", "--quiet", path])
+            .with_workdir(path),
+        "initialize workspace",
+    )
+}
+
+/// Commits every change in the repository at the working directory.
+fn commit_all(container: &Container, message: &str) -> Container {
+    container
+        .with_exec(vec!["git", "add", "--all"])
+        .with_exec(vec![
+            "git",
+            "commit",
+            "--quiet",
+            "--allow-empty",
+            "--message",
+            message,
+        ])
+}
+
+/// Runs `dagger <args>` connected to this engine as a new session.
+fn dagger(container: &Container, args: &[&str]) -> Container {
+    container.with_exec_opts(
+        dagger_command(args),
+        &ContainerWithExecOpts::default().with_dagger_in_dagger_new_session(true),
+    )
+}
+
+/// The command line of `dagger <args>`.
+fn dagger_command<'a>(args: &[&'a str]) -> Vec<&'a str> {
+    let mut command = vec!["dagger"];
+    command.extend_from_slice(args);
+    command
+}
+
+/// Runs `dagger <args>` and checks what it prints, less the final newline.
+async fn prints(container: &Container, args: &[&str], expected: &str) -> Result<(), ModuleError> {
+    let output = dagger(container, args)
+        .stdout()
+        .await
+        .map_err(step_failure)?;
+    if output.trim_end() == expected {
+        Ok(())
+    } else {
+        Err(check_failed(
+            &format!("dagger {}", args.join(" ")),
+            format!("printed {output:?}, not {expected:?}"),
+        ))
+    }
+}
+
+/// Runs `dagger <args>`, which must fail and say `reason`, and returns the container as
+/// the failure left it.
+async fn refused(
+    container: &Container,
+    args: &[&str],
+    reason: &str,
+) -> Result<Container, ModuleError> {
+    let refusal = container.with_exec_opts(
+        dagger_command(args),
+        &ContainerWithExecOpts::default()
+            .with_dagger_in_dagger_new_session(true)
+            .with_expect(ReturnType::Failure),
+    );
+    let check = format!("dagger {}", args.join(" "));
+    let output = refusal.combined_output().await.map_err(|error| {
+        if let QueryError::Exec { error: exec, .. } = &error
+            && exec.exit_code() == Some(0)
+        {
+            return check_failed(
+                &check,
+                format!(
+                    "succeeded, but must fail:\n{}",
+                    tail(exec.stdout().unwrap_or_default())
+                ),
+            );
+        }
+        step_failure(error)
+    })?;
+    if output.contains(reason) {
+        Ok(refusal)
+    } else {
+        Err(check_failed(
+            &check,
+            format!("failed without saying {reason:?}:\n{}", tail(&output)),
+        ))
+    }
+}
+
+/// Checks that the repository at the working directory has no changes.
+async fn unchanged(container: &Container, check: &str) -> Result<(), ModuleError> {
+    let status = container
+        .with_exec(vec!["git", "status", "--porcelain"])
+        .stdout()
+        .await
+        .map_err(step_failure)?;
+    if status.is_empty() {
+        Ok(())
+    } else {
+        Err(check_failed(
+            check,
+            format!("changed the workspace:\n{status}"),
+        ))
+    }
+}
+
+/// The JSON document at `path` in `tree`.
+async fn json_file(tree: &Directory, path: &str) -> Result<Value, ModuleError> {
+    let text = tree.file(path).contents().await?;
+    serde_json::from_str(&text).map_err(|error| ModuleError::new(format!("{path}: {error}")))
+}
+
+/// The string `key` of the JSON object read from `path`.
+fn string_field<'a>(json: &'a Value, path: &str, key: &str) -> Result<&'a str, ModuleError> {
+    json.get(key)
+        .and_then(Value::as_str)
+        .ok_or_else(|| ModuleError::new(format!("{path} has no string {key}")))
+}
+
+/// An acceptance check that ran but did not hold.
+fn check_failed(check: &str, detail: impl std::fmt::Display) -> ModuleError {
+    ModuleError::new(format!("{check}: {detail}"))
+}
+
 /// Reports a failed step with its command, exit code, and the end of its output. The
-/// SDK's own conversion keeps only the engine's generic message for a failed execution.
+/// SDK's own conversion keeps only the engine's generic message for a failed execution,
+/// and only "could not be built" for a query whose argument failed to resolve.
 fn step_failure(error: QueryError) -> ModuleError {
+    if let QueryError::Build(build) = &error
+        && let Some(cause) =
+            std::error::Error::source(build).and_then(|cause| cause.downcast_ref::<QueryError>())
+    {
+        return step_failure(cause.clone());
+    }
     let QueryError::Exec { error: exec, .. } = &error else {
         return error.into();
     };

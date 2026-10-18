@@ -1,5 +1,5 @@
 {
-  "descriptor_digest": "sha256:76e202677389990a4035151d2daf57340e7ca2c2cb928656d3c70081676ffe4a",
+  "descriptor_digest": "sha256:c31e73600841c75722667a037171e0661437810ede3240b9691219821daacd97",
   "format_version": 1,
   "types": {
     "Ci": {
@@ -8,6 +8,48 @@
       "enum_values": [],
       "fields": [],
       "functions": [
+        {
+          "arguments": [
+            {
+              "default": null,
+              "default_address": null,
+              "default_path": null,
+              "deprecation": null,
+              "documentation": "Full hash of a commit pushed to github.com/tokeira/dagger-rust-sdk.",
+              "ignore": [],
+              "optional": false,
+              "source": {
+                "column": 9,
+                "line": 82,
+                "path": "src/lib.rs"
+              },
+              "ty": {
+                "kind": "named",
+                "name": "String",
+                "nullable": false
+              },
+              "wire_name": "commit"
+            }
+          ],
+          "cache": {
+            "kind": "default"
+          },
+          "constructor": false,
+          "deprecation": null,
+          "documentation": "Runs the stock-engine acceptance of docs/engine-integration.md for a pushed commit:\nthe runtime installed from it, a module initialized, regenerated, loaded and called,\na plain client, a refused client scope, and the README module's test and build. It\nneeds an engine of the release the commit targets.",
+          "return_type": {
+            "kind": "named",
+            "name": "String",
+            "nullable": false
+          },
+          "role": "ordinary",
+          "source": {
+            "column": 18,
+            "line": 78,
+            "path": "src/lib.rs"
+          },
+          "wire_name": "acceptance"
+        },
         {
           "arguments": [],
           "cache": {
@@ -24,7 +66,7 @@
           "role": "ordinary",
           "source": {
             "column": 18,
-            "line": 49,
+            "line": 62,
             "path": "src/lib.rs"
           },
           "wire_name": "gates"
@@ -34,7 +76,7 @@
       "kind": "object",
       "source": {
         "column": 12,
-        "line": 27,
+        "line": 40,
         "path": "src/lib.rs"
       },
       "wire_name": "Ci"
@@ -61,7 +103,7 @@
               "optional": true,
               "source": {
                 "column": 9,
-                "line": 41,
+                "line": 54,
                 "path": "src/lib.rs"
               },
               "ty": {
@@ -86,7 +128,7 @@
           "role": "ordinary",
           "source": {
             "column": 12,
-            "line": 35,
+            "line": 48,
             "path": "src/lib.rs"
           },
           "wire_name": "ci"
@@ -96,7 +138,7 @@
       "kind": "object",
       "source": {
         "column": 12,
-        "line": 35,
+        "line": 48,
         "path": "src/lib.rs"
       },
       "wire_name": "Query"

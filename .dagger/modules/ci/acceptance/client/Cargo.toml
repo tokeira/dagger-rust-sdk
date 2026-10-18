@@ -1,0 +1,10 @@
+[package]
+name = "acceptance-client"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+# The acceptance mounts the commit under test at /sdk.
+dagger-sdk = { package = "tokeira-dagger-sdk", path = "/sdk/crates/dagger-sdk" }
+tokio = { version = "1.35.1", features = ["macros", "rt-multi-thread"] }

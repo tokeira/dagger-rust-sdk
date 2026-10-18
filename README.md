@@ -1,6 +1,7 @@
 # Rust SDK for Dagger
 
 [![gates](https://github.com/tokeira/dagger-rust-sdk/actions/workflows/gates.yml/badge.svg?branch=main)](https://github.com/tokeira/dagger-rust-sdk/actions/workflows/gates.yml)
+[![acceptance](https://github.com/tokeira/dagger-rust-sdk/actions/workflows/acceptance.yml/badge.svg?branch=main)](https://github.com/tokeira/dagger-rust-sdk/actions/workflows/acceptance.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![MSRV 1.97.1](https://img.shields.io/badge/MSRV-1.97.1-orange?logo=rust)](Cargo.toml)
 [![Dagger v1.0.0-beta.18](https://img.shields.io/badge/Dagger-v1.0.0--beta.18-informational)](https://github.com/dagger/dagger/tree/v1.0.0-beta.18)
@@ -127,6 +128,8 @@ calls with one command. This module tests a service against a disposable Postgre
 builds it into a minimal image that runs as a non-root user, and publishes the image with the
 registry password passed as a secret:
 
+<!-- The ci module's acceptance runs the module below as written. -->
+
 ```rust
 //! CI for the `api` service: tests against a real database, then a minimal image.
 
@@ -240,7 +243,8 @@ runtime's direct Go tests run without an engine. Add a focused engine-backed reg
 only when the direct production harness cannot represent the boundary. CI runs the same
 gates through this repository's own Rust Dagger module, as [`docs/ci.md`](docs/ci.md)
 describes. Runtime changes and every release are proven on a stock engine of the target
-release, as [`docs/engine-integration.md`](docs/engine-integration.md) describes.
+release, as [`docs/engine-integration.md`](docs/engine-integration.md) describes, and the
+module runs that acceptance too.
 
 A release publishes `tokeira-dagger-sdk-macros` and then `tokeira-dagger-sdk` to
 crates.io at one version and tags the commit, and the runtime installs from that tag.

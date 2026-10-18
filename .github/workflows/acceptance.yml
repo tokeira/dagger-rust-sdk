@@ -1,0 +1,41 @@
+# Runs the ci module's stock-engine acceptance (docs/ci.md) for pushes that can change what
+# users install or copy, and on demand. The runtime installs from the pushed commit, so the
+# check follows the push. It is not required, because path-filtered runs cannot gate `main`.
+name: acceptance
+
+on:
+  push:
+    paths:
+      - runtime/**
+      - crates/**
+      - codegen/**
+      - Cargo.toml
+      - Cargo.lock
+      - rust-toolchain.toml
+      - README.md
+      - dagger.toml
+      - .dagger/engine.sh
+      - .dagger/modules/ci/**
+      - .github/workflows/acceptance.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: acceptance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  acceptance:
+    name: acceptance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: dagger call ci acceptance
+        run: |
+          eval "$(.dagger/engine.sh)"
+          dagger call ci acceptance --commit "$GITHUB_SHA"

@@ -113,6 +113,7 @@ dependencies = [
 name = "ci"
 version = "0.1.0"
 dependencies = [
+ "serde_json",
  "tokeira-dagger-sdk",
  "tokio",
 ]

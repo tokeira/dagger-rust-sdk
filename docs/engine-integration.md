@@ -89,7 +89,14 @@ every target refresh.
 
 ## Stock-engine acceptance
 
-Run the acceptance with the target release's stock CLI, downloaded from
+`dagger call ci acceptance --commit <commit>` performs every step below for a commit
+pushed to this repository and checks each result, except the README module's `publish`
+([ci.md](ci.md)). It runs on the engine that calls the ci module, which
+`.dagger/engine.sh` starts as a stock engine of the target release. The `acceptance`
+workflow runs it for each push that touches the runtime, the crates, the target, the
+README, or CI.
+
+By hand, run the acceptance with the target release's stock CLI, downloaded from
 `https://dl.dagger.io/dagger/releases/<version>/` and verified against that release's
 `checksums.txt` (`eval "$(.dagger/engine.sh cli)"` does both), and a dedicated engine
 container. Name the container so it cannot collide with the `dagger-engine-*` containers
@@ -124,8 +131,9 @@ needs a Git workspace:
 The README's `ci` module is a fuller module check: `test` against PostgreSQL, `build`,
 and `publish` to a registry that only the engine can reach
 (`docker run -d --network container:rust-sdk-acceptance registry:2`, then
-`--address=localhost:5000/…`). Remove the engine container, its volume, the registry,
-and any exported images afterwards.
+`--address=localhost:5000/…`). The ci module runs its `test` and `build` unchanged, from
+the block marked for it; check `publish` by hand. Remove the engine container, its
+volume, the registry, and any exported images afterwards.
 
 ## Immutable generated dependency
 
