@@ -6,6 +6,11 @@
 agents:
   nsc-shape: "8x32"
 
+env:
+  # Jobs run in a terminal, where `dagger` would draw its interactive UI. The report is
+  # what it prints without one, as in the workflows.
+  DAGGER_PROGRESS: report
+
 steps:
   - label: "gates"
     key: gates
