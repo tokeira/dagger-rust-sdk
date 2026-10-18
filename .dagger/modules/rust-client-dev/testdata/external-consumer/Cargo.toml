@@ -2,7 +2,7 @@
 name = "dagger-rust-sdk-external-consumer"
 version = "0.0.0"
 edition = "2024"
-rust-version = "1.97.1"
+rust-version = "1.99.1"
 publish = false
 
 [dependencies]

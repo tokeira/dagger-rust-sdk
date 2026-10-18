@@ -95,15 +95,15 @@ proptest! {
         let binary = RelativeOperationPath::parse("src/bin/dagger-module.rs").unwrap();
         let package = if inherited {
             format!(
-                "# {comment}\n[package]\nname = \"caller\"\nversion = \"0.2.0\"\nedition = \"2024\"\nrust-version = \"1.97.1\"\n\n[dependencies]\ndagger-sdk = {{ workspace = true, features = [\"tracing\"] }}\nserde = \"1\"\n"
+                "# {comment}\n[package]\nname = \"caller\"\nversion = \"0.2.0\"\nedition = \"2024\"\nrust-version = \"1.99.1\"\n\n[dependencies]\ndagger-sdk = {{ workspace = true, features = [\"tracing\"] }}\nserde = \"1\"\n"
             )
         } else if conflict {
             format!(
-                "# {comment}\n[package]\nname = \"caller\"\nversion = \"0.2.0\"\nedition = \"2024\"\nrust-version = \"1.97.1\"\n\n[dependencies]\ndagger-sdk = \"*\"\nserde = \"1\"\n"
+                "# {comment}\n[package]\nname = \"caller\"\nversion = \"0.2.0\"\nedition = \"2024\"\nrust-version = \"1.99.1\"\n\n[dependencies]\ndagger-sdk = \"*\"\nserde = \"1\"\n"
             )
         } else {
             format!(
-                "# {comment}\n[package]\nname = \"caller\"\nversion = \"0.2.0\"\nedition = \"2024\"\nrust-version = \"1.97.1\"\n\n[dependencies]\nserde = \"1\"\n\n[profile.release]\nlto = true\n"
+                "# {comment}\n[package]\nname = \"caller\"\nversion = \"0.2.0\"\nedition = \"2024\"\nrust-version = \"1.99.1\"\n\n[dependencies]\nserde = \"1\"\n\n[profile.release]\nlto = true\n"
             )
         };
         if inherited {
@@ -139,7 +139,7 @@ proptest! {
         }
 
         let toolchain_path = RelativeOperationPath::parse("rust-toolchain.toml").unwrap();
-        let declaration = format!("[toolchain]\nchannel = \"{}.{}.{}\"\n", 1, 97 + seed % 2, 1);
+        let declaration = format!("[toolchain]\nchannel = \"{}.{}.{}\"\n", 1, 99 + seed % 2, 1);
         let selected = select_toolchain(&[ToolchainDeclaration {
             path: &toolchain_path,
             bytes: declaration.as_bytes(),
@@ -237,10 +237,10 @@ fn initialization_is_dependency_gated_and_never_adopts_authored_source() {
     let declaration_path =
         RelativeOperationPath::parse("modules/caller/rust-toolchain.toml").unwrap();
     let toolchain = ToolchainSelection::Declared {
-        toolchain: "1.97.1".parse().unwrap(),
+        toolchain: "1.99.1".parse().unwrap(),
         declaration_path,
     };
-    let manifest = b"# caller-policy\n[package]\nname = \"caller\"\nversion = \"0.1.0\"\nedition = \"2024\"\nrust-version = \"1.97.1\"\n\n[dependencies]\nserde = \"1\"\n";
+    let manifest = b"# caller-policy\n[package]\nname = \"caller\"\nversion = \"0.1.0\"\nedition = \"2024\"\nrust-version = \"1.99.1\"\n\n[dependencies]\nserde = \"1\"\n";
     let authored_source = b"pub fn caller_owned() {}\n";
     let rejected = dagger_sdk_engine::initialization::plan_initialization(
         dagger_sdk_engine::initialization::InitializationInputs {
@@ -335,9 +335,9 @@ fn runtime_typestate_requires_lock_toolchain_manifest_and_owned_binary() {
         &root,
         corpus.discovered,
         target,
-        "1.97.1".parse().unwrap(),
+        "1.99.1".parse().unwrap(),
         &manifest,
     )
     .unwrap();
-    assert_eq!(promoted.toolchain.as_str(), "1.97.1");
+    assert_eq!(promoted.toolchain.as_str(), "1.99.1");
 }

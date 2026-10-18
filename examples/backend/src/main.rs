@@ -32,7 +32,7 @@ async fn main() -> Result<()> {
 
 fn build_backend(client: &Query) -> File {
     let backend_directory = client.host().directory("axum-backend");
-    let builder_image = client.container().from("rust:1.97.1-alpine3.22");
+    let builder_image = client.container().from("rust:1.99.1-alpine3.22");
     builder_image
         .with_exec(vec!["apk", "add", "build-base", "musl"])
         .with_directory("./backend", backend_directory)

@@ -1,5 +1,5 @@
 {
-  "build_image": "rust:1.97.1-bookworm@sha256:705e294093973d7c10e83400393dce7b3611f8e03e55a80af7fff6d02ae1affb",
+  "build_image": "rust:1.99.1-bookworm@sha256:e12566d5abc17a0da741628782cdb504b68b8961f5bfcf677936bf3e8b32de29",
   "cargo_target_dir": "/var/lib/dagger/rust/target",
   "format_version": 1,
   "linux_amd64_target": "x86_64-unknown-linux-gnu",

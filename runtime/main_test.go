@@ -19,7 +19,7 @@ func TestGenerationRequestKeepsAuthoringSemanticsInRust(t *testing.T) {
 		DaggerRevision:   strings.Repeat("a", 40),
 		EngineVersion:    "1.0.0-beta.11.rust.5",
 		RustSDKVersion:   "1.0.0-beta.11.rust.5",
-		RustToolchain:    "1.97.1",
+		RustToolchain:    "1.99.1",
 		CoreSchemaDigest: "sha256:" + strings.Repeat("b", 64),
 		SDKDependency: metadata.PublishedSDKDependency{
 			Source:       "registry",
@@ -67,7 +67,7 @@ func TestProperty19ModernLegacyGenerationSemanticallyConverge(t *testing.T) {
 	descriptor := metadata.EngineSource{
 		FormatVersion: 1, Repository: "https://github.com/dagger/dagger",
 		DaggerRevision: strings.Repeat("a", 40), EngineVersion: "1.0.0-beta.11.rust.5",
-		RustSDKVersion: "1.0.0-beta.11.rust.5", RustToolchain: "1.97.1",
+		RustSDKVersion: "1.0.0-beta.11.rust.5", RustToolchain: "1.99.1",
 		CoreSchemaDigest: "sha256:" + strings.Repeat("b", 64),
 		SDKDependency: metadata.PublishedSDKDependency{
 			Source: "registry", Registry: "crates-io", Package: "tokeira-dagger-sdk", ExactVersion: "1.0.0-beta.11.rust.5",

@@ -54,7 +54,7 @@ The complete checked-target refresh and release procedure is in
 The repository pins the development toolchain in `rust-toolchain.toml`. Rustup uses it
 automatically when commands run from this directory.
 
-The current baseline is Rust 1.97.1 for development, CI, and the MSRV, with Rust
+The current baseline is Rust 1.99.1 for development, CI, and the MSRV, with Rust
 edition 2024. The Rust SDK deliberately targets a modern compiler rather than carrying
 forward its historical Rust 1.77 constraint.
 

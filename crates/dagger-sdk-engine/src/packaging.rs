@@ -246,7 +246,7 @@ pub fn derive_shipped_audit_graph(
         ("cargo:dagger-bootstrap", SecuritySubjectKind::PrivateCrate),
         ("cargo:dagger-sdk-engine", SecuritySubjectKind::PrivateCrate),
         ("go:sdk/rust/runtime", SecuritySubjectKind::GoRuntimeAdapter),
-        ("image:rust-1.97.1", SecuritySubjectKind::ToolchainImage),
+        ("image:rust-1.99.1", SecuritySubjectKind::ToolchainImage),
     ] {
         let id = coordinate(id)?;
         subjects.insert(

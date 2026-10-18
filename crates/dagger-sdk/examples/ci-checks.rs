@@ -8,7 +8,7 @@ use std::process::ExitCode;
 use dagger_sdk::{Container, HostDirectoryOpts, Query, QueryError};
 
 /// Every check runs on one toolchain, pinned like the project's `rust-toolchain.toml`.
-const RUST_IMAGE: &str = "rust:1.97.1-bookworm";
+const RUST_IMAGE: &str = "rust:1.99.1-bookworm";
 
 // The gate a change must pass. Each check is one Cargo subcommand with a target
 // directory of its own, so the checks run concurrently without waiting on Cargo's

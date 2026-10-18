@@ -317,7 +317,7 @@ fn module_visibility_accepts_only_the_target_introspection_scrub() {
         rust_paths.push(path.as_str().to_owned());
     }
     let formatted = std::process::Command::new("rustfmt")
-        .arg("+1.97.1")
+        .arg("+1.99.1")
         .args(["--edition", "2024"])
         .args(&rust_paths)
         .current_dir(directory.path())

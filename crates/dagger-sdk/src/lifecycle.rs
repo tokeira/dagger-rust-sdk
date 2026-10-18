@@ -284,7 +284,7 @@ impl Clone for SessionHandle {
         if self
             .shared
             .leases
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |leases| {
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |leases| {
                 leases.checked_add(1)
             })
             .is_err()

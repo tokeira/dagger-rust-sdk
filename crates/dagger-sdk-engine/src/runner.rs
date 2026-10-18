@@ -1058,7 +1058,7 @@ mod tests {
             output_root: client.clone(),
         };
         let cargo = format!(
-            "[package]\nname = \"dagger-rust-client\"\nversion = \"0.0.0\"\npublish = false\nedition = \"2024\"\nrust-version = \"1.97.1\"\n\n[package.metadata.dagger]\ncontent-domain = \"engine-hook-baseline\"\nvisible-schema-digest = \"{}\"\nmodule-source-digest = \"{}\"\n\n[dependencies]\ndagger-sdk = {{ package = \"tokeira-dagger-sdk\", version = \"=1.0.0-beta.11.rust.5\" }}\n",
+            "[package]\nname = \"dagger-rust-client\"\nversion = \"0.0.0\"\npublish = false\nedition = \"2024\"\nrust-version = \"1.99.1\"\n\n[package.metadata.dagger]\ncontent-domain = \"engine-hook-baseline\"\nvisible-schema-digest = \"{}\"\nmodule-source-digest = \"{}\"\n\n[dependencies]\ndagger-sdk = {{ package = \"tokeira-dagger-sdk\", version = \"=1.0.0-beta.11.rust.5\" }}\n",
             request.visible_schema.digest, module.source_digest
         )
         .into_bytes();
@@ -1077,7 +1077,7 @@ mod tests {
         }
         fs::write(
             temporary.path().join("client/rust-toolchain.toml"),
-            b"[toolchain]\nchannel = \"1.97.1\"\n",
+            b"[toolchain]\nchannel = \"1.99.1\"\n",
         )
         .expect("toolchain fixture must be written");
         let root = OperationRoot::open(temporary.path()).expect("operation root must open");
@@ -1169,7 +1169,7 @@ mod tests {
             .expect("revision must parse"),
             engine_version: exact("1.0.0-beta.11.rust.5"),
             rust_sdk_version: exact("1.0.0-beta.11.rust.5"),
-            rust_toolchain: ExactRustToolchain::new("1.97.1".to_owned())
+            rust_toolchain: ExactRustToolchain::new("1.99.1".to_owned())
                 .expect("toolchain must parse"),
             core_schema_digest: sha(2),
         }

@@ -1,0 +1,7 @@
+kind: Changed
+body: |
+    The SDK needs Rust 1.99.1, up from 1.97.1. Its minimum supported Rust version, the toolchain that generated projects pin, and the image the runtime builds modules with all move to 1.99.1.
+time: 2026-10-18T00:01:00Z
+custom:
+    Author: iw
+    PR: "19"

@@ -21,7 +21,7 @@ fn package(name: &str, version: &str, publishable: bool) -> PackageView {
         features: BTreeMap::new(),
         dependencies: Vec::new(),
         edition: "2024".to_owned(),
-        rust_version: Some("1.97.1".to_owned()),
+        rust_version: Some("1.99.1".to_owned()),
     }
 }
 

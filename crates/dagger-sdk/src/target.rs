@@ -70,7 +70,7 @@ impl DaggerRevision {
         }
 
         let mut bytes = [0_u8; 20];
-        for (index, pair) in value.as_bytes().chunks_exact(2).enumerate() {
+        for (index, pair) in value.as_bytes().as_chunks::<2>().0.iter().enumerate() {
             let high = decode_hex(pair[0])
                 .ok_or_else(|| TargetError::new(TargetErrorKind::InvalidRevision))?;
             let low = decode_hex(pair[1])

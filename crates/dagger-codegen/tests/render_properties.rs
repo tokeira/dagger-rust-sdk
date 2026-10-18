@@ -176,7 +176,7 @@ proptest! {
             observed.insert(format!("dagger_sdk::__Unknown{symbol_index}"));
         }
         prop_assert_eq!(observed == expected, !remove_symbol && !add_unknown);
-        prop_assert_eq!(exact_plan().target().rust_version().to_string(), "1.97.1");
+        prop_assert_eq!(exact_plan().target().rust_version().to_string(), "1.99.1");
         prop_assert_eq!(exact_plan().target().rust_edition().as_str(), "2024");
     }
 

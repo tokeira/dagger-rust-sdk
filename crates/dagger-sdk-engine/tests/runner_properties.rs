@@ -120,7 +120,7 @@ proptest! {
         let manifest = RelativeOperationPath::parse("module/Cargo.toml").unwrap();
         let plan = match variant {
             0 => PostWorkPlan::FormatRust {
-                toolchain: "1.97.1".parse().unwrap(),
+                toolchain: "1.99.1".parse().unwrap(),
                 files: BTreeSet::from([
                     RelativeOperationPath::parse(&format!("generated/{seed}.rs")).unwrap()
                 ]),
@@ -132,8 +132,8 @@ proptest! {
         prop_assert!(!command.arguments.iter().any(|argument| argument.contains(';')));
         prop_assert!(matches!(command.executable,
             "/usr/local/cargo/bin/cargo"
-                | "/usr/local/rustup/toolchains/1.97.1-x86_64-unknown-linux-gnu/bin/rustfmt"
-                | "/usr/local/rustup/toolchains/1.97.1-aarch64-unknown-linux-gnu/bin/rustfmt"));
+                | "/usr/local/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustfmt"
+                | "/usr/local/rustup/toolchains/1.99.1-aarch64-unknown-linux-gnu/bin/rustfmt"));
         let projections = if converges {
             vec![seed, seed]
         } else {

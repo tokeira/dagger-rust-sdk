@@ -21,7 +21,7 @@ use serde_json::Value;
 
 /// The runtime's digest-pinned builder, so CI compiles with the inputs module builds use.
 const RUST_IMAGE: &str =
-    "rust:1.97.1-bookworm@sha256:705e294093973d7c10e83400393dce7b3611f8e03e55a80af7fff6d02ae1affb";
+    "rust:1.99.1-bookworm@sha256:e12566d5abc17a0da741628782cdb504b68b8961f5bfcf677936bf3e8b32de29";
 /// The Go release the runtime's and rust-client-dev's `go.mod` files name.
 const GO_IMAGE: &str = "golang:1.26.1-bookworm@sha256:ab3d6955bbc813a0f3fdf220c1d817dd89c0b3f283777db8ece4a32fe7858edd";
 const CARGO_DENY_VERSION: &str = "0.19.9";

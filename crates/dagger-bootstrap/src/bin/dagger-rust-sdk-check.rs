@@ -393,7 +393,7 @@ pub(crate) fn validate_package_contract(
         )));
     }
     if macros.edition != "2024"
-        || macros.rust_version.as_deref() != Some("1.97.1")
+        || macros.rust_version.as_deref() != Some("1.99.1")
         || macros
             .dependencies
             .iter()

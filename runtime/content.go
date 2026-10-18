@@ -13,7 +13,7 @@ import (
 const (
 	// rustSDKBuildImage matches the digest-pinned builder the engine-packaged content
 	// uses, so a self-built content root compiles the same helper from the same inputs.
-	rustSDKBuildImage = "rust:1.97.1-bookworm@sha256:705e294093973d7c10e83400393dce7b3611f8e03e55a80af7fff6d02ae1affb"
+	rustSDKBuildImage = "rust:1.99.1-bookworm@sha256:e12566d5abc17a0da741628782cdb504b68b8961f5bfcf677936bf3e8b32de29"
 	// sdkDependencyPath, inside this runtime's own source, names the repository,
 	// commit, and workspace path of the SDK crates generated projects depend on. A
 	// commit cannot state its own hash, so a later commit records it.

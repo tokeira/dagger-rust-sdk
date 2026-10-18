@@ -1,4 +1,4 @@
-const BUILDER_IMAGE: &str = "rust:1.97.1-slim-bookworm";
+const BUILDER_IMAGE: &str = "rust:1.99.1-slim-bookworm";
 const OUTPUT: &str = "build/cli";
 
 #[tokio::main]

@@ -18,9 +18,9 @@ use crate::{OperationRoot, PostWorkPlan};
 
 const CARGO: &str = "/usr/local/cargo/bin/cargo";
 #[cfg(target_arch = "x86_64")]
-const RUSTFMT: &str = "/usr/local/rustup/toolchains/1.97.1-x86_64-unknown-linux-gnu/bin/rustfmt";
+const RUSTFMT: &str = "/usr/local/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustfmt";
 #[cfg(target_arch = "aarch64")]
-const RUSTFMT: &str = "/usr/local/rustup/toolchains/1.97.1-aarch64-unknown-linux-gnu/bin/rustfmt";
+const RUSTFMT: &str = "/usr/local/rustup/toolchains/1.99.1-aarch64-unknown-linux-gnu/bin/rustfmt";
 #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
 compile_error!("the Rust SDK engine supports only linux/amd64 and linux/arm64");
 const MAX_PROCESS_OUTPUT_BYTES: usize = 256 * 1024;
@@ -237,8 +237,8 @@ async fn execute_fixed_with_stdout_policy(
         )
     };
     let mut child = command.spawn().map_err(|_| failure())?;
-    let stdout = child.stdout.take().ok_or_else(&failure)?;
-    let stderr = child.stderr.take().ok_or_else(&failure)?;
+    let stdout = child.stdout.take().ok_or_else(failure)?;
+    let stderr = child.stderr.take().ok_or_else(failure)?;
     let stdout_task = tokio::spawn(read_bounded(stdout));
     let stderr_task = tokio::spawn(read_bounded(stderr));
 

@@ -435,7 +435,7 @@ fn format_cases() -> &'static [FormatCase] {
         let finalized = PinnedRustfmt
             .finalize_files(&fixture.workspace, &target, raw_files)
             .expect("the pinned formatter must finalize the generated matrix");
-        assert_eq!(finalized.formatter(), "rustfmt:1.97.1");
+        assert_eq!(finalized.formatter(), "rustfmt:1.99.1");
         inputs
             .into_iter()
             .map(|(path, raw)| {

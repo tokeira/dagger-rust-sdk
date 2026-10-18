@@ -44,7 +44,7 @@ behavior.
 
 - Rust edition 2024 is the current language contract.
 - The development toolchain is pinned in `rust-toolchain.toml`; the workspace MSRV is
-  declared in `Cargo.toml`. Both currently target Rust 1.97.1. Do not change either as
+  declared in `Cargo.toml`. Both currently target Rust 1.99.1. Do not change either as
   a side effect of unrelated work.
 - Run stable `rustfmt` and Clippy from the pinned toolchain.
 - Prefer typed public errors. Context-rich general errors are acceptable in internal

@@ -33,9 +33,9 @@ proptest! {
         let corpus = fixed_model_corpus(seed, true, 1);
         let module_root = RelativeOperationPath::parse(&format!("workspace/modules/module-{seed}")).unwrap();
         let manifest = existing.then(|| format!(
-            "# caller-{seed}\n[package]\nname = \"module-{seed}\"\nversion = \"0.1.0\"\nedition = \"2024\"\nrust-version = \"1.97.1\"\n\n[dependencies]\nserde = \"1\"\n"
+            "# caller-{seed}\n[package]\nname = \"module-{seed}\"\nversion = \"0.1.0\"\nedition = \"2024\"\nrust-version = \"1.99.1\"\n\n[dependencies]\nserde = \"1\"\n"
         ));
-        let toolchain = ToolchainSelection::TargetDefault { toolchain: "1.97.1".parse().unwrap() };
+        let toolchain = ToolchainSelection::TargetDefault { toolchain: "1.99.1".parse().unwrap() };
         let before = unrelated.clone();
         let result = plan_initialization(InitializationInputs {
             module_root: &module_root,
@@ -104,7 +104,7 @@ proptest! {
 fn starter_source_is_rustfmt_formatted() {
     let corpus = fixed_model_corpus(3, true, 1);
     let toolchain = ToolchainSelection::TargetDefault {
-        toolchain: "1.97.1".parse().unwrap(),
+        toolchain: "1.99.1".parse().unwrap(),
     };
     for name in ["greeter", "ci", "release-gate"] {
         let module_root = RelativeOperationPath::parse(&format!("modules/{name}")).unwrap();
@@ -127,7 +127,7 @@ fn starter_source_is_rustfmt_formatted() {
             .unwrap();
         // Standard input keeps rustfmt from resolving `mod dagger_generated`.
         let mut rustfmt = Command::new("rustup")
-            .args(["run", "1.97.1", "rustfmt", "--edition", "2024"])
+            .args(["run", "1.99.1", "rustfmt", "--edition", "2024"])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()
@@ -171,7 +171,7 @@ fn starter_compiles(
         dagger_revision: TargetValue::new("0123456789abcdef0123456789abcdef01234567").unwrap(),
         engine_version: TargetValue::new("1.0.0-beta.11.rust.5").unwrap(),
         rust_sdk_version: TargetValue::new("1.0.0-beta.11.rust.5").unwrap(),
-        rust_toolchain: TargetValue::new("1.97.1").unwrap(),
+        rust_toolchain: TargetValue::new("1.99.1").unwrap(),
         rust_edition: TargetValue::new("2024").unwrap(),
         visible_schema_digest,
     };

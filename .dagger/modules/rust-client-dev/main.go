@@ -17,9 +17,9 @@ import (
 )
 
 const (
-	rustSdkImage            = "rust:1.97.1-bookworm"
-	rustToolchainVersion    = "1.97.1"
-	rustSdkImageDigest      = "sha256:705e294093973d7c10e83400393dce7b3611f8e03e55a80af7fff6d02ae1affb"
+	rustSdkImage            = "rust:1.99.1-bookworm"
+	rustToolchainVersion    = "1.99.1"
+	rustSdkImageDigest      = "sha256:e12566d5abc17a0da741628782cdb504b68b8961f5bfcf677936bf3e8b32de29"
 	goHelperImage           = "golang:1.26.1-bookworm"
 	goHelperDigest          = "sha256:ab3d6955bbc813a0f3fdf220c1d817dd89c0b3f283777db8ece4a32fe7858edd"
 	coreTargetRepository    = "https://github.com/dagger/dagger.git"
@@ -670,7 +670,7 @@ func (content *RustEngineContent) runEngineIntegrationCase(
 	case "init-existing":
 		const callerSource = "//! caller-owned source\npub fn caller_owned() {}\n"
 		result := installed.
-			WithNewFile("/work/modules/existing/Cargo.toml", "[package]\nname = \"existing\"\nversion = \"0.1.0\"\nedition = \"2024\"\nrust-version = \"1.97.1\"\n\n[dependencies]\nserde = \"1\"\n").
+			WithNewFile("/work/modules/existing/Cargo.toml", "[package]\nname = \"existing\"\nversion = \"0.1.0\"\nedition = \"2024\"\nrust-version = \"1.99.1\"\n\n[dependencies]\nserde = \"1\"\n").
 			WithNewFile("/work/modules/existing/src/lib.rs", callerSource).
 			WithExec([]string{
 				"dagger", "-y", "module", "init", "rust", "existing", "--path", "modules/existing",
@@ -878,7 +878,7 @@ func (content *RustEngineContent) runRedactionFailure(
 name = "credential-failure"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.97.1"
+rust-version = "1.99.1"
 
 [dependencies]
 dagger-sdk = { git = "https://user:` + credential + `@github.com/iw/dagger", rev = "a4e1e4ff663e5e51c2b96c2c0772f3d2f00cfb94" }

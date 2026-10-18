@@ -15,7 +15,7 @@ use crate::diagnostic::{EngineDiagnostic, EngineDiagnosticCode};
 use crate::{PublishedSdkDependency, RelativeOperationPath, SDK_DEPENDENCY_KEY, Sha256Digest};
 
 const RUST_EDITION: &str = "2024";
-const RUST_MSRV: &str = "1.97.1";
+const RUST_MSRV: &str = "1.99.1";
 const TOKIO_RUNTIME_VERSION: &str = "1.35.1";
 
 /// Pure, format-preserving amendment proposed for one selected Cargo package.

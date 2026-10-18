@@ -64,8 +64,8 @@ proptest! {
         let corpus = fixed_model_corpus(seed, true, 1);
         let path = RelativeOperationPath::parse("workspace/rust-toolchain").unwrap();
         let bytes = match declaration {
-            0 => "1.97.1\n".to_owned(),
-            1 => "1.98.0\n".to_owned(),
+            0 => "1.99.1\n".to_owned(),
+            1 => "1.100.0\n".to_owned(),
             2 => "stable\n".to_owned(),
             _ => "1.96.0\n".to_owned(),
         };

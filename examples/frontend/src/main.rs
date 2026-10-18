@@ -54,7 +54,7 @@ async fn main() -> Result<()> {
 
 fn build_frontend(client: &Query) -> Directory {
     let frontend_directory = client.host().directory("leptos-frontend");
-    let builder_image = client.container().from("rust:1.97.1");
+    let builder_image = client.container().from("rust:1.99.1");
     builder_image
         .with_exec(vec!["apt-get", "update"])
         .with_exec(vec!["apt-get", "install", "-y", "nodejs", "npm"])

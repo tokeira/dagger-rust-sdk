@@ -350,8 +350,8 @@ fn repository_security_inputs_cover_derived_shipped_graph() {
             "go:sdk/rust/runtime" => {
                 RUNTIME_GO_MOD.contains("module rust-sdk") && !RUNTIME_GO_SUM.is_empty()
             }
-            "image:rust-1.97.1" => RUNTIME_POLICY.contains(
-                "rust:1.97.1-bookworm@sha256:705e294093973d7c10e83400393dce7b3611f8e03e55a80af7fff6d02ae1affb",
+            "image:rust-1.99.1" => RUNTIME_POLICY.contains(
+                "rust:1.99.1-bookworm@sha256:e12566d5abc17a0da741628782cdb504b68b8961f5bfcf677936bf3e8b32de29",
             ),
             "distribution:rust-sdk" => {
                 RUST_TOOLCHAIN.contains("func (t *RustClientDev) Test")
@@ -524,7 +524,7 @@ fn package_identity(seed: u8, fork: bool) -> PackageIdentity {
         dagger_revision,
         engine_version: value("1.0.0-beta.11.rust.5"),
         rust_sdk_version: value("1.0.0-beta.11.rust.5"),
-        rust_toolchain: value("1.97.1"),
+        rust_toolchain: value("1.99.1"),
         sdk_dependency,
         core_schema_digest: digest(seed, 200),
     }

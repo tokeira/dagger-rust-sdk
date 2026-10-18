@@ -5,7 +5,7 @@
   "engine_version": "v1.0.0-beta.18",
   "rust_edition": "2024",
   "rust_sdk_version": "0.1.0",
-  "rust_version": "1.97.1",
+  "rust_version": "1.99.1",
   "schema_digest": "sha256:8cbd134fc17405aa0ae54b45640f4bd6b93a022bd4a2c4594375f3658962bf7f",
   "schema_version": "v1.0.0"
 }

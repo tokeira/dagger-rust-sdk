@@ -43,7 +43,7 @@ proptest! {
         let cargo_text = String::from_utf8(cargo).unwrap();
         prop_assert!(cargo_text.contains("publish = false"));
         prop_assert!(cargo_text.contains("edition = \"2024\""));
-        prop_assert!(cargo_text.contains("rust-version = \"1.97.1\""));
+        prop_assert!(cargo_text.contains("rust-version = \"1.99.1\""));
         if existing {
             prop_assert!(cargo_text.contains("serde = \"1\""));
             prop_assert!(cargo_text.contains("[profile.dev]"));
@@ -66,7 +66,7 @@ proptest! {
         let dependency = if use_git { git_dependency(seed) } else { registry_dependency() };
         let declaration = dependency_declaration(&dependency, mutation);
         let manifest = format!(
-            "[package]\nname = \"{package}\"\nversion = \"0.1.0\"\npublish = false\nedition = \"2024\"\nrust-version = \"1.97.1\"\n\n[dependencies]\ndagger-sdk = {declaration}\n"
+            "[package]\nname = \"{package}\"\nversion = \"0.1.0\"\npublish = false\nedition = \"2024\"\nrust-version = \"1.99.1\"\n\n[dependencies]\ndagger-sdk = {declaration}\n"
         ).into_bytes();
         let snapshot = snapshot(seed, Some(manifest), Some(Vec::new()), None);
         let request = project_request(&package, dependency, ClientDocumentationState::Generated);
@@ -88,14 +88,14 @@ proptest! {
     ) {
         let declaration_path = path(&format!("client-{seed}/rust-toolchain.toml"));
         let bytes = match policy {
-            0 => b"[toolchain]\nchannel = \"1.97.1\"\n".to_vec(),
-            1 => b"[toolchain]\nchannel = \"1.98.0\"\n".to_vec(),
+            0 => b"[toolchain]\nchannel = \"1.99.1\"\n".to_vec(),
+            1 => b"[toolchain]\nchannel = \"1.100.0\"\n".to_vec(),
             2 => b"[toolchain]\nchannel = \"1.96.0\"\n".to_vec(),
             _ => b"[toolchain]\nchannel = \"stable\"\n".to_vec(),
         };
         let result = select_toolchain(&[ToolchainDeclaration { path: &declaration_path, bytes: &bytes }]);
         prop_assert_eq!(result.is_ok(), policy < 2);
-        let selected = result.unwrap_or(ToolchainSelection::TargetDefault { toolchain: "1.97.1".parse().unwrap() });
+        let selected = result.unwrap_or(ToolchainSelection::TargetDefault { toolchain: "1.99.1".parse().unwrap() });
         let mut project = snapshot(seed, None, None, Some(hash(&lockfile)));
         project.toolchain = selected;
         let before = project.lockfile_digest.clone();
@@ -274,7 +274,7 @@ fn generated_artifacts_and_authored_amendments_publish_as_one_owned_transaction(
     .unwrap();
     fs::write(
         temporary.path().join("client-23/rust-toolchain.toml"),
-        b"[toolchain]\nchannel = \"1.97.1\"\n",
+        b"[toolchain]\nchannel = \"1.99.1\"\n",
     )
     .unwrap();
     let root = OperationRoot::open(temporary.path()).unwrap();
@@ -369,7 +369,7 @@ fn custom_library_root_selects_the_actual_module_and_vcs_subtree() {
     .unwrap();
     fs::write(
         temporary.path().join("client/rust-toolchain.toml"),
-        b"[toolchain]\nchannel = \"1.97.1\"\n",
+        b"[toolchain]\nchannel = \"1.99.1\"\n",
     )
     .unwrap();
     let root = OperationRoot::open(temporary.path()).unwrap();
@@ -443,7 +443,7 @@ fn snapshot(
         gitignore: None,
         lockfile_digest,
         toolchain: ToolchainSelection::Declared {
-            toolchain: "1.97.1".parse().unwrap(),
+            toolchain: "1.99.1".parse().unwrap(),
             declaration_path: path(&format!("{root}/rust-toolchain.toml")),
         },
     }

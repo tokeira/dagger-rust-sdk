@@ -11,7 +11,7 @@ use toml_edit::{DocumentMut, Item};
 use crate::diagnostic::{EngineDiagnostic, EngineDiagnosticCode};
 use crate::{ExactRustToolchain, RelativeOperationPath, ToolchainSelection};
 
-const TARGET_TOOLCHAIN: &str = "1.97.1";
+const TARGET_TOOLCHAIN: &str = "1.99.1";
 
 /// One candidate toolchain declaration in deterministic precedence order.
 #[derive(Clone, Debug, Eq, PartialEq)]

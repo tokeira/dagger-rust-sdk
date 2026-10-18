@@ -2,7 +2,7 @@
 
 [![Build status](https://badge.buildkite.com/1c19045900aa4fa682a5abe778c6aacd38caa9770ca8b7a90b.svg?branch=main)](https://buildkite.com/tokeira/dagger-rust-sdk)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
-[![MSRV 1.97.1](https://img.shields.io/badge/MSRV-1.97.1-orange?logo=rust)](Cargo.toml)
+[![MSRV 1.99.1](https://img.shields.io/badge/MSRV-1.99.1-orange?logo=rust)](Cargo.toml)
 [![Dagger v1.0.0-beta.18](https://img.shields.io/badge/Dagger-v1.0.0--beta.18-informational)](https://github.com/dagger/dagger/tree/v1.0.0-beta.18)
 [![Built with Codex & Claude](https://img.shields.io/badge/built%20with-Codex%20%26%20Claude-blueviolet)](#built-with-claude)
 
@@ -29,7 +29,7 @@ use std::process::ExitCode;
 use dagger_sdk::{Container, HostDirectoryOpts, Query, QueryError};
 
 /// Every check runs on one toolchain, pinned like the project's `rust-toolchain.toml`.
-const RUST_IMAGE: &str = "rust:1.97.1-bookworm";
+const RUST_IMAGE: &str = "rust:1.99.1-bookworm";
 
 // The gate a change must pass. Each check is one Cargo subcommand with a target
 // directory of its own, so the checks run concurrently without waiting on Cargo's
@@ -139,7 +139,7 @@ use dagger_generated::ModuleContext;
 use dagger_sdk::{Container, Directory, ModuleError, Query, Secret};
 
 /// Every step builds on one toolchain, pinned like the service's `rust-toolchain.toml`.
-const RUST_IMAGE: &str = "rust:1.97.1-bookworm";
+const RUST_IMAGE: &str = "rust:1.99.1-bookworm";
 
 #[dagger_sdk::object(root, rename = "Ci")]
 pub struct Ci {}

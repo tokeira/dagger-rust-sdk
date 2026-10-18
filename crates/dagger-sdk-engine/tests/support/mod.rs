@@ -80,7 +80,7 @@ fn build_corpus(seed: u8, use_registry: bool, operation: u8, content: Vec<u8>) -
         dagger_revision: value(&format!("{seed:040x}")),
         engine_version: value("1.0.0-beta.11.rust.5"),
         rust_sdk_version: value("1.0.0-beta.11.rust.5"),
-        rust_toolchain: value("1.97.1"),
+        rust_toolchain: value("1.99.1"),
         core_schema_digest: digest(seed, 2),
     };
     let module = ModuleOperationInput {
@@ -145,7 +145,7 @@ fn build_corpus(seed: u8, use_registry: bool, operation: u8, content: Vec<u8>) -
     let mut rust_files = BTreeSet::new();
     rust_files.insert(source_path.clone());
     let post_work = PostWorkPlan::FormatRust {
-        toolchain: value("1.97.1"),
+        toolchain: value("1.99.1"),
         files: rust_files,
     };
     let mut candidate_artifacts = BTreeMap::new();
@@ -242,12 +242,12 @@ fn build_corpus(seed: u8, use_registry: bool, operation: u8, content: Vec<u8>) -
     };
     let toolchain = if use_registry {
         ToolchainSelection::Declared {
-            toolchain: value("1.97.1"),
+            toolchain: value("1.99.1"),
             declaration_path: path(&format!("{root}/rust-toolchain.toml")),
         }
     } else {
         ToolchainSelection::TargetDefault {
-            toolchain: value("1.97.1"),
+            toolchain: value("1.99.1"),
         }
     };
     let discovered = DiscoveredCargoProject {
@@ -264,13 +264,13 @@ fn build_corpus(seed: u8, use_registry: bool, operation: u8, content: Vec<u8>) -
         discovered: discovered.clone(),
         target_binary: cargo_target.clone(),
         lockfile: path(&format!("{root}/Cargo.lock")),
-        toolchain: value("1.97.1"),
+        toolchain: value("1.99.1"),
         operation_manifest_digest: digest(seed, 10),
     };
     let provenance_input = RuntimeProvenanceInput {
         format_version: FormatVersion,
         engine_source: engine_source.clone(),
-        toolchain: value("1.97.1"),
+        toolchain: value("1.99.1"),
         base_image_digest: digest(seed, 11),
         lockfile_digest: digest(seed, 12),
         module_source_digest: module.source_digest.clone(),
@@ -289,7 +289,7 @@ fn build_corpus(seed: u8, use_registry: bool, operation: u8, content: Vec<u8>) -
     let runtime_policy = RuntimePolicy {
         format_version: FormatVersion,
         build_image: value(
-            "rust:1.97.1-bookworm@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "rust:1.99.1-bookworm@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         ),
         runtime_base_image: value(
             "gcr.io/distroless/cc-debian12:nonroot@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",

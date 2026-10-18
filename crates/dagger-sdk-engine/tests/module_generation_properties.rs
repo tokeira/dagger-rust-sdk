@@ -45,7 +45,7 @@ impl OperationPostWork for HostRustfmt {
             panic!("module rendering admits only formatter post-work")
         };
         let mut command = Command::new("rustup");
-        command.args(["run", "1.97.1", "rustfmt", "--edition", "2024"]);
+        command.args(["run", "1.99.1", "rustfmt", "--edition", "2024"]);
         for file in files {
             command.arg(root.regular_file(file).unwrap());
         }
@@ -188,7 +188,7 @@ async fn regeneration_after_a_generator_upgrade_replaces_owned_files() {
 fn initialize(directory: &Path) -> String {
     let module_root = RelativeOperationPath::parse(MODULE_ROOT).unwrap();
     let toolchain = ToolchainSelection::TargetDefault {
-        toolchain: "1.97.1".parse().unwrap(),
+        toolchain: "1.99.1".parse().unwrap(),
     };
     let plan = plan_initialization(InitializationInputs {
         module_root: &module_root,
@@ -289,7 +289,7 @@ fn target() -> TargetIdentity {
         dagger_revision: FullRevision::new(REVISION).unwrap(),
         engine_version: ExactVersion::new("1.0.0-beta.18").unwrap(),
         rust_sdk_version: ExactVersion::new("0.1.0").unwrap(),
-        rust_toolchain: ExactRustToolchain::new("1.97.1").unwrap(),
+        rust_toolchain: ExactRustToolchain::new("1.99.1").unwrap(),
         core_schema_digest: Sha256Digest::new(CORE_SCHEMA_DIGEST).unwrap(),
     }
 }

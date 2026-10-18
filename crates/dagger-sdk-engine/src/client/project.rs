@@ -24,7 +24,7 @@ use crate::{
 };
 
 const RUST_EDITION: &str = "2024";
-const RUST_MSRV: &str = "1.97.1";
+const RUST_MSRV: &str = "1.99.1";
 const TOKIO_RUNTIME_VERSION: &str = "1.35.1";
 const README_REGION: &str = "dagger-client-quickstart-v1";
 

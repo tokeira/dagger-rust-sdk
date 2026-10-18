@@ -26,7 +26,7 @@ const APPROVED_DAGGER_REVISION: &str = "249edbd646e63c5181053c8af72623ed9bdf030d
 const APPROVED_ENGINE_VERSION: &str = "v1.0.0-beta.18";
 const APPROVED_RUST_EDITION: &str = "2024";
 const APPROVED_RUST_SDK_VERSION: &str = "0.1.0";
-const APPROVED_RUST_VERSION: &str = "1.97.1";
+const APPROVED_RUST_VERSION: &str = "1.99.1";
 const APPROVED_SCHEMA_DIGEST: &str =
     "sha256:8cbd134fc17405aa0ae54b45640f4bd6b93a022bd4a2c4594375f3658962bf7f";
 const APPROVED_SCHEMA_VERSION: &str = "v1.0.0";
@@ -332,7 +332,7 @@ fn parse_digest(source: &str) -> Result<Sha256Digest, DiagnosticSet> {
         ));
     }
     let mut bytes = [0_u8; 32];
-    for (index, pair) in hexadecimal.as_bytes().chunks_exact(2).enumerate() {
+    for (index, pair) in hexadecimal.as_bytes().as_chunks::<2>().0.iter().enumerate() {
         let high = decode_hex(pair[0]);
         let low = decode_hex(pair[1]);
         let (Some(high), Some(low)) = (high, low) else {

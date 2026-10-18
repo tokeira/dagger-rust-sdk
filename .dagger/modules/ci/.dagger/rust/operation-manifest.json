@@ -1,7 +1,7 @@
 {
   "artifacts": {
     "workspace/.dagger/modules/ci/src/bin/dagger-module.rs": {
-      "digest": "sha256:efa95533080b0478b8991b78c3e65ee6ce0ab50ac33e7896c3876d30ac9f5191",
+      "digest": "sha256:aeab98c220d03433f18ef1187cacc7ac286b89c0ece28723d21cb3d3bcd91cf5",
       "kind": "rust-source",
       "ownership": "generator"
     },
@@ -11,42 +11,42 @@
       "ownership": "generator"
     },
     "workspace/.dagger/modules/ci/src/dagger_generated/generated-module-assets.json": {
-      "digest": "sha256:2517345d70d2e61e88551403b6e6d65d4d45c0db5e9b8cb578a300de4d831cd4",
+      "digest": "sha256:ac72a416062cf04a99b918a01789e75a45dbb62c08539a0a9577bf743adb51cf",
       "kind": "control-manifest",
       "ownership": "generator"
     },
     "workspace/.dagger/modules/ci/src/dagger_generated/mod.rs": {
-      "digest": "sha256:48ced2c8452ffe72d1e52d78ee7d81782eda5e1b407c3394fd4b2360ca0ea561",
+      "digest": "sha256:e91c802002a63b06bac6eb2fda9bf8f7e661dec5638dd620d6a0ce6eaba6e01b",
       "kind": "rust-source",
       "ownership": "generator"
     },
     "workspace/.dagger/modules/ci/src/dagger_generated/module-introspection.json": {
-      "digest": "sha256:66beb2a241afd6bafa2b4fce08a8b3bb7913c622fb71526d9ddcc52883d569cb",
+      "digest": "sha256:6add4365dd7a1f549a971b926a6d36309adc95599729b3ef01f878daa80c4ac4",
       "kind": "control-manifest",
       "ownership": "generator"
     },
     "workspace/.dagger/modules/ci/src/dagger_generated/module_codec.rs": {
-      "digest": "sha256:9c6803315e5b73c9d03a179293cf04ea5f49225e28e0a3201075321d7a0c2f9b",
+      "digest": "sha256:42f1ce07160d17de4cfd9f3df4ffdd04e2db5ce24adcbaa2e7a6c748ae899e0e",
       "kind": "rust-source",
       "ownership": "generator"
     },
     "workspace/.dagger/modules/ci/src/dagger_generated/module_context.rs": {
-      "digest": "sha256:822e5c4cc90c1c34df57c6b4accd9dc9dcf73715fcc78f26df67ae6365fc11b0",
+      "digest": "sha256:92f1dfc3047afa64bf1bb6914e7c75f49d65c415dbf3d6f2f7f36a49837a6b27",
       "kind": "rust-source",
       "ownership": "generator"
     },
     "workspace/.dagger/modules/ci/src/dagger_generated/module_descriptor.rs": {
-      "digest": "sha256:61bacf3283962caaf34fbc5f9dec9b5570e9be0418706557554969e24cf003e8",
+      "digest": "sha256:472b22adb94fdc5dc01b3f773307d8699e9b359eae9fb38aa10dcd5bf6bce987",
       "kind": "rust-source",
       "ownership": "generator"
     },
     "workspace/.dagger/modules/ci/src/dagger_generated/module_dispatch.rs": {
-      "digest": "sha256:dfe20f251379eea5a061dd2a6258cd3b02db9267972c3fd64e072d43260d5818",
+      "digest": "sha256:5d1a0286bddb029652bc2e5e44cd1fe1b646aba504b8282b406d95f734f75455",
       "kind": "rust-source",
       "ownership": "generator"
     },
     "workspace/.dagger/modules/ci/src/dagger_generated/module_registration.rs": {
-      "digest": "sha256:53355022d97b7b93f068dac12b68e8b3c09c13309a78c1b4f79381e3cbab2c11",
+      "digest": "sha256:0a6a7b6e567d6ffb9ff3361d3f686ec9869bbac331d42299aff3e52a8db4d9b1",
       "kind": "rust-source",
       "ownership": "generator"
     }
@@ -56,9 +56,9 @@
     "engine_source_digest": "sha256:0db87de71950bd177ceaaaf165b996bf23270ec4e0e05878c6177b41a0376209",
     "version": "0.1.0"
   },
-  "input_digest": "sha256:4c75f3bfb2f6576f71d13df54b8b4c68147c1d89315b1d688de07c8674b7f694",
+  "input_digest": "sha256:61567e482b2912f2b0bd3d18a9265dd60844e1026ae17878007b310b84f6d210",
   "mode": "checked-generated",
-  "module_source_digest": "sha256:80a72c96204d4c3fe6d0016f427db1fb7720514edda91d2cb7cc9d284274c5b1",
+  "module_source_digest": "sha256:c13c4d58811dd16cffed40d1dfe2b6d779ae435e381ca7748d917b8faa981889",
   "operation": "generate-module",
   "output_root": "workspace/.dagger/modules/ci",
   "post_work": [
@@ -76,7 +76,7 @@
         ],
         "toolchain": "1.97.1"
       },
-      "result_digest": "sha256:3fb8f307eec14389998261d12d4d8699de2a8e40f4fadd1d0f1b8be8f95c98be"
+      "result_digest": "sha256:076b5f80d8171c8f3d1fea852449ec25dd3c5a69e61aa2b89f1f425df6341f9e"
     }
   ],
   "sdk_dependency": {
