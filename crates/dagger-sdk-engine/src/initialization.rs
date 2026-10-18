@@ -281,6 +281,17 @@ pub async fn execute_initialization(
     for work in &plan.post_work {
         let outcome = execute(root, work, &current_allowlisted_environment(), cancel).await?;
         if !outcome.success {
+            if let Some((workspace, module)) = unclaiming_workspace(root, module_root)? {
+                return Err(EngineDiagnostic::new(
+                    EngineDiagnosticCode::DependencyResolutionFailed,
+                    Some(workspace.as_str()),
+                    format!(
+                        "the module's Cargo package is inside a Cargo workspace that neither \
+                         lists nor excludes it; add `{module}` to that workspace's `exclude`, \
+                         or to its `members`"
+                    ),
+                ));
+            }
             return Err(EngineDiagnostic::new(
                 EngineDiagnosticCode::DependencyResolutionFailed,
                 Some("initialization.cargo"),
@@ -392,6 +403,84 @@ fn contains_rust_source(
     Ok(false)
 }
 
+/// The nearest Cargo workspace above `module_root` that neither lists nor excludes it,
+/// as its manifest and the module's path from it. Cargo refuses to resolve a package
+/// there; reading the manifests names the fix without forwarding Cargo's output, which
+/// can quote the caller's files. A member glob that could cover the module counts as
+/// listing it, so the diagnostic never blames a workspace that does claim it.
+fn unclaiming_workspace(
+    root: &OperationRoot,
+    module_root: &RelativeOperationPath,
+) -> Result<Option<(RelativeOperationPath, String)>, EngineDiagnostic> {
+    let module = module_root.as_str().trim_end_matches('/');
+    let mut directory = Some(module.to_owned());
+    while let Some(current) = directory {
+        let spelling = if current.is_empty() {
+            "Cargo.toml".to_owned()
+        } else {
+            format!("{current}/Cargo.toml")
+        };
+        let manifest_path = RelativeOperationPath::parse(&spelling).map_err(|_| {
+            EngineDiagnostic::new(
+                EngineDiagnosticCode::OutputPathEscape,
+                Some(module),
+                "workspace search path is not canonical",
+            )
+        })?;
+        if root.exists(&manifest_path) {
+            let manifest = String::from_utf8_lossy(&root.read(&manifest_path)?).into_owned();
+            if let Some(workspace) = manifest
+                .parse::<toml_edit::DocumentMut>()
+                .ok()
+                .and_then(|document| document.get("workspace").cloned())
+            {
+                // The module's own `[workspace]` makes it a workspace of its own.
+                if current == module {
+                    return Ok(None);
+                }
+                let relative = module
+                    .strip_prefix(&current)
+                    .map_or(module, |rest| rest.trim_start_matches('/'));
+                let entries = |key: &str| -> Vec<String> {
+                    workspace
+                        .get(key)
+                        .and_then(toml_edit::Item::as_array)
+                        .map(|array| {
+                            array
+                                .iter()
+                                .filter_map(toml_edit::Value::as_str)
+                                .map(|entry| {
+                                    entry
+                                        .trim_start_matches("./")
+                                        .trim_end_matches('/')
+                                        .to_owned()
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_default()
+                };
+                let excluded = entries("exclude")
+                    .iter()
+                    .any(|entry| relative == entry || relative.starts_with(&format!("{entry}/")));
+                let listed =
+                    entries("members")
+                        .iter()
+                        .any(|entry| match entry.find(['*', '?', '[']) {
+                            Some(glob) => relative.starts_with(&entry[..glob]),
+                            None => relative == entry,
+                        });
+                return Ok((!excluded && !listed).then(|| (manifest_path, relative.to_owned())));
+            }
+        }
+        directory = (!current.is_empty()).then(|| {
+            current
+                .rsplit_once('/')
+                .map_or_else(String::new, |(parent, _)| parent.to_owned())
+        });
+    }
+    Ok(None)
+}
+
 fn nearest_lockfile(
     root: &OperationRoot,
     module_root: &RelativeOperationPath,
@@ -432,4 +521,65 @@ fn join(
             "initialization path is not canonical",
         )
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use super::unclaiming_workspace;
+    use crate::{OperationRoot, RelativeOperationPath};
+
+    const MODULE: &str = "workspace/.dagger/modules/gate";
+
+    fn unclaimed(workspace: Option<&str>, module_workspace: bool) -> Option<(String, String)> {
+        let temporary = tempfile::tempdir().unwrap();
+        let module = temporary.path().join(MODULE);
+        fs::create_dir_all(&module).unwrap();
+        let mut manifest = "[package]\nname = \"gate\"\nversion = \"0.1.0\"\n".to_owned();
+        if module_workspace {
+            manifest.push_str("\n[workspace]\n");
+        }
+        fs::write(module.join("Cargo.toml"), manifest).unwrap();
+        if let Some(workspace) = workspace {
+            fs::write(temporary.path().join("workspace/Cargo.toml"), workspace).unwrap();
+        }
+        let root = OperationRoot::open(temporary.path()).unwrap();
+        unclaiming_workspace(&root, &RelativeOperationPath::parse(MODULE).unwrap())
+            .unwrap()
+            .map(|(manifest, module)| (manifest.to_string(), module))
+    }
+
+    #[test]
+    fn a_workspace_that_neither_lists_nor_excludes_the_module_is_named() {
+        assert_eq!(
+            unclaimed(Some("[workspace]\nmembers = [\"crates/*\"]\n"), false),
+            Some((
+                "workspace/Cargo.toml".to_owned(),
+                ".dagger/modules/gate".to_owned()
+            ))
+        );
+    }
+
+    #[test]
+    fn a_workspace_that_claims_the_module_is_not_blamed() {
+        for workspace in [
+            "[workspace]\nexclude = [\".dagger\"]\n",
+            "[workspace]\nexclude = [\"./.dagger/modules/gate/\"]\n",
+            "[workspace]\nmembers = [\".dagger/modules/gate\"]\n",
+            "[workspace]\nmembers = [\".dagger/modules/*\"]\n",
+        ] {
+            assert_eq!(unclaimed(Some(workspace), false), None, "{workspace}");
+        }
+    }
+
+    #[test]
+    fn a_module_outside_any_workspace_or_with_its_own_is_not_blamed() {
+        assert_eq!(unclaimed(None, false), None);
+        assert_eq!(unclaimed(Some("[package]\nname = \"root\"\n"), false), None);
+        assert_eq!(
+            unclaimed(Some("[workspace]\nmembers = [\"crates/*\"]\n"), true),
+            None
+        );
+    }
 }
