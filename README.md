@@ -1,7 +1,6 @@
 # Rust SDK for Dagger
 
-[![gates](https://github.com/tokeira/dagger-rust-sdk/actions/workflows/gates.yml/badge.svg?branch=main)](https://github.com/tokeira/dagger-rust-sdk/actions/workflows/gates.yml)
-[![acceptance](https://github.com/tokeira/dagger-rust-sdk/actions/workflows/acceptance.yml/badge.svg?branch=main)](https://github.com/tokeira/dagger-rust-sdk/actions/workflows/acceptance.yml)
+[![Build status](https://badge.buildkite.com/1c19045900aa4fa682a5abe778c6aacd38caa9770ca8b7a90b.svg?branch=main)](https://buildkite.com/tokeira/dagger-rust-sdk)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![MSRV 1.97.1](https://img.shields.io/badge/MSRV-1.97.1-orange?logo=rust)](Cargo.toml)
 [![Dagger v1.0.0-beta.18](https://img.shields.io/badge/Dagger-v1.0.0--beta.18-informational)](https://github.com/dagger/dagger/tree/v1.0.0-beta.18)
