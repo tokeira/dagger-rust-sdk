@@ -29,8 +29,8 @@ behavior.
 
 ## Architecture boundaries
 
-- `dagger-sdk` owns the public client, session lifecycle, query construction, and
-  user-facing errors.
+- `tokeira-dagger-sdk` (`crates/dagger-sdk`) owns the public client, session lifecycle,
+  query construction, and user-facing errors.
 - `dagger-codegen` owns schema-to-Rust translation and generated API shape.
 - `dagger-bootstrap` is orchestration for code generation, not a second SDK surface.
 - `crates/dagger-sdk/src/gen/` is generated. Never edit it directly; modify the
@@ -150,8 +150,8 @@ omission.
   command and target.
 - Keep commits coherent. Do not mix dependency movement, generated churn, formatting,
   or unrelated cleanup into feature work.
-- Follow the root contribution guide for Changie fragments, licensing, commit quality,
-  and DCO sign-off.
+- Follow [CONTRIBUTING.md](CONTRIBUTING.md) for Changie fragments, licensing, and commit
+  quality.
 
 ## Commit attribution — recognise agent work (required)
 
@@ -175,16 +175,15 @@ Canonical identities:
 - `Claude <noreply@anthropic.com>`
 - `Codex <codex@openai.com>`
 
-Trailers go at the end of the message after a blank line. Dagger separately requires a
-human DCO sign-off; an agent must never receive a `Signed-off-by` trailer.
+Trailers go at the end of the message after a blank line. This repository does not
+require a DCO sign-off, and an agent must never add a `Signed-off-by` trailer.
 
 ```text
-feat(sdk/rust): add module entrypoint discovery
+feat: add module entrypoint discovery
 
 <why-this-design-is-correct body>
 
 Co-authored-by: Codex <codex@openai.com>
-Signed-off-by: Its Me <its.me@workingwith.ai>
 ```
 
 Pull-request descriptions must name participating agents and distinguish authorship
@@ -195,5 +194,4 @@ help review.
 
 A change is complete when its public design is idiomatic Rust, relevant Go behaviour is
 accounted for, generated output is current, focused and regression tests pass, required
-documentation and release notes are present, and agent attribution plus human DCO
-sign-off are recorded.
+documentation and release notes are present, and agent attribution is recorded.

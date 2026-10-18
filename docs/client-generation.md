@@ -2,8 +2,13 @@
 
 Rust standalone clients are ordinary Cargo libraries whose generated API is bound to
 the complete Dagger Core schema and, optionally, exactly one selected module. They use
-the public `dagger-sdk` lifecycle and transport; generated projects do not carry a
+the public `tokeira-dagger-sdk` lifecycle and transport; generated projects do not carry a
 second Core client, session implementation, or repository-local runtime.
+
+On stock Dagger engines the runtime currently refuses client scopes before anything is
+written, until their generation there is defined: adding a Rust client fails with "the
+Rust SDK does not generate module clients". This guide describes the generator and its
+contracts, which the engine-free suites exercise.
 
 ## Initialize and generate
 
@@ -62,10 +67,10 @@ complete; all generated handles share that one lifecycle.
 ## Cargo and ownership policy
 
 The reconciler preserves unrelated dependencies, features, targets, profiles, source,
-README content, and `.gitattributes` entries. It adds the exact `dagger-sdk` package
-dependency and Tokio features required by the generated quickstart. A conflicting
-dependency, toolchain, module declaration, or generated-region claim is a diagnostic,
-not an invitation to replace caller policy.
+README content, and `.gitattributes` entries. It adds the exact `tokeira-dagger-sdk`
+dependency, under the `dagger-sdk` key, and the Tokio features the generated quickstart
+requires. A conflicting dependency, toolchain, module declaration, or generated-region
+claim is a diagnostic, not an invitation to replace caller policy.
 
 Application lockfiles remain user-owned. Generation neither creates nor deletes
 `Cargo.lock`. Reproducible downstream applications should commit their lockfile under

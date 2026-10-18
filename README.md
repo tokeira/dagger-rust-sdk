@@ -102,17 +102,18 @@ Run it from this directory against any Cargo project:
 cargo run -p tokeira-dagger-sdk --example ci-checks -- path/to/project
 ```
 
-The SDK is distributed as repository release artifacts, not through crates.io. See
-[`crates/dagger-sdk/README.md`](crates/dagger-sdk/README.md) for artifact installation
-and application usage.
+Applications depend on `tokeira-dagger-sdk` from crates.io, and code names it
+`dagger_sdk`. [`crates/dagger-sdk/README.md`](crates/dagger-sdk/README.md) covers
+installation, including the Git dependency to use until `0.1.0` is published, and
+application usage.
 
 | Capability | Current boundary |
 | --- | --- |
 | Client API | Generated Core types and raw GraphQL over one owned asynchronous session |
 | Connection safety | Exact engine version/revision checks, checksum-verified CLI downloads, loopback-only authenticated transport, and credential-safe diagnostics |
 | Module support | Typed authoring attributes, descriptor generation, registration, dispatch, cancellation, and single-result publication |
-| Standalone clients | Complete Core plus at most one independently pinned module, reusing the public client lifecycle |
-| Engine integration | Rust-owned generation/runtime policy composed into the complete Dagger engine |
+| Standalone clients | Complete Core plus at most one independently pinned module, reusing the public client lifecycle; the runtime refuses client scopes on stock engines until their generation there is defined |
+| Runtime | Installs on stock Dagger engines as an SDK module and builds its SDK content from a pinned commit of this repository |
 
 Module authors should start with [`docs/module-authoring.md`](docs/module-authoring.md).
 Standalone-client users should read [`docs/client-generation.md`](docs/client-generation.md).
@@ -231,21 +232,18 @@ dagger call ci publish --address=ghcr.io/your-org/api:1.0.0 \
 The standalone application examples under [`examples`](examples) each have their own
 manifest; their exact commands are listed in [`examples/README.md`](examples/README.md).
 
-## Development and release builds
+## Development and releases
 
-Normal SDK development is engine-free and Rust-first. Run Cargo checks, generated-file
-checks, and the direct Rust-owned Go ABI tests without constructing an engine. Add a
-focused engine-backed regression only when the boundary cannot be represented by the
-direct production harness.
+Development is engine-free and Rust-first: Cargo checks, generated-file checks, and the
+runtime's direct Go tests run without an engine. Add a focused engine-backed regression
+only when the direct production harness cannot represent the boundary. Runtime changes
+and every release are proven on a stock engine of the target release, as
+[`docs/engine-integration.md`](docs/engine-integration.md) describes.
 
-Release assembly is separate. The repository's ordinary Rust SDK build packages
-exactly `dagger-sdk-macros` and `dagger-sdk`, builds the Rust SDK engine content, and
-composes it into a complete `linux/amd64` Dagger engine. Its verification step unpacks
-the two packages and runs one isolated external Rust consumer against that completed
-engine. It creates no tag or release and publishes no crate. Making those artifacts
-available through a manual GitHub Release requires separate, direct authorization.
-The complete builder and retrieval procedure is the
-[`dagger-rust-builder-xl` Namespace runbook](docs/namespace-build.md).
+A release publishes `tokeira-dagger-sdk-macros` and then `tokeira-dagger-sdk` to
+crates.io at one version and tags the commit, and the runtime installs from that tag.
+[`docs/maintaining.md`](docs/maintaining.md) covers the procedure and the release
+identity.
 
 ## Built with Claude
 

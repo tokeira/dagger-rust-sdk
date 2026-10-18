@@ -13,32 +13,26 @@ loopback-only; downloaded CLI bytes are checksum-verified before use.
 
 ## Install
 
-The SDK is supplied as two checked repository release artifacts rather than through
-crates.io. Download `dagger-sdk-1.0.0-beta.11.rust.5.crate`,
-`dagger-sdk-macros-1.0.0-beta.11.rust.5.crate`, and `SHA256SUMS` from the same manual
-GitHub Release, then verify both package checksums before unpacking them:
-
-```console
-mkdir -p vendor/dagger-sdk vendor/dagger-sdk-macros
-tar -xzf dagger-sdk-1.0.0-beta.11.rust.5.crate -C vendor/dagger-sdk --strip-components=1
-tar -xzf dagger-sdk-macros-1.0.0-beta.11.rust.5.crate -C vendor/dagger-sdk-macros --strip-components=1
-```
-
-Reference the unpacked SDK and its exact procedural-macro companion from
-`Cargo.toml`:
+Add the SDK and an async runtime to `Cargo.toml`:
 
 ```toml
 [dependencies]
-dagger-sdk = { path = "vendor/dagger-sdk" }
+tokeira-dagger-sdk = "0.1.0"
 tokio = { version = "1.35.1", features = ["macros", "rt-multi-thread"] }
-
-[patch.crates-io]
-dagger-sdk-macros = { path = "vendor/dagger-sdk-macros" }
 ```
 
-The patch is required because the packaged SDK pins its macro companion to the exact
-matching version. Keep both directories together and commit an application lockfile
-under the application's own reproducibility policy.
+Code names the crate `dagger_sdk` whichever package name `Cargo.toml` uses. The SDK pins
+its procedural-macro companion, `tokeira-dagger-sdk-macros`, to the exact matching
+version, so applications never depend on it directly.
+
+Until `0.1.0` is published on crates.io, depend on this repository at a full commit
+instead:
+
+```toml
+tokeira-dagger-sdk = { git = "https://github.com/tokeira/dagger-rust-sdk", rev = "<commit>" }
+```
+
+Commit an application lockfile under the application's own reproducibility policy.
 
 ## Use
 

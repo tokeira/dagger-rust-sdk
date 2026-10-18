@@ -1,7 +1,7 @@
 # Maintaining the Rust SDK for Dagger
 
-This runbook covers generated-client ownership, target refresh, recovery, local
-acceptance, and non-publishing artifact assembly. It has six ordered steps.
+This runbook covers generated-client ownership, target refresh, recovery, acceptance,
+and releases. It has six ordered steps.
 
 ## 1. Confirm ownership and target identity
 
@@ -48,16 +48,20 @@ renderer work:
 
 1. Capture the exact target engine schema as `codegen/schema.json` — do not substitute
    a nearby engine or hand-reserialize it. The document is the client-view schema at
-   view `v1.0.0`, produced in-process from the exact target checkout with no engine:
+   view `v1.0.0`, produced in-process, with no engine, from an upstream `dagger/dagger`
+   checkout at the target tag. From this repository's root, using the Go image that the
+   checkout's `go.mod` requires:
 
    ```console
-   CGO_ENABLED=0 GOOS=linux go build -o /tmp/introspect ./cmd/introspect
-   # run the binary on Linux (a scratch container is fine); from the repo root:
-   /tmp/introspect introspect --version v1.0.0 > sdk/rust/codegen/schema.json
+   UPSTREAM="$(mktemp -d)/dagger"
+   git clone --depth 1 --branch v1.0.0-beta.18 https://github.com/dagger/dagger "$UPSTREAM"
+   docker run --rm -v "$UPSTREAM:/src:ro" -w /src -e CGO_ENABLED=0 golang:1.26.6 \
+     go run ./cmd/introspect introspect --version v1.0.0 > codegen/schema.json
    ```
 
    `__schemaVersion` inside the captured document must state the view; an empty value
-   means the capture ran without `--version` and is not the claimed artifact.
+   means the capture ran without `--version` and is not the claimed artifact. For
+   `v1.0.0-beta.18` this capture reproduces the committed schema byte for byte.
 2. Update `codegen/target.json` with the exact Dagger version, full revision, schema
    digest (the SHA-256 of the captured bytes), Rust SDK version, and Rust toolchain —
    and the matching `APPROVED_*` constants in `crates/dagger-codegen/src/target.rs`,
@@ -100,9 +104,19 @@ renderer work:
      --test client_renderer`), then run the workspace formatter.
    - Target-derived engine fixtures and compile-contract goldens outside the generated
      set: update the core-schema digest in
-     `crates/dagger-sdk-engine/tests/client_usability_properties.rs`, and refresh any
-     generated public-type lists in `crates/dagger-sdk/tests/generated-ui/` from the
-     wrapper-free compiler output.
+     `crates/dagger-sdk-engine/tests/client_usability_properties.rs` and
+     `crates/dagger-sdk-engine/tests/module_generation_properties.rs`, which a version
+     sweep does not find, and refresh any generated public-type lists in
+     `crates/dagger-sdk/tests/generated-ui/` from the wrapper-free compiler output.
+   - The runtime module: `engineVersion` in `runtime/dagger-module.toml`, and its Go
+     bindings (`dagger.gen.go`, `internal/dagger/`, `go.mod`, and `go.sum`), which the
+     target release's own Go code generator writes. Export them from a stock engine of
+     that release through `moduleSource(refString: "runtime")` and its
+     `generatedContextDirectory`, then run the runtime's direct Go checks in
+     [engine-integration.md](engine-integration.md).
+   - The runtime pin, last: re-pin the runtime to the refreshed content commit, as
+     [engine-integration.md](engine-integration.md#pinned-sdk-content) describes, so new
+     modules build against the new target.
 
 Changed or removed schema coordinates fail closed until their generated and
 compatibility policies are explicit — a new directive needs a `DirectivePolicy`
@@ -117,7 +131,9 @@ compiler diagnostics against checked goldens; merely clearing `RUSTC_WRAPPER` do
 not invalidate artifacts previously produced through a wrapper, so a warm target can
 continue to report remapped source paths after repeated reruns. Any residual failure
 from the fresh target names a pin this list is missing: fix it *and add it to this
-list* in the same change.
+list* in the same change. Then run the
+[stock-engine acceptance](engine-integration.md#stock-engine-acceptance) against the new
+target.
 
 ## 4. Recover or roll back as one unit
 
@@ -157,21 +173,35 @@ Acceptance confirms `unsafe_code = "deny"`, both public package contents, defaul
 no-default feature paths, warning-denied documentation, generated serde semantics,
 owned-path confinement, checksum verification, and credential-safe diagnostics.
 
-## 6. Assemble and retrieve artifacts
+## 6. Release
 
-Use the complete [Namespace Rust SDK artifact build](namespace-build.md) runbook. It is
-the single authoritative procedure for the exact checkout, builder preflight, ordinary
-build and external verification, artifact export, checksum, download, and devbox pause.
-Do not duplicate or abbreviate that sequence here.
+A release publishes both public crates to crates.io at one version and tags the commit.
+`release.yml`, added with the first release, runs from the protected `release`
+environment, which requires the maintainer's approval:
+
+1. Prepare one release commit that moves the release identity (below) to the new
+   version, with `changie batch` writing its changelog section.
+2. Run the section-5 gate and the
+   [stock-engine acceptance](engine-integration.md#stock-engine-acceptance) on that
+   commit.
+3. Until generated projects depend on the published crates, re-pin the runtime to that
+   commit, as [engine-integration.md](engine-integration.md#pinned-sdk-content)
+   describes, so the tagged runtime builds content at the released version.
+4. `release.yml` publishes `tokeira-dagger-sdk-macros`, then `tokeira-dagger-sdk`, tags
+   `vX.Y.Z`, and creates the GitHub release.
+
+Tags and releases are immutable: never delete or recreate one. The first release,
+`0.1.0`, publishes with an API token, because crates.io adds a trusted publisher only to
+a crate that already exists. Later releases publish through trusted publishing.
 
 ## Release identity
 
-Every release carries one identity: the workspace version (`1.0.0-beta.11.rust.N`).
-Crate versions, the Git tag, the changelog section, artifact filenames, the checked
-target, and `internal/version/VERSION` all state it, and each release bumps `N`
-together. The complete engine is built from this repository at the pushed release
-commit — the upstream engine build with the repository and commit substituted, which
-the content-addressed build ties to that exact source by construction — so
-`dagger version` reports the release identity plus the commit it was built from
-(`v1.0.0-beta.11.rust.N+<commit8>`). Upstream `v1.0.0` bumps arrive
-by merging upstream tags into main and move the shared `beta.X` component.
+Every release carries one identity, the workspace version, starting at `0.1.0`. Both
+crate versions, the Git tag `vX.Y.Z`, the changelog section, and the checked target's
+`rust_sdk_version` with its approved pin all state it, and each release moves them
+together.
+
+The engine and CLI are stock Dagger releases, versioned independently of the SDK.
+`codegen/target.json` names the exact Dagger version and revision an SDK release
+targets, and the connector refuses an engine with a different version or revision. A
+target refresh (section 3) moves them deliberately.

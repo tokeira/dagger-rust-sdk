@@ -1,8 +1,8 @@
 # Rust SDK engine integration
 
 This document is the maintainer contract for the private Rust compiler, engine adapter,
-runtime image, and completed-engine verification workflow. Application lifecycle and
-transport ownership are described in [architecture.md](architecture.md).
+runtime image, pinned SDK content, and stock-engine verification. Application lifecycle
+and transport ownership are described in [architecture.md](architecture.md).
 
 ## Runtime build audit
 
@@ -27,14 +27,15 @@ decision rather than allowing silent drift.
 Use three deliberately separate boundaries:
 
 1. While iterating, run the narrowest Cargo package, fixture, or direct Go ABI test.
-2. Before artifact assembly, run the canonical Cargo and Go checks without a Dagger
+2. Before a pull request, run the canonical Cargo and Go checks without a Dagger
    engine.
-3. For release readiness, run the ordinary `Build` and `Verify` entry points. They
-   package the two public crates, compose Rust content into a complete engine, and run
-   one isolated external Rust consumer against that engine.
+3. For runtime changes and release readiness, run the
+   [stock-engine acceptance](#stock-engine-acceptance). It installs the runtime from a
+   pushed commit on a stock engine of the target release and drives module and client
+   flows against it.
 
 Focused engine cases remain diagnostic tools for engine-only behavior. They are not a
-second release gate and do not replace the ordinary build.
+second release gate and do not replace the acceptance run.
 
 ## Engine-free development workflow
 
@@ -49,55 +50,82 @@ cargo test -p dagger-sdk-engine --locked
 The direct Go boundaries are also engine-free:
 
 ```console
-cd ../../.dagger/modules/engine-dev
-GOCACHE=/tmp/dagger-rust-go-cache go test . ./build -count=1
+cd .dagger/modules/rust-client-dev
+go test . ./internal/enginefixture ./internal/enginefree -count=1
 
-cd ../rust-client-dev
-GOCACHE=/tmp/dagger-rust-go-cache go test . ./internal/enginefixture ./internal/enginefree -count=1
-
-cd ../../sdk/rust/runtime
-GOCACHE=/tmp/dagger-rust-go-cache go test ./internal/metadata -count=1
+cd ../../../runtime
+go vet ./...
+go test ./internal/metadata -count=1
+DAGGER_SESSION_PORT=1 DAGGER_SESSION_TOKEN=placeholder go test . -count=1
 ```
 
-On macOS, compile the Linux-only root adapter packages for their engine platform:
-
-```console
-cd ../../..
-GOOS=linux GOARCH=amd64 GOCACHE=/tmp/dagger-rust-go-cache \
-  go test -c -o /tmp/dagger-rust-core-sdk.test ./core/sdk
-GOOS=linux GOARCH=amd64 GOCACHE=/tmp/dagger-rust-go-cache \
-  go test -c -o /tmp/dagger-rust-core-schema.test ./core/schema
-GOOS=linux GOARCH=amd64 GOCACHE=/tmp/dagger-rust-go-cache \
-  go test -c -o /tmp/dagger-rust-cli.test ./internal/cmd/dagger
-```
+The runtime's generated bindings read the session when the package loads, so its root
+package needs placeholder session values; the tests never connect.
 
 Generation is not part of the continuous local loop. Refresh bindings only when their
 owning module API or schema changes, inspect that scoped diff once, and return to direct
 checks.
 
-## Ordinary complete-engine build
+## Pinned SDK content
 
-`Build` performs no publication. It:
+Installed from a Git reference, the runtime builds its SDK content from the commit that
+`runtime/assets/sdk-dependency.json` names. It compiles the engine tool and rustfmt from
+that commit's crates in a digest-pinned image, adds the runtime sources, `LICENSE`, and
+`NOTICE`, and seals the result with `dagger-rust-engine package-content`. Modules it
+initializes depend on the same commit:
 
-- packages exactly `dagger-sdk-macros` and `dagger-sdk` and validates package closure;
-- builds the Rust SDK OCI content from the current workspace;
-- composes that content into the standard complete `linux/amd64` engine;
-- requires the normal engine and CLI binaries plus the selected Rust manifest; and
-- retains the complete engine and package directory for explicit export.
+```toml
+dagger-sdk = { package = "tokeira-dagger-sdk", git = "https://github.com/tokeira/dagger-rust-sdk", rev = "<commit>" }
+```
 
-`Verify` unpacks those packages into an isolated Cargo project, patches the macro
-companion locally, starts this build's completed engine, executes one SDK query, and
-closes the client cleanly. Against the same engine it then initializes a Rust module,
-authors Core-handle and fallible exports, regenerates after the edit with
-`dagger generate`, requires a second generation to change nothing, and loads and calls
-the module. Export the two packages and complete engine only after verification
-passes. Checksums cover the exported bytes.
+A commit cannot record its own hash, so moving the pin takes two commits in one pull
+request: the content change, then a commit that points `sdk-dependency.json` at it,
+together with any runtime change that depends on the new content, such as the package
+name `runtime/internal/metadata/engine.go` accepts in the sealed descriptor. Merge
+without squashing or rebasing, so both commits keep their hashes on `main`; a rewritten
+content commit would leave the pin naming a commit that `main` does not contain.
+Re-pin whenever the content that modules build against should change, including after
+every target refresh.
 
-The single authoritative Namespace procedure, including the fresh checkout,
-AppleDouble guard, Docker CLI `PATH`, pinned runner, exact CLI build, exports,
-checksums, retrieval, marker handling, and pause, is
-[Namespace Rust SDK artifact build](namespace-build.md). Do not reconstruct the
-procedure from fragments in other documents.
+## Stock-engine acceptance
+
+Run the acceptance with the target release's stock CLI, downloaded from
+`https://dl.dagger.io/dagger/releases/<version>/` and verified against that release's
+`checksums.txt`, and a dedicated engine container. Name the container so it cannot
+collide with the `dagger-engine-*` containers the CLI manages, and keep its state on a
+volume:
+
+```console
+docker run -d --privileged --name rust-sdk-acceptance \
+  -v rust-sdk-acceptance-state:/var/lib/dagger registry.dagger.io/engine:v1.0.0-beta.18
+export DAGGER_ENGINE=container+docker://rust-sdk-acceptance
+dagger version
+```
+
+`dagger version` must report the target engine and revision. Then, with the runtime
+pushed at `<commit>`, work in a new Git repository, because beta.18's `Workspace.export`
+needs a Git workspace:
+
+1. `dagger install github.com/tokeira/dagger-rust-sdk/runtime@<commit>` installs the
+   runtime as an SDK module.
+2. `dagger module init rust --name gate` scaffolds the module, writes its
+   `dagger-module.toml`, and seals the SDK content. The module's `Cargo.toml` depends on
+   the pinned commit.
+3. Author exports that take and return Core types. Loading the module before
+   regeneration fails with a diagnostic that names `dagger generate`.
+4. `dagger generate` regenerates. A second run changes nothing, and the module's
+   `.gitattributes` stays scoped to the module.
+5. `dagger call gate <function>` loads the module and calls each export.
+6. A plain client that depends on the pinned commit runs under `dagger run`, makes Void
+   calls, and exports an image.
+7. Adding a Rust client scope with `dagger module client add` is refused before
+   anything is written.
+
+The README's `ci` module is a fuller module check: `test` against PostgreSQL, `build`,
+and `publish` to a registry that only the engine can reach
+(`docker run -d --network container:rust-sdk-acceptance registry:2`, then
+`--address=localhost:5000/…`). Remove the engine container, its volume, the registry,
+and any exported images afterwards.
 
 ## Immutable generated dependency
 
@@ -118,13 +146,11 @@ crate, create a tag, or authorize a hosted release.
 
 ## Focused engine regressions
 
-Run a focused case only when its boundary cannot be represented by the direct harness:
-
-```console
-./bin/dagger -m .dagger/modules/rust-client-dev call engine-unit
-./bin/dagger -m .dagger/modules/rust-client-dev call \
-  engine-content engine-integration --cases=operations
-```
+Run a focused case only when its boundary cannot be represented by the direct harness.
+The cases are the `engine-unit` and `engine-content` entry points of
+`.dagger/modules/rust-client-dev`, which still build the fork engine through an
+`engine-dev` module this repository does not contain. They cannot run here until they
+move onto a stock engine.
 
 The closed case inventory covers built-in resolution; empty and existing project
 initialization; no-generate behavior; library, module, client, and entrypoint

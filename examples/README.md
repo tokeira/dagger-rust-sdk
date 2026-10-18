@@ -1,8 +1,9 @@
 # Rust SDK for Dagger examples
 
-These standalone workspaces consume the local `dagger-sdk` crate and exercise realistic
-application pipelines. Run commands from the repository root; each program starts its own SDK
-client and therefore also works under `dagger run` when an existing session is desired.
+These standalone workspaces consume the local `tokeira-dagger-sdk` crate and exercise
+realistic application pipelines. Run commands from the repository root; each program
+starts its own SDK client and therefore also works under `dagger run` when an existing
+session is desired.
 
 | Example | What it demonstrates | Command |
 | --- | --- | --- |

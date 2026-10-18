@@ -1,14 +1,30 @@
 # Rust module authoring and verification
 
 This guide records the durable authoring, generation, dispatch, local-checkpoint, and
-completed-engine verification contracts for the Rust SDK. The public syntax is ordinary
+stock-engine verification contracts for the Rust SDK. The public syntax is ordinary
 typed Rust; the engine adapter and generated support remain implementation details.
+
+## Create a module
+
+Install the runtime into a Dagger workspace, then create the module:
+
+```console
+dagger install github.com/tokeira/dagger-rust-sdk/runtime@<ref>
+dagger module init rust --name my-module
+```
+
+`<ref>` is a release tag such as `v0.1.0`, or a full commit of this repository before
+the first release. Initialization writes the module's `Cargo.toml`,
+`dagger-module.toml`, and a starter `src/lib.rs` whose root object is named after the
+module. After changing exported items, run `dagger generate`, then call a function with
+`dagger call my-module <function>`.
 
 ## Authoring surface
 
 Exports are explicit. Rust visibility still determines whether generated sibling code
-can access an item, but `pub` alone never exports it to Dagger. `dagger-sdk` re-exports
-the exact-version attributes; users do not depend on `dagger-sdk-macros` directly.
+can access an item, but `pub` alone never exports it to Dagger. `tokeira-dagger-sdk`
+re-exports the exact-version attributes; users do not depend on
+`tokeira-dagger-sdk-macros` directly.
 
 ```rust
 #[dagger_sdk::object(root, rename = "greeter")]
@@ -120,9 +136,8 @@ regenerate checked assets.
 
 If a proposed local check genuinely requires an engine, keep the direct model gap
 explicit and add the smallest focused engine-backed regression test that owns that
-boundary. The ordinary release-readiness check is intentionally smaller: package the
-two public crates, assemble the complete engine with the Rust SDK content, and run one
-isolated external Rust consumer against that completed engine. This verifies the
-packaged module-authoring path without replacing the faster compiler and dispatch
-tests above. Packaging and complete-engine assembly create local artifacts only; any
-manual GitHub Release requires separate, direct authorization.
+boundary. Release readiness is a separate, smaller check: the
+[stock-engine acceptance](engine-integration.md#stock-engine-acceptance) installs the
+runtime from a pushed commit, then initializes, regenerates, loads, and calls a module
+and exercises a plain client. It verifies the module-authoring path end to end without
+replacing the faster compiler and dispatch tests above.

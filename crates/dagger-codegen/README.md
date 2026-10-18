@@ -3,8 +3,8 @@
 `dagger-codegen` is the schema compiler used to build the generated client surface of
 the [Rust SDK for Dagger](https://github.com/tokeira/dagger-rust-sdk). It is
 development tooling for the SDK rather than an application-facing client library.
-Application authors should use the two repository release artifacts described in the
-[`dagger-sdk` README](../dagger-sdk/README.md).
+Application authors should depend on `tokeira-dagger-sdk`, as the
+[SDK README](../dagger-sdk/README.md) describes.
 
 The crate owns the pure part of generation:
 

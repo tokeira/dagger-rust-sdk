@@ -1388,8 +1388,7 @@ func (build *RustSdkBuild) Verify(ctx context.Context) error {
 
 // rustModuleGateSource is authored over the initialized starter. Its exports take a
 // Core Directory, return a Core File, and return a direct ModuleError, so loading it
-// exercises generated dispatch for Core handles and fallible results. The native
-// arm64 gate in sdk/rust/docs/namespace-build.md copies the same file.
+// exercises generated dispatch for Core handles and fallible results.
 //
 //go:embed testdata/module-gate/lib.rs
 var rustModuleGateSource string

@@ -92,18 +92,9 @@ rerun.
 
 An engine is not a local checkpoint fallback. If a contract cannot be represented by
 the direct production harness, document the precise model gap and add the narrowest
-engine-backed regression test that owns it. Release readiness separately packages the
-two public crates, assembles the complete engine with Rust SDK content, and runs one
-isolated external Rust consumer as documented in [docs/module-authoring.md](docs/module-authoring.md).
-
-For non-module work whose owning contract genuinely requires a running Dagger engine,
-the relevant repository checks may be run through Dagger:
-
-```console
-dagger check '*sdk:*test*'
-```
-
-Run that command from the repository root.
+engine-backed regression test that owns it. Runtime changes and release readiness are
+proven separately on a stock engine of the target release, as
+[docs/engine-integration.md](docs/engine-integration.md#stock-engine-acceptance) documents.
 
 ## Generated code
 
@@ -142,8 +133,8 @@ New public behaviour needs tests at the lowest useful level:
 For module authoring, “integration” normally means the engine-free production harness:
 real generated assets, registry, codecs, context, dispatcher, and result sink over a
 recording Rust transport. Engine registration, runtime-container construction, and
-real engine ID behaviour are verified separately against the completed engine and
-cannot replace the direct compiler/dispatch closure.
+real engine ID behaviour are verified separately on a stock engine and cannot replace
+the direct compiler/dispatch closure.
 
 ## Pull requests
 
@@ -155,7 +146,5 @@ cannot replace the direct compiler/dispatch closure.
 - Keep `cargo deny check` green for advisories, licenses, dependency bans, and sources.
 - Add a Changie fragment for user-facing changes. From the repository root,
   `changie new` uses the Rust SDK changelog configuration.
-- Sign every commit under the Developer Certificate of Origin with `git commit -s`.
-  The `Signed-off-by` identity is the human Git author.
 - Credit agent authorship and assistance using the trailers defined in
   [AGENTS.md](AGENTS.md#commit-attribution--recognise-agent-work-required).

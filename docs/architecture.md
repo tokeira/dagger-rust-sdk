@@ -9,24 +9,24 @@ handle can outlive or bypass the client's lifecycle state.
 
 - `crates/dagger-sdk` owns the public client, generated bindings, module runtime
   bridges, implicit connector, raw GraphQL values, diagnostics, errors, and session
-  lifecycle. It is one of exactly two public package artifacts.
-- `crates/dagger-sdk-macros` is the exact-version procedural-macro companion re-exported
-  by `dagger-sdk`. It owns authoring syntax and typed crate-local bridge emission only;
-  it has no runtime dependency on `dagger-sdk` and performs no schema, I/O, engine, or
-  dispatch work.
+  lifecycle. It is published as `tokeira-dagger-sdk`, one of exactly two public packages.
+- `crates/dagger-sdk-macros`, published as `tokeira-dagger-sdk-macros`, is the
+  exact-version procedural-macro companion the SDK re-exports. It owns authoring syntax
+  and typed crate-local bridge emission only; it has no runtime dependency on the SDK and
+  performs no schema, I/O, engine, or dispatch work.
 - `crates/dagger-codegen` is a workspace-private compiler that converts the pinned
   engine schema into Rust source. Generated output is reviewed through fixtures and is
   never edited by hand.
 - `crates/dagger-bootstrap` supports code-generation bootstrapping and is not a
-  public application dependency. It also owns the small ordinary package/engine
-  checker used by release assembly.
+  public application dependency. It also owns the package checker that verifies the two
+  public archives.
 - `crates/dagger-sdk-engine` owns the private, data-only operation compiler, Cargo
   adoption, generated ownership, descriptor, runtime, and protocol contracts used by
   the engine adapter. It is deliberately absent from the public SDK dependency graph.
 
 The public package graph is deliberately closed and acyclic: an application depends on
-`dagger-sdk`, which pins `dagger-sdk-macros` to the same exact version. Code generation,
-engine integration, and bootstrap crates cannot enter that graph.
+`tokeira-dagger-sdk`, which pins `tokeira-dagger-sdk-macros` to the same exact version.
+Code generation, engine integration, and bootstrap crates cannot enter that graph.
 
 ## Standalone-client generation
 
@@ -36,7 +36,7 @@ it reuses the checked public Core catalog rather than regenerating Core. The pri
 engine crate discovers or adopts one Cargo project, reconciles semantic amendments,
 and publishes only manifest-authorized generated files. The Go adapter translates
 transient engine objects into those data-only operations. Generated applications then
-use only the public `dagger-sdk` lifecycle and transport.
+use only the public `tokeira-dagger-sdk` lifecycle and transport.
 
 One client never absorbs transitive module dependencies. Each dependency is bound by
 an independent client, giving it a separate pin, namespace, schema, project, manifest,
@@ -182,15 +182,14 @@ standalone-client content, which remain separately scoped work. See
 [engine-integration.md](engine-integration.md) for the reproducible build audit,
 focused case workflow, and exact-target verification rules.
 
-## Implementation closure and completed-engine verification
+## Implementation closure and stock-engine verification
 
 Local development is Rust-first and engine-free. Normal Cargo checks, direct Rust-owned
 Go ABI tests, generated drift/ownership checks, package policy, security, and
 clean-output inspection run without an engine.
 
-Release readiness then packages exactly the two public crates, assembles the complete
-Dagger engine with the Rust SDK content, and runs one isolated external Rust consumer
-against that completed engine. Focused engine-backed regression tests remain available
-for boundaries that cannot be represented by the direct harness; they are not a second
-release mechanism. The maintainer procedure is documented in
-[module-authoring.md](module-authoring.md).
+Release readiness then installs the runtime from a pushed commit on a stock engine of
+the target release and drives module and client flows against it. Focused engine-backed
+regressions are reserved for boundaries the direct harness cannot represent; they are
+not a second release mechanism. The maintainer procedure is documented in
+[engine-integration.md](engine-integration.md#stock-engine-acceptance).
