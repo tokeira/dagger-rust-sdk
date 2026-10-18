@@ -1,0 +1,56 @@
+# Runs the ci module (docs/ci.md) on Namespace's Buildkite agents with the same commands as
+# the GitHub Actions workflows. Each step keeps its engine's state on a Namespace cache
+# volume, so the build cache outlives the job, and stops the engine before the job ends so
+# the volume is saved after a clean shutdown. `$$` defers expansion to the job's shell.
+
+agents:
+  nsc-shape: "8x32"
+
+steps:
+  - label: "gates"
+    key: gates
+    command: |
+      eval "$$(.dagger/engine.sh)"
+      trap '.dagger/engine.sh stop' EXIT
+      dagger call ci gates
+    env:
+      DAGGER_RUST_SDK_ENGINE_STATE: /cache/engine
+    agents:
+      # Larger than the engine's 30 GB cache cap: a cache that outgrows its volume
+      # starts empty on the next job.
+      nsc-cache-tag: "dagger-rust-sdk-gates"
+      nsc-cache-size: "50gb"
+    timeout_in_minutes: 90
+    notify:
+      - github_commit_status:
+          context: "buildkite/gates"
+
+  - label: "acceptance"
+    key: acceptance
+    # Runs when the commit can change what users install or copy, as the acceptance
+    # workflow does. The agent diffs the commit against its merge base with `main`.
+    if_changed:
+      - runtime/**
+      - crates/**
+      - codegen/**
+      - Cargo.toml
+      - Cargo.lock
+      - rust-toolchain.toml
+      - README.md
+      - dagger.toml
+      - .dagger/engine.sh
+      - .dagger/modules/ci/**
+      - .buildkite/pipeline.yml
+    command: |
+      eval "$$(.dagger/engine.sh)"
+      trap '.dagger/engine.sh stop' EXIT
+      dagger call ci acceptance --commit "$$BUILDKITE_COMMIT"
+    env:
+      DAGGER_RUST_SDK_ENGINE_STATE: /cache/engine
+    agents:
+      nsc-cache-tag: "dagger-rust-sdk-acceptance"
+      nsc-cache-size: "50gb"
+    timeout_in_minutes: 90
+    notify:
+      - github_commit_status:
+          context: "buildkite/acceptance"
