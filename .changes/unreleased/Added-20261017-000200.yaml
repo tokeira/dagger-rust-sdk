@@ -1,7 +1,0 @@
-kind: Added
-body: |
-    The runtime installs on stock Dagger engines as an SDK module, with `dagger install github.com/tokeira/dagger-rust-sdk/runtime@<ref>`. `dagger module init rust` scaffolds a Rust module and writes its `dagger-module.toml`, and `dagger generate` regenerates it. The runtime builds its SDK content from the commit pinned in `runtime/assets/sdk-dependency.json`, so no engine has to package it.
-time: 2026-10-17T00:02:00Z
-custom:
-    Author: iw
-    PR: "4"

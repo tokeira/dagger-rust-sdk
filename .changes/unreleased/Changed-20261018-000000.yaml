@@ -1,7 +1,0 @@
-kind: Changed
-body: |
-    Modules the runtime initializes now depend on the renamed package, as `dagger-sdk = { package = "tokeira-dagger-sdk", git = "https://github.com/tokeira/dagger-rust-sdk", rev = … }`, at a commit with the new name. The SDK content the runtime builds carries NOTICE beside LICENSE.
-time: 2026-10-18T00:00:00Z
-custom:
-    Author: iw
-    PR: "8"

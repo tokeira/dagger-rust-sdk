@@ -1,7 +1,0 @@
-kind: Fixed
-body: |
-    Generated module code compiles without warnings under `-D warnings`, so a module no longer needs lint exceptions for it. Dispatch tripped `clippy::get_first`, the codec of an enum with a deprecated variant tripped `deprecated`, registration of an enum tripped `unused_mut`, and a custom scalar left an unused definition.
-time: 2026-10-18T00:03:00Z
-custom:
-    Author: iw
-    PR: "13"

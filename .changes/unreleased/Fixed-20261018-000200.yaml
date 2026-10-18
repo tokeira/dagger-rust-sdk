@@ -1,7 +1,0 @@
-kind: Fixed
-body: |
-    The `src/lib.rs` that `dagger module init rust` writes is rustfmt-formatted. Its template lost every indent.
-time: 2026-10-18T00:02:00Z
-custom:
-    Author: iw
-    PR: "13"

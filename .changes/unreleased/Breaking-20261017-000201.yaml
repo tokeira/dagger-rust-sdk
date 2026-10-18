@@ -1,7 +1,0 @@
-kind: Breaking
-body: |
-    Module clients and module dependencies are not generated yet. A scope that records them is refused before anything is written, until the SDK defines Rust clients for beta.18's client scopes.
-time: 2026-10-17T00:02:01Z
-custom:
-    Author: iw
-    PR: "4"

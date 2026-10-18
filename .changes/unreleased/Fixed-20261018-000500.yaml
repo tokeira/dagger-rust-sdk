@@ -1,7 +1,0 @@
-kind: Fixed
-body: |
-    `dagger module init rust` inside a Cargo workspace that neither lists nor excludes the new module now says so, and names the path to add to that workspace's `exclude` or `members`. It reported only "Cargo dependency resolution failed".
-time: 2026-10-18T00:05:00Z
-custom:
-    Author: iw
-    PR: "14"
