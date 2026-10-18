@@ -186,7 +186,10 @@ ci module's `package` prepares the archives, and `published` proves the result
 ([ci.md](ci.md)):
 
 1. Prepare one release commit that moves the release identity (below) to the new
-   version, with `changie batch` writing its changelog section.
+   version. Its changelog section comes from
+   `CHANGIE_ENGINE_VERSION=$(jq -r .engine_version codegen/target.json) changie batch <version>`,
+   which names the targeted engine in the section's header, and `changie merge` adds it
+   to `CHANGELOG.md`.
 2. Run the section-5 gate and the
    [stock-engine acceptance](engine-integration.md#stock-engine-acceptance) on that
    commit.
