@@ -1,5 +1,6 @@
 # Rust SDK for Dagger
 
+[![gates](https://github.com/tokeira/dagger-rust-sdk/actions/workflows/gates.yml/badge.svg?branch=main)](https://github.com/tokeira/dagger-rust-sdk/actions/workflows/gates.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![MSRV 1.97.1](https://img.shields.io/badge/MSRV-1.97.1-orange?logo=rust)](Cargo.toml)
 [![Dagger v1.0.0-beta.18](https://img.shields.io/badge/Dagger-v1.0.0--beta.18-informational)](https://github.com/dagger/dagger/tree/v1.0.0-beta.18)
@@ -236,9 +237,10 @@ manifest; their exact commands are listed in [`examples/README.md`](examples/REA
 
 Development is engine-free and Rust-first: Cargo checks, generated-file checks, and the
 runtime's direct Go tests run without an engine. Add a focused engine-backed regression
-only when the direct production harness cannot represent the boundary. Runtime changes
-and every release are proven on a stock engine of the target release, as
-[`docs/engine-integration.md`](docs/engine-integration.md) describes.
+only when the direct production harness cannot represent the boundary. CI runs the same
+gates through this repository's own Rust Dagger module, as [`docs/ci.md`](docs/ci.md)
+describes. Runtime changes and every release are proven on a stock engine of the target
+release, as [`docs/engine-integration.md`](docs/engine-integration.md) describes.
 
 A release publishes `tokeira-dagger-sdk-macros` and then `tokeira-dagger-sdk` to
 crates.io at one version and tags the commit, and the runtime installs from that tag.

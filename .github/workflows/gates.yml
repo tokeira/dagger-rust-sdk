@@ -1,0 +1,29 @@
+# Runs the ci module's gates (docs/ci.md) for every pushed commit. `main` requires this
+# check, and a branch is checked before its pull request opens. The workflow only
+# provisions the engine and calls the module, so any CI system can run the same command.
+name: gates
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gates-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gates:
+    name: gates
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: dagger call ci gates
+        run: |
+          eval "$(.dagger/engine.sh)"
+          dagger call ci gates

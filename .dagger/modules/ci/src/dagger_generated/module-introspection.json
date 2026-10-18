@@ -1,0 +1,105 @@
+{
+  "descriptor_digest": "sha256:76e202677389990a4035151d2daf57340e7ca2c2cb928656d3c70081676ffe4a",
+  "format_version": 1,
+  "types": {
+    "Ci": {
+      "deprecation": null,
+      "documentation": null,
+      "enum_values": [],
+      "fields": [],
+      "functions": [
+        {
+          "arguments": [],
+          "cache": {
+            "kind": "default"
+          },
+          "constructor": false,
+          "deprecation": null,
+          "documentation": "Runs the engine-free acceptance of docs/maintaining.md, section 5: the Cargo gates\nand the Go tests, concurrently.",
+          "return_type": {
+            "kind": "named",
+            "name": "String",
+            "nullable": false
+          },
+          "role": "ordinary",
+          "source": {
+            "column": 18,
+            "line": 49,
+            "path": "src/lib.rs"
+          },
+          "wire_name": "gates"
+        }
+      ],
+      "interfaces": [],
+      "kind": "object",
+      "source": {
+        "column": 12,
+        "line": 27,
+        "path": "src/lib.rs"
+      },
+      "wire_name": "Ci"
+    },
+    "Query": {
+      "deprecation": null,
+      "documentation": "The module query root.",
+      "enum_values": [],
+      "fields": [],
+      "functions": [
+        {
+          "arguments": [
+            {
+              "default": null,
+              "default_address": null,
+              "default_path": "/",
+              "deprecation": null,
+              "documentation": "Repository checkout; defaults to the workspace root.",
+              "ignore": [
+                ".git",
+                ".claude",
+                "**/target"
+              ],
+              "optional": true,
+              "source": {
+                "column": 9,
+                "line": 41,
+                "path": "src/lib.rs"
+              },
+              "ty": {
+                "kind": "named",
+                "name": "Directory",
+                "nullable": false
+              },
+              "wire_name": "source"
+            }
+          ],
+          "cache": {
+            "kind": "default"
+          },
+          "constructor": true,
+          "deprecation": null,
+          "documentation": null,
+          "return_type": {
+            "kind": "named",
+            "name": "Ci",
+            "nullable": false
+          },
+          "role": "ordinary",
+          "source": {
+            "column": 12,
+            "line": 35,
+            "path": "src/lib.rs"
+          },
+          "wire_name": "ci"
+        }
+      ],
+      "interfaces": [],
+      "kind": "object",
+      "source": {
+        "column": 12,
+        "line": 35,
+        "path": "src/lib.rs"
+      },
+      "wire_name": "Query"
+    }
+  }
+}

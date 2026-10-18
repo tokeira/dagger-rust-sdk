@@ -82,7 +82,8 @@ cargo deny check
 ```
 
 Use focused tests while iterating, but run the complete relevant set before submitting
-a pull request. Module-authoring and standalone-client development is explicitly
+a pull request. `eval "$(.dagger/engine.sh)" && dagger call ci gates` runs the whole set in
+containers, as CI does; see [docs/ci.md](docs/ci.md). Module-authoring and standalone-client development is explicitly
 engine-free: use the production compilers, generated fixtures, recording transport,
 and typed test suites directly through Cargo. Reuse checked generated
 assets unless an owning source, schema, target, or generator digest changed. The

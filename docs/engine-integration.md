@@ -91,9 +91,9 @@ every target refresh.
 
 Run the acceptance with the target release's stock CLI, downloaded from
 `https://dl.dagger.io/dagger/releases/<version>/` and verified against that release's
-`checksums.txt`, and a dedicated engine container. Name the container so it cannot
-collide with the `dagger-engine-*` containers the CLI manages, and keep its state on a
-volume:
+`checksums.txt` (`eval "$(.dagger/engine.sh cli)"` does both), and a dedicated engine
+container. Name the container so it cannot collide with the `dagger-engine-*` containers
+the CLI manages, and keep its state on a volume:
 
 ```console
 docker run -d --privileged --name rust-sdk-acceptance \

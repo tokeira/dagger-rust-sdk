@@ -1,5 +1,7 @@
 [workspace]
 members = ["crates/*"]
+# The ci module under .dagger is its own Cargo project, which the engine builds alone.
+exclude = [".dagger"]
 resolver = "2"
 
 [workspace.package]

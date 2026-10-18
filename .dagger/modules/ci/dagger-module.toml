@@ -1,0 +1,5 @@
+name = "ci"
+engineVersion = "v1.0.0-beta.18"
+
+[runtime]
+  source = "github.com/tokeira/dagger-rust-sdk/runtime@a6128c25b99cc740870271ab7b4fd9ca2d308dec"

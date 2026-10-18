@@ -114,6 +114,8 @@ renderer work:
      that release through `moduleSource(refString: "runtime")` and its
      `generatedContextDirectory`, then run the runtime's direct Go checks in
      [engine-integration.md](engine-integration.md).
+   - The Dagger release pins in `.dagger/engine.sh` and the `ci` module's SDK pin and
+     `engineVersion`, as [ci.md](ci.md#changing-the-dagger-release) lists.
    - The runtime pin, last: re-pin the runtime to the refreshed content commit, as
      [engine-integration.md](engine-integration.md#pinned-sdk-content) describes, so new
      modules build against the new target.
@@ -165,7 +167,9 @@ cargo run -p dagger-bootstrap --bin dagger-rust --locked -- \
 ```
 
 Also run the direct Go ABI and Dagger-module Go tests listed in
-[engine-integration.md](engine-integration.md). Review dependency activation with
+[engine-integration.md](engine-integration.md). `dagger call ci gates` runs all of these
+in containers ([ci.md](ci.md)); the `gates` workflow calls it for every pushed commit, and
+`main` requires it to pass. Review dependency activation with
 `cargo tree -p tokeira-dagger-sdk -e features` and inspect every Cargo Deny advisory, license,
 ban, and source result. These checks do not construct an engine.
 
