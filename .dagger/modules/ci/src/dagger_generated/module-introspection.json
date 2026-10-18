@@ -1,5 +1,5 @@
 {
-  "descriptor_digest": "sha256:fcb95a7c2812a16a655c6d39e0486d6d860e95a36ac7e0a9a77a2a413bee9dc5",
+  "descriptor_digest": "sha256:ab11831bac660d32e11b6e53fdd7b3bd8b4ad20412a059a4e2522bcb173fa6dc",
   "format_version": 1,
   "types": {
     "Ci": {
@@ -20,7 +20,7 @@
               "optional": false,
               "source": {
                 "column": 9,
-                "line": 92,
+                "line": 90,
                 "path": "src/lib.rs"
               },
               "ty": {
@@ -45,7 +45,7 @@
           "role": "ordinary",
           "source": {
             "column": 18,
-            "line": 88,
+            "line": 86,
             "path": "src/lib.rs"
           },
           "wire_name": "acceptance"
@@ -66,7 +66,7 @@
           "role": "ordinary",
           "source": {
             "column": 18,
-            "line": 72,
+            "line": 70,
             "path": "src/lib.rs"
           },
           "wire_name": "gates"
@@ -83,7 +83,7 @@
               "optional": false,
               "source": {
                 "column": 9,
-                "line": 134,
+                "line": 132,
                 "path": "src/lib.rs"
               },
               "ty": {
@@ -108,7 +108,7 @@
           "role": "ordinary",
           "source": {
             "column": 18,
-            "line": 128,
+            "line": 126,
             "path": "src/lib.rs"
           },
           "wire_name": "package"
@@ -125,7 +125,7 @@
               "optional": false,
               "source": {
                 "column": 89,
-                "line": 153,
+                "line": 151,
                 "path": "src/lib.rs"
               },
               "ty": {
@@ -150,7 +150,7 @@
           "role": "ordinary",
           "source": {
             "column": 18,
-            "line": 150,
+            "line": 148,
             "path": "src/lib.rs"
           },
           "wire_name": "published"
@@ -160,7 +160,7 @@
       "kind": "object",
       "source": {
         "column": 12,
-        "line": 50,
+        "line": 48,
         "path": "src/lib.rs"
       },
       "wire_name": "Ci"
@@ -187,7 +187,7 @@
               "optional": true,
               "source": {
                 "column": 9,
-                "line": 64,
+                "line": 62,
                 "path": "src/lib.rs"
               },
               "ty": {
@@ -212,7 +212,7 @@
           "role": "ordinary",
           "source": {
             "column": 12,
-            "line": 58,
+            "line": 56,
             "path": "src/lib.rs"
           },
           "wire_name": "ci"
@@ -222,7 +222,7 @@
       "kind": "object",
       "source": {
         "column": 12,
-        "line": 58,
+        "line": 56,
         "path": "src/lib.rs"
       },
       "wire_name": "Query"

@@ -87,8 +87,16 @@ resolves the module on its own.
 The module runs on this repository's own SDK at a pinned commit, not the commit under
 test, so a change cannot break the tool that checks it. `dagger.toml` and the module's
 `dagger-module.toml` name the runtime at that commit, and the module's `Cargo.toml`
-depends on the content commit that runtime pins. To move it, install the runtime at the
-new commit with `dagger install`, run `dagger generate`, and commit the result.
+depends on the content commit that runtime pins. To move it to another commit of this
+repository:
+
+1. Run `dagger module update rust-sdk --version <commit>`, which moves `dagger.toml`.
+2. Set the same commit in the module's `dagger-module.toml` `[runtime] source`, by hand:
+   `dagger module update` leaves it unchanged.
+3. Set the module's `Cargo.toml` `rev` to the content commit that runtime pins, which is
+   `runtime/assets/sdk-dependency.json` at that commit, then run
+   `cargo update -p tokeira-dagger-sdk` in the module.
+4. Run `dagger generate`, and commit the result.
 
 ## Changing the Dagger release
 
