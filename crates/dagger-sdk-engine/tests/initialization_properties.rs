@@ -3,6 +3,8 @@
 mod support;
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::io::Write as _;
+use std::process::{Command, Stdio};
 
 use dagger_codegen::module::{
     CfgEnvironment, FormatVersion as ModuleFormatVersion, GeneratedTypeRegistry,
@@ -94,6 +96,50 @@ proptest! {
         prop_assert!(left.attachments.iter().all(|identity| identity == &left_identity));
         prop_assert!(right.attachments.iter().all(|identity| identity == &right_identity));
         prop_assert_ne!(&left.configuration as *const _, &right.configuration as *const _);
+    }
+}
+
+// The starter is the first Rust a module author reads, so it is already formatted.
+#[test]
+fn starter_source_is_rustfmt_formatted() {
+    let corpus = fixed_model_corpus(3, true, 1);
+    let toolchain = ToolchainSelection::TargetDefault {
+        toolchain: "1.97.1".parse().unwrap(),
+    };
+    for name in ["greeter", "ci", "release-gate"] {
+        let module_root = RelativeOperationPath::parse(&format!("modules/{name}")).unwrap();
+        let plan = plan_initialization(InitializationInputs {
+            module_root: &module_root,
+            package_name: name,
+            manifest: None,
+            starter_source: None,
+            gitignore: None,
+            gitattributes: None,
+            dependency: &corpus.dependency,
+            toolchain: &toolchain,
+            dependency_resolved: true,
+            lockfile_present: false,
+        })
+        .unwrap();
+        let starter = plan
+            .files
+            .get(&RelativeOperationPath::parse(&format!("modules/{name}/src/lib.rs")).unwrap())
+            .unwrap();
+        // Standard input keeps rustfmt from resolving `mod dagger_generated`.
+        let mut rustfmt = Command::new("rustup")
+            .args(["run", "1.97.1", "rustfmt", "--edition", "2024"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        rustfmt.stdin.take().unwrap().write_all(starter).unwrap();
+        let formatted = rustfmt.wait_with_output().unwrap();
+        assert!(formatted.status.success());
+        assert_eq!(
+            String::from_utf8(formatted.stdout).unwrap(),
+            String::from_utf8(starter.clone()).unwrap(),
+            "the {name} starter is not rustfmt-formatted"
+        );
     }
 }
 
