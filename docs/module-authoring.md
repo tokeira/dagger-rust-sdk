@@ -78,6 +78,13 @@ is permitted only when one of those owning inputs changes, selects only the affe
 asset domain, and replaces or removes only paths proven by the prior compatible
 manifest. User-owned or unknown bytes are preserved and diagnosed.
 
+The generator's identity is the SDK source and toolchain the runtime seals, not the
+platform its tools were built for, so files generated on one engine platform are
+current on every other. A prior manifest is compatible when it covers the same
+operation and output root. A runtime upgrade changes the generator, and may change
+the target or SDK dependency; `dagger generate` then replaces exactly the files the
+prior manifest owns.
+
 ## Dispatch and errors
 
 The entrypoint reads an active call once into a typed envelope. An empty parent name

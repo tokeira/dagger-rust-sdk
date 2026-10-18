@@ -25,6 +25,8 @@ pub enum DigestDomain {
     RuntimeProvenance,
     /// Packaged private engine asset manifest.
     PackagedAssets,
+    /// Generator identity, the same on every engine platform.
+    Generator,
 }
 
 impl DigestDomain {
@@ -35,6 +37,7 @@ impl DigestDomain {
             Self::EngineSource => b"dagger-rust-engine-source-v1\0",
             Self::RuntimeProvenance => b"dagger-rust-engine-runtime-provenance-v1\0",
             Self::PackagedAssets => b"dagger-rust-engine-packaged-assets-v1\0",
+            Self::Generator => b"dagger-rust-engine-generator-v1\0",
         }
     }
 }

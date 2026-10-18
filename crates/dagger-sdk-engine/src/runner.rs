@@ -406,7 +406,8 @@ pub async fn execute_operation_with_post_work<P: OperationPostWork>(
         generator: GeneratorIdentity {
             version: ExactVersion::new(env!("CARGO_PKG_VERSION").to_owned())
                 .expect("package version must be exact semantic version"),
-            engine_source_digest: canonical_digest(DigestDomain::EngineSource, descriptor)
+            engine_source_digest: descriptor
+                .generator_digest()
                 .map_err(|_| generation_failed())?,
         },
         amendments,
@@ -916,7 +917,10 @@ fn module_authoring_input(
         },
     )?;
     let generator_digest = dagger_codegen::module::Sha256Digest::new(
-        descriptor.packaged_asset_manifest_digest.as_str(),
+        descriptor
+            .generator_digest()
+            .map_err(|_| generation_failed())?
+            .as_str(),
     )
     .map_err(|_| generation_failed())?;
     Ok(compiler::ModuleAuthoringInput {

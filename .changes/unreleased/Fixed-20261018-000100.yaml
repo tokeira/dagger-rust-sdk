@@ -1,0 +1,7 @@
+kind: Fixed
+body: |
+    Generated module files are the same on every engine platform. Their generator identity named the tools' platform-specific executables, so files generated on an arm64 engine were stale on amd64, and `dagger generate` and the staleness check there failed with `OPERATION_MANIFEST_STALE`. Regeneration after a runtime upgrade, which changes the generator and SDK dependency, now replaces the files the prior manifest owns instead of refusing.
+time: 2026-10-18T00:01:00Z
+custom:
+    Author: iw
+    PR: "12"

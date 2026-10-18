@@ -435,7 +435,8 @@ pub struct PostWorkRecord {
 pub struct GeneratorIdentity {
     /// Exact private tool version.
     pub version: ExactVersion,
-    /// Digest of the immutable engine source descriptor.
+    /// The generator's identity on every engine platform, from
+    /// [`EngineSourceDescriptor::generator_digest`].
     pub engine_source_digest: Sha256Digest,
 }
 

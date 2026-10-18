@@ -889,19 +889,18 @@ fn rollback(
     }
 }
 
+/// A prior manifest proves ownership for the same operation into the same output root.
+/// A changed target, SDK dependency or generator is an upgrade, which invalidates the
+/// whole provenance domain: the candidate replaces exactly what the prior manifest owns,
+/// as the generated-module manifest already allows.
 fn require_compatible(
     previous: &OperationManifest,
     candidate: &OperationManifest,
 ) -> Result<(), EngineDiagnostic> {
-    if previous.operation != candidate.operation
-        || previous.target != candidate.target
-        || previous.sdk_dependency != candidate.sdk_dependency
-        || previous.output_root != candidate.output_root
-        || previous.generator != candidate.generator
-    {
+    if previous.operation != candidate.operation || previous.output_root != candidate.output_root {
         return Err(stale(
             "operation-manifest",
-            "prior operation manifest is incompatible with this generator and target",
+            "prior operation manifest belongs to another operation or output root",
         ));
     }
     Ok(())

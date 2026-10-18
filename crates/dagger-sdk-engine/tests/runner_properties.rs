@@ -213,6 +213,45 @@ struct PublicationSetup {
     candidate: OperationCandidate,
 }
 
+proptest! {
+    // A prior manifest from another generator, target or SDK dependency is an upgrade:
+    // it still proves what it owns, so regeneration replaces exactly that. Another
+    // operation or output root is a different domain and grants nothing.
+    #[test]
+    fn upgrades_regenerate_within_the_prior_domain(seed in any::<u8>(), change in 0_u8..5) {
+        let setup = publication_setup(seed);
+        let root = OperationRoot::open(setup.temporary.path()).unwrap();
+        let mut candidate = setup.candidate.clone();
+        let other = fixed_model_corpus(seed.wrapping_add(1), false, 1);
+        match change {
+            0 => candidate.manifest.generator.engine_source_digest = hash(b"an upgraded generator"),
+            1 => candidate.manifest.target = other.target.clone(),
+            2 => candidate.manifest.sdk_dependency = other.dependency.clone(),
+            3 => candidate.manifest.operation = other.manifest.operation,
+            4 => candidate.manifest.output_root = RelativeOperationPath::parse("elsewhere").unwrap(),
+            _ => unreachable!(),
+        }
+        prop_assert_ne!(&candidate.manifest, &setup.candidate.manifest);
+
+        let result = verify_ownership(&root, Some(&setup.previous), &candidate);
+        if change < 3 {
+            publish(&root, result.unwrap()).unwrap();
+            prop_assert_eq!(
+                fs::read(setup.artifact_path.join_lexically(setup.temporary.path())).unwrap(),
+                format!("new-{seed}\n").into_bytes()
+            );
+            prop_assert_eq!(
+                decode_canonical::<OperationManifest>(
+                    &fs::read(setup.manifest_path.join_lexically(setup.temporary.path())).unwrap()
+                ).unwrap(),
+                candidate.manifest
+            );
+        } else {
+            prop_assert_eq!(result.unwrap_err().code, EngineDiagnosticCode::OperationManifestStale);
+        }
+    }
+}
+
 fn publication_setup(seed: u8) -> PublicationSetup {
     let temporary = tempfile::tempdir().unwrap();
     let artifact_path = RelativeOperationPath::parse("module/generated/client.rs").unwrap();

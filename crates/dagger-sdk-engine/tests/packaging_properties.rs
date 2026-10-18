@@ -284,6 +284,46 @@ proptest! {
     }
 }
 
+proptest! {
+    // The generator identity is the same wherever the SDK source is sealed: another
+    // platform's executables change only the packaged asset digest. Every other
+    // coordinate names a different generator.
+    #[test]
+    fn generator_identity_is_platform_independent_and_coordinate_bound(
+        seed in any::<u8>(),
+        coordinate in 0_u8..7,
+    ) {
+        let directory = tempfile::tempdir().unwrap();
+        write_payload(directory.path(), seed);
+        let (_, descriptor) =
+            build_packaged_content(directory.path(), package_identity(seed, seed % 2 == 1)).unwrap();
+        let generator = descriptor.generator_digest().unwrap();
+
+        let mut other_platform = descriptor.clone();
+        other_platform.packaged_asset_manifest_digest = digest(seed, 204);
+        prop_assert_eq!(other_platform.generator_digest().unwrap(), generator.clone());
+
+        let mut other = descriptor.clone();
+        match coordinate {
+            0 => other.repository = value("https://github.com/acme/other"),
+            1 => other.dagger_revision = revision(seed.wrapping_add(1)),
+            2 => other.engine_version = value("1.0.0-beta.19"),
+            3 => other.rust_sdk_version = value("0.2.0"),
+            4 => other.rust_toolchain = value("1.98.0"),
+            5 => {
+                other.sdk_dependency = PublishedSdkDependency::Git {
+                    url: value("https://github.com/acme/dagger"),
+                    revision: revision(seed.wrapping_add(2)),
+                    package: value("tokeira-dagger-sdk"),
+                }
+            }
+            6 => other.core_schema_digest = digest(seed, 205),
+            _ => unreachable!(),
+        }
+        prop_assert_ne!(other.generator_digest().unwrap(), generator);
+    }
+}
+
 #[test]
 fn repository_security_inputs_cover_derived_shipped_graph() {
     const CARGO_LOCK: &str = include_str!("../../../Cargo.lock");

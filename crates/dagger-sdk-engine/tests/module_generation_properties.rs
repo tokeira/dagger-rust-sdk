@@ -65,6 +65,127 @@ impl OperationPostWork for HostRustfmt {
 #[tokio::test]
 async fn production_stack_regenerates_initialized_modules_idempotently() {
     let temporary = tempfile::tempdir().unwrap();
+    let mut authored = initialize(temporary.path());
+    let library = temporary.path().join(MODULE_ROOT).join("src/lib.rs");
+
+    let root = OperationRoot::open(temporary.path()).unwrap();
+    let schema = module_visible_schema(0);
+    let generate = |source: &[u8]| request(&schema, source, dependency());
+
+    let first = execute(
+        &root,
+        &generate(authored.as_bytes()),
+        &schema,
+        &descriptor(),
+    )
+    .await;
+    assert!(!first.is_empty());
+    let generated = snapshot(temporary.path());
+    let replay = execute(
+        &root,
+        &generate(authored.as_bytes()),
+        &schema,
+        &descriptor(),
+    )
+    .await;
+    assert!(replay.is_empty(), "replay touched {replay:?}");
+    assert_eq!(snapshot(temporary.path()), generated);
+
+    authored.push_str(
+        "\n#[dagger_sdk::methods]\nimpl ModuleRoot {\n    #[dagger(function)]\n    pub fn greeting(&self) -> String {\n        \"hello\".to_owned()\n    }\n}\n",
+    );
+    fs::write(&library, &authored).unwrap();
+    let edited = execute(
+        &root,
+        &generate(authored.as_bytes()),
+        &schema,
+        &descriptor(),
+    )
+    .await;
+    assert!(!edited.is_empty());
+    let regenerated = snapshot(temporary.path());
+    let converged = execute(
+        &root,
+        &generate(authored.as_bytes()),
+        &schema,
+        &descriptor(),
+    )
+    .await;
+    assert!(
+        converged.is_empty(),
+        "converged replay touched {converged:?}"
+    );
+    assert_eq!(snapshot(temporary.path()), regenerated);
+}
+
+// Engines on different platforms seal the same SDK source with executables built for
+// their platform, which only the packaged asset digest records. A module generated on
+// one platform regenerates on another without a single changed byte.
+#[tokio::test]
+async fn regeneration_on_another_platform_changes_nothing() {
+    let temporary = tempfile::tempdir().unwrap();
+    let authored = initialize(temporary.path());
+    let root = OperationRoot::open(temporary.path()).unwrap();
+    let schema = module_visible_schema(0);
+    let generate = request(&schema, authored.as_bytes(), dependency());
+
+    let first = execute(&root, &generate, &schema, &descriptor()).await;
+    assert!(!first.is_empty());
+    let generated = snapshot(temporary.path());
+
+    let mut other_platform = descriptor();
+    other_platform.packaged_asset_manifest_digest = hash(b"another platform's executables");
+    let replay = execute(&root, &generate, &schema, &other_platform).await;
+    assert!(replay.is_empty(), "another platform touched {replay:?}");
+    assert_eq!(snapshot(temporary.path()), generated);
+}
+
+// A runtime upgrade seals newer SDK content, so the generator changes. Regeneration
+// replaces exactly the files the prior manifest owns, then converges under the new
+// generator; authored source is untouched.
+#[tokio::test]
+async fn regeneration_after_a_generator_upgrade_replaces_owned_files() {
+    let temporary = tempfile::tempdir().unwrap();
+    let authored = initialize(temporary.path());
+    let library = temporary.path().join(MODULE_ROOT).join("src/lib.rs");
+    let root = OperationRoot::open(temporary.path()).unwrap();
+    let schema = module_visible_schema(0);
+
+    let first = execute(
+        &root,
+        &request(&schema, authored.as_bytes(), dependency()),
+        &schema,
+        &descriptor(),
+    )
+    .await;
+    assert!(!first.is_empty());
+    let before = snapshot(temporary.path());
+
+    let mut upgraded = descriptor();
+    upgraded.sdk_dependency = pinned_dependency();
+    let upgrade = request(&schema, authored.as_bytes(), pinned_dependency());
+    let touched = execute(&root, &upgrade, &schema, &upgraded).await;
+    assert!(!touched.is_empty());
+    assert!(
+        touched
+            .iter()
+            .all(|path| before.iter().any(|(owned, _)| owned == path)),
+        "the upgrade wrote a path the prior generation did not own: {touched:?}"
+    );
+    assert_eq!(fs::read_to_string(&library).unwrap(), authored);
+    let upgraded_snapshot = snapshot(temporary.path());
+    assert_ne!(upgraded_snapshot, before);
+
+    let converged = execute(&root, &upgrade, &schema, &upgraded).await;
+    assert!(
+        converged.is_empty(),
+        "converged replay touched {converged:?}"
+    );
+    assert_eq!(snapshot(temporary.path()), upgraded_snapshot);
+}
+
+/// Initializes the module and authors one function, returning the authored source.
+fn initialize(directory: &Path) -> String {
     let module_root = RelativeOperationPath::parse(MODULE_ROOT).unwrap();
     let toolchain = ToolchainSelection::TargetDefault {
         toolchain: "1.97.1".parse().unwrap(),
@@ -83,49 +204,30 @@ async fn production_stack_regenerates_initialized_modules_idempotently() {
     })
     .unwrap();
     for (path, bytes) in &plan.files {
-        let destination = temporary.path().join(path.as_str());
+        let destination = directory.join(path.as_str());
         fs::create_dir_all(destination.parent().unwrap()).unwrap();
         fs::write(destination, bytes).unwrap();
     }
-    let library = temporary.path().join(MODULE_ROOT).join("src/lib.rs");
+    let library = directory.join(MODULE_ROOT).join("src/lib.rs");
     let mut authored = fs::read_to_string(&library).unwrap();
     authored.push_str(
         "\n#[dagger_sdk::methods]\nimpl ModuleRoot {\n    #[dagger(function)]\n    pub fn tree(&self, source: dagger_sdk::Directory) -> dagger_sdk::Directory {\n        source\n    }\n}\n",
     );
     fs::write(&library, &authored).unwrap();
-
-    let root = OperationRoot::open(temporary.path()).unwrap();
-    let schema = module_visible_schema(0);
-    let generate = |source: &[u8]| request(&schema, source);
-
-    let first = execute(&root, &generate(authored.as_bytes()), &schema).await;
-    assert!(!first.is_empty());
-    let generated = snapshot(temporary.path());
-    let replay = execute(&root, &generate(authored.as_bytes()), &schema).await;
-    assert!(replay.is_empty(), "replay touched {replay:?}");
-    assert_eq!(snapshot(temporary.path()), generated);
-
-    authored.push_str(
-        "\n#[dagger_sdk::methods]\nimpl ModuleRoot {\n    #[dagger(function)]\n    pub fn greeting(&self) -> String {\n        \"hello\".to_owned()\n    }\n}\n",
-    );
-    fs::write(&library, &authored).unwrap();
-    let edited = execute(&root, &generate(authored.as_bytes()), &schema).await;
-    assert!(!edited.is_empty());
-    let regenerated = snapshot(temporary.path());
-    let converged = execute(&root, &generate(authored.as_bytes()), &schema).await;
-    assert!(
-        converged.is_empty(),
-        "converged replay touched {converged:?}"
-    );
-    assert_eq!(snapshot(temporary.path()), regenerated);
+    authored
 }
 
-async fn execute(root: &OperationRoot, request: &OperationRequest, schema: &[u8]) -> Vec<String> {
+async fn execute(
+    root: &OperationRoot,
+    request: &OperationRequest,
+    schema: &[u8],
+    descriptor: &EngineSourceDescriptor,
+) -> Vec<String> {
     dagger_sdk_engine::execute_operation_with_post_work(
         root,
         request,
         schema,
-        &descriptor(),
+        descriptor,
         &Cancellation::default(),
         &HostRustfmt,
     )
@@ -139,7 +241,11 @@ async fn execute(root: &OperationRoot, request: &OperationRequest, schema: &[u8]
 
 // The adapter's semantic source digest changes exactly when authored source changes;
 // hashing the authored library models that identity for this single-file module.
-fn request(schema: &[u8], authored_source: &[u8]) -> OperationRequest {
+fn request(
+    schema: &[u8],
+    authored_source: &[u8],
+    sdk_dependency: PublishedSdkDependency,
+) -> OperationRequest {
     OperationRequest {
         format_version: FormatVersion,
         operation: OperationKind::GenerateModule,
@@ -156,7 +262,7 @@ fn request(schema: &[u8], authored_source: &[u8]) -> OperationRequest {
             source_digest: hash(authored_source),
             resolved_pin: None,
         }),
-        sdk_dependency: dependency(),
+        sdk_dependency,
         output_root: RelativeOperationPath::parse(MODULE_ROOT).unwrap(),
     }
 }
@@ -193,6 +299,15 @@ fn dependency() -> PublishedSdkDependency {
         registry: CanonicalRegistry::new("crates-io").unwrap(),
         package: SdkPackageName::new("tokeira-dagger-sdk").unwrap(),
         exact_version: ExactVersion::new("0.1.0").unwrap(),
+    }
+}
+
+/// SDK content sealed from a pinned commit, as the runtime installs it.
+fn pinned_dependency() -> PublishedSdkDependency {
+    PublishedSdkDependency::Git {
+        url: CanonicalRepositoryUrl::new("https://github.com/tokeira/dagger-rust-sdk").unwrap(),
+        revision: FullRevision::new("1e6e0d5c7ccfe1c712c692c229fe2c0b35d55a4b").unwrap(),
+        package: SdkPackageName::new("tokeira-dagger-sdk").unwrap(),
     }
 }
 
