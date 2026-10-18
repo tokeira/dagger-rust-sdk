@@ -25,13 +25,6 @@ Code names the crate `dagger_sdk` whichever package name `Cargo.toml` uses. The 
 its procedural-macro companion, `tokeira-dagger-sdk-macros`, to the exact matching
 version, so applications never depend on it directly.
 
-Until `0.1.0` is published on crates.io, depend on this repository at a full commit
-instead:
-
-```toml
-tokeira-dagger-sdk = { git = "https://github.com/tokeira/dagger-rust-sdk", rev = "<commit>" }
-```
-
 Commit an application lockfile under the application's own reproducibility policy.
 
 ## Use

@@ -1,6 +1,8 @@
 # Rust SDK for Dagger
 
 [![Build status](https://badge.buildkite.com/1c19045900aa4fa682a5abe778c6aacd38caa9770ca8b7a90b.svg?branch=main)](https://buildkite.com/tokeira/dagger-rust-sdk)
+[![crates.io](https://img.shields.io/crates/v/tokeira-dagger-sdk)](https://crates.io/crates/tokeira-dagger-sdk)
+[![docs.rs](https://img.shields.io/docsrs/tokeira-dagger-sdk)](https://docs.rs/tokeira-dagger-sdk)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![MSRV 1.99.1](https://img.shields.io/badge/MSRV-1.99.1-orange?logo=rust)](Cargo.toml)
 [![Dagger v1.0.0-beta.18](https://img.shields.io/badge/Dagger-v1.0.0--beta.18-informational)](https://github.com/dagger/dagger/tree/v1.0.0-beta.18)
@@ -105,8 +107,7 @@ cargo run -p tokeira-dagger-sdk --example ci-checks -- path/to/project
 
 Applications depend on `tokeira-dagger-sdk` from crates.io, and code names it
 `dagger_sdk`. [`crates/dagger-sdk/README.md`](crates/dagger-sdk/README.md) covers
-installation, including the Git dependency to use until `0.1.0` is published, and
-application usage.
+installation and application usage.
 
 | Capability | Current boundary |
 | --- | --- |
