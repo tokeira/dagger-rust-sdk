@@ -180,8 +180,10 @@ owned-path confinement, checksum verification, and credential-safe diagnostics.
 ## 6. Release
 
 A release publishes both public crates to crates.io at one version and tags the commit.
-`release.yml`, added with the first release, runs from the protected `release`
-environment, which requires the maintainer's approval:
+The maintainer publishes by hand, with their own crates.io token from `cargo login`; no CI
+system holds one. A crate's first release needs a token that may publish new crates. The
+ci module's `package` prepares the archives, and `published` proves the result
+([ci.md](ci.md)):
 
 1. Prepare one release commit that moves the release identity (below) to the new
    version, with `changie batch` writing its changelog section.
@@ -191,12 +193,19 @@ environment, which requires the maintainer's approval:
 3. Until generated projects depend on the published crates, re-pin the runtime to that
    commit, as [engine-integration.md](engine-integration.md#pinned-sdk-content)
    describes, so the tagged runtime builds content at the released version.
-4. `release.yml` publishes `tokeira-dagger-sdk-macros`, then `tokeira-dagger-sdk`, tags
-   `vX.Y.Z`, and creates the GitHub release.
+4. Package the release commit, then review each crate's file list:
+   `dagger call ci package --commit <commit> export --path release`.
+5. Tag the commit `vX.Y.Z`, annotated and under the noreply identity, and push the tag.
+6. From a clean checkout of the tag, publish the macros crate, wait until
+   `https://index.crates.io/to/ke/tokeira-dagger-sdk-macros` lists the new version, then
+   publish the SDK: `cargo publish --locked -p tokeira-dagger-sdk-macros`, then
+   `cargo publish --locked -p tokeira-dagger-sdk`. Packaging is reproducible, so each
+   upload is the archive `package` returned, byte for byte.
+7. Prove the release: `dagger call ci published --sums release/SHA256SUMS`.
+8. Create the GitHub release from the tag, with the changelog section as its notes.
 
-Tags and releases are immutable: never delete or recreate one. The first release,
-`0.1.0`, publishes with an API token, because crates.io adds a trusted publisher only to
-a crate that already exists. Later releases publish through trusted publishing.
+Tags and releases are immutable: never delete or recreate one. Nor does crates.io let a
+version be replaced: a fix is a new version, and a broken one is yanked.
 
 ## Release identity
 
