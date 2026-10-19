@@ -115,7 +115,7 @@ installation and application usage.
 | Connection safety | Exact engine version/revision checks, checksum-verified CLI downloads, loopback-only authenticated transport, and credential-safe diagnostics |
 | Module support | Typed authoring attributes, descriptor generation, registration, dispatch, cancellation, and single-result publication |
 | Standalone clients | Complete Core plus at most one independently pinned module, reusing the public client lifecycle; the runtime refuses client scopes on stock engines until their generation there is defined |
-| Runtime | Installs on stock Dagger engines as an SDK module and builds its SDK content from a pinned commit of this repository |
+| Runtime | Installs on stock Dagger engines as an SDK module and builds its SDK content from its own commit |
 
 Module authors should start with [`docs/module-authoring.md`](docs/module-authoring.md).
 Standalone-client users should read [`docs/client-generation.md`](docs/client-generation.md).

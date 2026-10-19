@@ -13,11 +13,11 @@ import (
 type RustSDKOpts struct {
 	// Complete engine-packaged Rust SDK content, including runtime and dist metadata.
 	// Absent when the runtime is installed as an ordinary module; operations then
-	// seal the content from the pinned SDK dependency.
+	// seal the content from the runtime's own commit.
 	SDKSourceDir *Directory
 }
 
-func (r *Query) RustSDK(opts ...RustSDKOpts) *RustSDK { // rust-sdk (../../:0:0)
+func (r *Query) RustSDK(opts ...RustSDKOpts) *RustSDK { // rust-sdk (../../../:0:0)
 	q := r.query.Select("rustSdk")
 	for i := len(opts) - 1; i >= 0; i-- {
 		// `sdkSourceDir` optional argument
@@ -34,7 +34,7 @@ func (r *Query) RustSDK(opts ...RustSDKOpts) *RustSDK { // rust-sdk (../../:0:0)
 
 // RustSDK is immutable packaged state. Operation methods build fresh Dagger object
 // graphs from this source instead of retaining mutable container or project handles.
-type RustSDK struct { // rust-sdk (../../:0:0)
+type RustSDK struct { // rust-sdk (../../../:0:0)
 	query *querybuilder.Selection
 	// refetchID is set when this object is built through a field marked
 	// @reevaluate: it fetches its ID on every use, so each use evaluates that

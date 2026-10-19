@@ -2,8 +2,8 @@
 //!
 //! Scalar construction makes mutable dependency shapes unrepresentable. This module
 //! adds the cross-field checks which bind registry packages to the exact SDK release
-//! while allowing an independently immutable Git source, which content sealed from a
-//! pinned commit uses before the SDK is on a registry.
+//! while allowing an independently immutable Git source, which content sealed by a
+//! runtime installed from anything but a release's tag uses.
 
 use serde::Serialize;
 

@@ -1,7 +1,7 @@
 # Rust SDK engine integration
 
 This document is the maintainer contract for the private Rust compiler, engine adapter,
-runtime image, pinned SDK content, and stock-engine verification. Application lifecycle
+runtime image, SDK content, and stock-engine verification. Application lifecycle
 and transport ownership are described in [architecture.md](architecture.md).
 
 ## Runtime build audit
@@ -66,26 +66,38 @@ Generation is not part of the continuous local loop. Refresh bindings only when 
 owning module API or schema changes, inspect that scoped diff once, and return to direct
 checks.
 
-## Pinned SDK content
+## SDK content
 
-Installed from a Git reference, the runtime builds its SDK content from the commit that
-`runtime/assets/sdk-dependency.json` names. It compiles the engine tool and rustfmt from
-that commit's crates in a digest-pinned image, adds the runtime sources, `LICENSE`, and
-`NOTICE`, and seals the result with `dagger-rust-engine package-content`. Modules it
-initializes depend on the same commit:
+Installed from a Git reference, the runtime builds its SDK content from its own commit.
+`runtime/dagger-module.toml` includes the repository files the content needs, so the
+engine loads them with the runtime. The runtime compiles the engine tool and rustfmt from
+those crates in a digest-pinned image, adds the runtime sources, `LICENSE`, and `NOTICE`,
+and seals the result with `dagger-rust-engine package-content`.
+
+The reference the runtime is installed from decides what the modules it initializes
+depend on. This repository's tag for the release the content carries, `vX.Y.Z`, selects
+that release from crates.io, and an unversioned reference resolves to the latest release
+tag:
+
+```toml
+dagger-sdk = { package = "tokeira-dagger-sdk", version = "=X.Y.Z" }
+```
+
+Any other reference, such as a commit, a branch, or a fork's tag, selects the commit it
+resolves to, in the repository it names:
 
 ```toml
 dagger-sdk = { package = "tokeira-dagger-sdk", git = "https://github.com/tokeira/dagger-rust-sdk", rev = "<commit>" }
 ```
 
-A commit cannot record its own hash, so moving the pin takes two commits in one pull
-request: the content change, then a commit that points `sdk-dependency.json` at it,
-together with any runtime change that depends on the new content, such as the package
-name `runtime/internal/metadata/engine.go` accepts in the sealed descriptor. Merge
-without squashing or rebasing, so both commits keep their hashes on `main`; a rewritten
-content commit would leave the pin naming a commit that `main` does not contain.
-Re-pin whenever the content that modules build against should change, including after
-every target refresh.
+A module's `Cargo.toml` keeps the dependency it was initialized with, while the engine
+resolves the module's runtime reference each time it loads the module. A branch or an
+unversioned reference therefore moves the runtime under the module whenever it resolves
+to a new commit, for example after `dagger lock update`, and the module must then be
+regenerated, with its `Cargo.toml` dependency changed by hand to match. Install the
+runtime from a tag or a commit. A runtime whose commit has
+`runtime/assets/sdk-dependency.json`, such as 0.1.0's, instead builds its content from the
+commit that file names, and its modules depend on that commit.
 
 ## Stock-engine acceptance
 
@@ -117,13 +129,13 @@ needs a Git workspace:
    runtime as an SDK module.
 2. `dagger module init rust --name gate` scaffolds the module, writes its
    `dagger-module.toml`, and seals the SDK content. The module's `Cargo.toml` depends on
-   the pinned commit.
+   `<commit>`.
 3. Author exports that take and return Core types. Loading the module before
    regeneration fails with a diagnostic that names `dagger generate`.
 4. `dagger generate` regenerates. A second run changes nothing, and the module's
    `.gitattributes` stays scoped to the module.
 5. `dagger call gate <function>` loads the module and calls each export.
-6. A plain client that depends on the pinned commit runs under `dagger run`, makes Void
+6. A plain client built against the commit's crates runs under `dagger run`, makes Void
    calls, and exports an image.
 7. Adding a Rust client scope with `dagger module client add` is refused before
    anything is written.

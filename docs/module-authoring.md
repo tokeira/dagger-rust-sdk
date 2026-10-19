@@ -13,11 +13,12 @@ dagger install github.com/tokeira/dagger-rust-sdk/runtime@<ref>
 dagger module init rust --name my-module
 ```
 
-`<ref>` is a release tag such as `v0.1.0`, or a full commit of this repository before
-the first release. Initialization writes the module's `Cargo.toml`,
-`dagger-module.toml`, and a starter `src/lib.rs` whose root object is named after the
-module. After changing exported items, run `dagger generate`, then call a function with
-`dagger call my-module <function>`.
+`<ref>` is a release tag such as `v0.1.0`, or a full commit of this repository.
+Initialization writes the module's `Cargo.toml`, `dagger-module.toml`, and a starter
+`src/lib.rs` whose root object is named after the module. The `Cargo.toml` depends on the
+SDK that `<ref>` names, as [engine-integration.md](engine-integration.md#sdk-content)
+describes. After changing exported items, run `dagger generate`, then call a function
+with `dagger call my-module <function>`.
 
 ## Authoring surface
 

@@ -42,7 +42,7 @@ type RustSDK struct {
 func New(
 	// Complete engine-packaged Rust SDK content, including runtime and dist metadata.
 	// Absent when the runtime is installed as an ordinary module; operations then
-	// seal the content from the pinned SDK dependency.
+	// seal the content from the runtime's own commit.
 	// +optional
 	sdkSourceDir *dagger.Directory,
 ) (*RustSDK, error) {
@@ -113,11 +113,15 @@ func (sdk *RustSDK) GenerateScope(
 	if !hasManifest {
 		// Only scaffolding runs a Rust operation here; regeneration reaches Codegen
 		// through the engine, which resolves the content root in that call.
-		sdk, err = sdk.resolved(ctx)
+		runtime, err := installedRuntimeSource(ctx, ws)
 		if err != nil {
 			return nil, err
 		}
-		configured, err = sdk.initializedModuleScope(ctx, ws, scope, name)
+		sdk, err = sdk.resolved(ctx, func(context.Context) (string, error) { return runtime, nil })
+		if err != nil {
+			return nil, err
+		}
+		configured, err = sdk.initializedModuleScope(ctx, ws, scope, name, runtime)
 		if err != nil {
 			return nil, err
 		}
@@ -130,14 +134,15 @@ func (sdk *RustSDK) GenerateScope(
 }
 
 // initializedModuleScope scaffolds a new Rust module in the scope and writes its
-// module configuration. The SDK-module interface leaves module configuration to
-// the SDK, and the Rust initialization plan refuses to write it, so the adapter
-// authors it.
+// module configuration, which loads the runtime from the given reference. The
+// SDK-module interface leaves module configuration to the SDK, and the Rust
+// initialization plan refuses to write it, so the adapter authors it.
 func (sdk *RustSDK) initializedModuleScope(
 	ctx context.Context,
 	ws *dagger.Workspace,
 	scope string,
 	name string,
+	runtime string,
 ) (*dagger.Workspace, error) {
 	scaffold, err := sdk.moduleScaffold(ctx, ws, scope, name)
 	if err != nil {
@@ -146,10 +151,6 @@ func (sdk *RustSDK) initializedModuleScope(
 	engineVersion, err := dag.Version(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("read engine version: %w", err)
-	}
-	runtime, err := installedRuntimeSource(ctx, ws)
-	if err != nil {
-		return nil, err
 	}
 	manifest := moduleManifest(name, engineVersion, runtime)
 	return ws.WithDirectory(".", scaffold).
@@ -217,6 +218,25 @@ func installedRuntimeSource(ctx context.Context, ws *dagger.Workspace) (string, 
 		return "", fmt.Errorf("Rust SDK %q is installed from a local path; install it from a Git reference to initialize modules", moduleName)
 	}
 	return source, nil
+}
+
+// moduleRuntimeSource reads the runtime reference in a module's configuration,
+// which the engine resolved to load this runtime for that module.
+func moduleRuntimeSource(modSource *dagger.ModuleSource) runtimeReference {
+	return func(ctx context.Context) (string, error) {
+		config, err := modSource.SDK(ctx)
+		if err != nil {
+			return "", fmt.Errorf("read the module's Rust SDK runtime: %w", err)
+		}
+		if config == nil {
+			return "", fmt.Errorf("the module configuration names no Rust SDK runtime")
+		}
+		source, err := config.Source(ctx)
+		if err != nil {
+			return "", fmt.Errorf("read the module's Rust SDK runtime: %w", err)
+		}
+		return source, nil
+	}
 }
 
 // isRemoteModuleReference follows the engine's classification of a module source
@@ -355,10 +375,21 @@ func (sdk *RustSDK) engineTool() *dagger.File {
 	return sdk.SDKSourceDir.File(engineToolPath)
 }
 
+// clientGenerationMetadata reads the client-generation metadata. Sealing copies it
+// unchanged from the SDK source, so a runtime that seals its own content reads the
+// source file and needs no module to name the content's dependency.
 func (sdk *RustSDK) clientGenerationMetadata(ctx context.Context) (metadata.ClientGeneration, error) {
-	contents, err := sdk.SDKSourceDir.File(clientGenerationPath).Contents(ctx)
+	packaged, err := sdk.packaged(ctx)
 	if err != nil {
-		return metadata.ClientGeneration{}, fmt.Errorf("read packaged client-generation metadata: %w", err)
+		return metadata.ClientGeneration{}, err
+	}
+	file := dag.CurrentModule().ContextDirectory().File(clientGenerationSourcePath)
+	if packaged {
+		file = sdk.SDKSourceDir.File(clientGenerationPath)
+	}
+	contents, err := file.Contents(ctx)
+	if err != nil {
+		return metadata.ClientGeneration{}, fmt.Errorf("read client-generation metadata: %w", err)
 	}
 	return metadata.DecodeClientGeneration([]byte(contents))
 }
@@ -372,7 +403,7 @@ func (sdk *RustSDK) Codegen(
 	modSource *dagger.ModuleSource,
 	introspectionJSON *dagger.File,
 ) (*dagger.GeneratedCode, error) {
-	sdk, resolveErr := sdk.resolved(ctx)
+	sdk, resolveErr := sdk.resolved(ctx, moduleRuntimeSource(modSource))
 	if resolveErr != nil {
 		return nil, resolveErr
 	}
@@ -406,10 +437,6 @@ func (sdk *RustSDK) Codegen(
 
 // RequiredClientGenerationFiles returns the renderer-owned finite host input set.
 func (sdk *RustSDK) RequiredClientGenerationFiles(ctx context.Context) ([]string, error) {
-	sdk, resolveErr := sdk.resolved(ctx)
-	if resolveErr != nil {
-		return nil, resolveErr
-	}
 	metadata, err := sdk.clientGenerationMetadata(ctx)
 	if err != nil {
 		return nil, err
@@ -425,7 +452,7 @@ func (sdk *RustSDK) GenerateClient(
 	introspectionJSON *dagger.File,
 	outputDir string,
 ) (*dagger.Directory, error) {
-	sdk, resolveErr := sdk.resolved(ctx)
+	sdk, resolveErr := sdk.resolved(ctx, moduleRuntimeSource(modSource))
 	if resolveErr != nil {
 		return nil, resolveErr
 	}

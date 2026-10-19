@@ -91,12 +91,10 @@ impl Ci {
     ) -> Result<String, ModuleError> {
         let dag = context.query();
         let (tree, engine) = pushed(dag, &commit).await?;
-        // The line `dagger module init` must write into the module's Cargo.toml.
-        let pin = json_file(&tree, "runtime/assets/sdk-dependency.json").await?;
+        // The line `dagger module init` must write into the module's Cargo.toml: a runtime
+        // installed from a commit has the modules it initializes depend on that commit.
         let dependency = format!(
-            "dagger-sdk = {{ package = \"tokeira-dagger-sdk\", git = \"{}\", rev = \"{}\" }}",
-            string_field(&pin, "runtime/assets/sdk-dependency.json", "repository")?,
-            string_field(&pin, "runtime/assets/sdk-dependency.json", "revision")?,
+            "dagger-sdk = {{ package = \"tokeira-dagger-sdk\", git = \"https://{REPOSITORY}\", rev = \"{commit}\" }}"
         );
 
         let cli = dagger_cli(dag).await?;

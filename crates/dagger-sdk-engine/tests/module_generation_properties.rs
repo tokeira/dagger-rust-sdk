@@ -302,7 +302,7 @@ fn dependency() -> PublishedSdkDependency {
     }
 }
 
-/// SDK content sealed from a pinned commit, as the runtime installs it.
+/// The dependency a runtime installed from a commit seals into its content.
 fn pinned_dependency() -> PublishedSdkDependency {
     PublishedSdkDependency::Git {
         url: CanonicalRepositoryUrl::new("https://github.com/tokeira/dagger-rust-sdk").unwrap(),

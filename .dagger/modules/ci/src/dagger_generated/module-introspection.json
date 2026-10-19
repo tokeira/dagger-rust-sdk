@@ -1,5 +1,5 @@
 {
-  "descriptor_digest": "sha256:ab11831bac660d32e11b6e53fdd7b3bd8b4ad20412a059a4e2522bcb173fa6dc",
+  "descriptor_digest": "sha256:c697792decbe17c856d82603baa8e82119968982a1cc2c64fded0319192228d2",
   "format_version": 1,
   "types": {
     "Ci": {
@@ -83,7 +83,7 @@
               "optional": false,
               "source": {
                 "column": 9,
-                "line": 132,
+                "line": 130,
                 "path": "src/lib.rs"
               },
               "ty": {
@@ -108,7 +108,7 @@
           "role": "ordinary",
           "source": {
             "column": 18,
-            "line": 126,
+            "line": 124,
             "path": "src/lib.rs"
           },
           "wire_name": "package"
@@ -125,7 +125,7 @@
               "optional": false,
               "source": {
                 "column": 89,
-                "line": 151,
+                "line": 149,
                 "path": "src/lib.rs"
               },
               "ty": {
@@ -150,7 +150,7 @@
           "role": "ordinary",
           "source": {
             "column": 18,
-            "line": 148,
+            "line": 146,
             "path": "src/lib.rs"
           },
           "wire_name": "published"

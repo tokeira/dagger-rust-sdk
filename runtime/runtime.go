@@ -28,7 +28,7 @@ func (sdk *RustSDK) ModuleRuntime(
 	// +optional
 	introspectionJSON *dagger.File,
 ) (*dagger.Container, error) {
-	sdk, resolveErr := sdk.resolved(ctx)
+	sdk, resolveErr := sdk.resolved(ctx, moduleRuntimeSource(modSource))
 	if resolveErr != nil {
 		return nil, resolveErr
 	}

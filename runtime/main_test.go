@@ -148,7 +148,8 @@ func TestRuntimeConstructorTakesNoWorkspaceDefaultPath(t *testing.T) {
 		t.Fatalf("read checked module entrypoint: %v", err)
 	}
 	// With a workspace bound into the call, engines resolve a default path against
-	// that workspace, so the content root comes from the pinned SDK dependency.
+	// that workspace, so the content root comes from the files the runtime's module
+	// configuration includes.
 	for token, body := range map[string][]byte{
 		`+defaultPath`: source,
 		`DefaultPath:`: entrypoint,
@@ -187,6 +188,47 @@ func TestInstalledRuntimeSourceMustBeRemote(t *testing.T) {
 		if got := isRemoteModuleReference(test.source); got != test.remote {
 			t.Fatalf("isRemoteModuleReference(%q) = %t; want %t", test.source, got, test.remote)
 		}
+	}
+}
+
+func TestGeneratedDependencyFollowsTheInstalledReference(t *testing.T) {
+	commit := strings.Repeat("a", 40)
+	release := sdkDependency{Kind: "registry", Value: "0.2.0"}
+	atCommit := func(repository string) sdkDependency {
+		return sdkDependency{Kind: "git", Value: commit, Repository: repository}
+	}
+	for _, test := range []struct {
+		reference string
+		version   string
+		cloneRef  string
+		want      sdkDependency
+	}{
+		{"the release's tag", "v0.2.0", "github.com/tokeira/dagger-rust-sdk", release},
+		{"the release's tag over HTTPS", "v0.2.0", "https://github.com/tokeira/dagger-rust-sdk", release},
+		{"the release's tag with .git", "v0.2.0", "github.com/tokeira/dagger-rust-sdk.git", release},
+		{"another release's tag", "v0.1.0", "github.com/tokeira/dagger-rust-sdk", atCommit("https://github.com/tokeira/dagger-rust-sdk")},
+		{"a commit", commit, "github.com/tokeira/dagger-rust-sdk", atCommit("https://github.com/tokeira/dagger-rust-sdk")},
+		{"a branch", "main", "https://github.com/tokeira/dagger-rust-sdk", atCommit("https://github.com/tokeira/dagger-rust-sdk")},
+		{"a branch with .git", "main", "github.com/tokeira/dagger-rust-sdk.git", atCommit("https://github.com/tokeira/dagger-rust-sdk.git")},
+		{"a fork's copy of the release's tag", "v0.2.0", "github.com/acme/dagger-rust-sdk", atCommit("https://github.com/acme/dagger-rust-sdk")},
+	} {
+		got, err := generatedDependency(test.version, commit, test.cloneRef, "0.2.0")
+		if err != nil || got != test.want {
+			t.Fatalf("generatedDependency for %s = %+v, %v; want %+v", test.reference, got, err, test.want)
+		}
+	}
+	for _, cloneRef := range []string{
+		"git@github.com:tokeira/dagger-rust-sdk",
+		"ssh://git@github.com/tokeira/dagger-rust-sdk",
+		"http://github.com/tokeira/dagger-rust-sdk",
+		"https://ci-bot@github.com/tokeira/dagger-rust-sdk",
+	} {
+		if got, err := generatedDependency("v0.2.0", commit, cloneRef, "0.2.0"); err == nil {
+			t.Fatalf("generatedDependency for repository %q = %+v; want a refusal", cloneRef, got)
+		}
+	}
+	if got, err := generatedDependency("main", "a1b2c3d", "github.com/tokeira/dagger-rust-sdk", "0.2.0"); err == nil {
+		t.Fatalf("generatedDependency for an abbreviated commit = %+v; want a refusal", got)
 	}
 }
 
