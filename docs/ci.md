@@ -87,11 +87,9 @@ resolves the module on its own.
 The module runs on this repository's own SDK at a pinned commit, not the commit under
 test, so a change cannot break the tool that checks it. `dagger.toml` and the module's
 `dagger-module.toml` name the runtime at that commit, and the module's `Cargo.toml`
-depends on the SDK that runtime generates modules against, which for a commit is that
-same commit ([engine-integration.md](engine-integration.md#sdk-content)). The runtime
-pinned now predates that rule, so the module depends on the content commit named by
-`runtime/assets/sdk-dependency.json` at the pinned commit. To move it to another commit
-of this repository:
+depends on the same commit, which is the SDK that runtime generates modules against
+([engine-integration.md](engine-integration.md#sdk-content)). To move it to another
+commit of this repository:
 
 1. Run `dagger module update rust-sdk --version <commit>`, which moves `dagger.toml`.
 2. Set the same commit in the module's `dagger-module.toml` `[runtime] source`, by hand:
