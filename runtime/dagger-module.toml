@@ -1,5 +1,5 @@
 name = "rust-sdk"
-engineVersion = "v1.0.0-beta.18"
+engineVersion = "v1.0.0-beta.19"
 include = ["../Cargo.toml", "../Cargo.lock", "../rust-toolchain.toml", "../codegen/target.json", "../codegen/schema.json", "../codegen/generated.json", "../crates/**/Cargo.toml", "../crates/**/src/**/*.rs", "../crates/**/assets/**", "../LICENSE", "../NOTICE"]
 
 [runtime]

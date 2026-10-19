@@ -5,6 +5,30 @@
     },
     "types": [
       {
+        "kind": "ENUM",
+        "name": "AcronymStyle",
+        "description": "How acronyms and terms are written where a word starts with a capital.",
+        "enumValues": [
+          {
+            "name": "UPPERCASE",
+            "description": "HTTPClient, IPv6Address, GitHubRepo",
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "directives": []
+          },
+          {
+            "name": "CAPITALIZED",
+            "description": "HttpClient, Ipv6Address, GitHubRepo",
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "directives": []
+          }
+        ],
+        "interfaces": [],
+        "possibleTypes": [],
+        "directives": []
+      },
+      {
         "kind": "OBJECT",
         "name": "Address",
         "description": "A standardized address to load containers, directories, secrets, and other object types. Address format depends on the type, and is validated at type selection.",
@@ -448,6 +472,28 @@
             "isDeprecated": false,
             "deprecationReason": null,
             "directives": []
+          },
+          {
+            "name": "parent",
+            "description": "The agent that spawned this agent, or null for a root agent.",
+            "type": {
+              "kind": "OBJECT",
+              "name": "Agent"
+            },
+            "args": [],
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "directives": [
+              {
+                "name": "experimental",
+                "args": [
+                  {
+                    "name": "reason",
+                    "value": "\"Agent APIs are likely to change.\""
+                  }
+                ]
+              }
+            ]
           },
           {
             "name": "name",
@@ -1300,6 +1346,18 @@
             "directives": []
           },
           {
+            "name": "workspace",
+            "description": "The workspace this artifact was discovered in; its address is relative to it. Null for an artifact without a workspace, such as one of an LLM's bound tool objects (see LLM.artifacts).",
+            "type": {
+              "kind": "OBJECT",
+              "name": "Workspace"
+            },
+            "args": [],
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "directives": []
+          },
+          {
             "name": "uri",
             "description": "The artifact's DAG address, such as dag://engine-dev/playground.",
             "type": {
@@ -1902,7 +1960,7 @@
       {
         "kind": "OBJECT",
         "name": "Artifacts",
-        "description": "An immutable selection of workspace artifacts. Listed types, dimensions, and keys use OR; chained filters use AND. Empty alternatives and unknown names match nothing. Filters never change addresses or dimension identifiers.",
+        "description": "An immutable selection of workspace artifacts. Listed types, dimensions, and keys use OR; chained filters use AND. Empty alternatives match nothing; unknown names match nothing but module load failures. Filters never change addresses or dimension identifiers. Module keys match a module's configured or kebab-case name. A module that failed to load has no schema, so its load failure stands in for whatever it would hold: a filter keeps it when the module could hold something the filter selects, and an exclusion drops it only by its own address, such as \u003cmodule\u003e/** or ?module=\u003cmodule\u003e.",
         "fields": [
           {
             "name": "id",
@@ -1921,7 +1979,7 @@
           },
           {
             "name": "asExpertise",
-            "description": "Convert the selection to expertise without running the functions. Fail if any artifact is not a source of expertise.",
+            "description": "Convert the selection to expertise without running the functions. Each must take one LLM! argument and return LLM!; any other arguments must be optional or auto-filled. Agent arguments receive the agent that owns the conversation. A module load failure fails with its load error.",
             "type": {
               "kind": "NON_NULL",
               "ofType": {
@@ -1942,7 +2000,7 @@
           },
           {
             "name": "asGenerators",
-            "description": "Convert the selection to Generators without running them. Fail if any artifact is not a Generator.",
+            "description": "Convert the selection to Generators without running them. Fail if any artifact is not a Generator. Module load failures are skipped: generating can repair them.",
             "type": {
               "kind": "NON_NULL",
               "ofType": {
@@ -1963,7 +2021,7 @@
           },
           {
             "name": "asChecks",
-            "description": "Convert the selection to Checks. Fail if any artifact is not a Check. Does not apply command filters or run the checks.",
+            "description": "Convert the selection to Checks. Fail if any artifact is not a Check. A module load failure is a Check that fails with its load error. Does not apply command filters or run the checks.",
             "type": {
               "kind": "NON_NULL",
               "ofType": {
@@ -1984,7 +2042,7 @@
           },
           {
             "name": "asChangesets",
-            "description": "Convert the selection to Changesets. Fail if any artifact is not a Changeset. Does not apply command filters.",
+            "description": "Convert the selection to Changesets. Fail if any artifact is not a Changeset; a module load failure fails with its load error. Does not apply command filters.",
             "type": {
               "kind": "NON_NULL",
               "ofType": {
@@ -2005,7 +2063,7 @@
           },
           {
             "name": "asServices",
-            "description": "Convert the selection to Services. Fail if any artifact is not a Service. Does not apply command filters or start the services.",
+            "description": "Convert the selection to Services. Fail if any artifact is not a Service; a module load failure fails with its load error. Does not apply command filters or start the services.",
             "type": {
               "kind": "NON_NULL",
               "ofType": {
@@ -2635,7 +2693,7 @@
           },
           {
             "name": "filterUri",
-            "description": "Apply a DAG address as one filter: the chain of path, type, and dimension-key filters it encodes.\n\nThe scheme is optional. The path may be a pattern; an empty path selects all artifacts.",
+            "description": "Apply a DAG address as one filter: the chain of path, type, and dimension-key filters it encodes.\n\nThe scheme is optional. The path may be a pattern; an empty path selects all artifacts.\n\nA module that failed to load keeps its load failure when the module could hold what the address selects, as with every filter (see Artifacts).",
             "type": {
               "kind": "NON_NULL",
               "ofType": {
@@ -2940,6 +2998,58 @@
             "directives": null
           }
         ],
+        "possibleTypes": [],
+        "directives": []
+      },
+      {
+        "kind": "ENUM",
+        "name": "Casing",
+        "description": "A convention for joining words into an identifier.",
+        "enumValues": [
+          {
+            "name": "PASCAL",
+            "description": "HTTPClient",
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "directives": []
+          },
+          {
+            "name": "CAMEL",
+            "description": "httpClient",
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "directives": []
+          },
+          {
+            "name": "SNAKE",
+            "description": "http_client",
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "directives": []
+          },
+          {
+            "name": "SCREAMING_SNAKE",
+            "description": "HTTP_CLIENT",
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "directives": []
+          },
+          {
+            "name": "KEBAB",
+            "description": "http-client",
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "directives": []
+          },
+          {
+            "name": "FLAT",
+            "description": "httpclient (output only: drops word boundaries)",
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "directives": []
+          }
+        ],
+        "interfaces": [],
         "possibleTypes": [],
         "directives": []
       },
@@ -12197,7 +12307,7 @@
       {
         "kind": "OBJECT",
         "name": "Expertise",
-        "description": "An agent function that can modify a conversation.",
+        "description": "A function that can modify a conversation.",
         "fields": [
           {
             "name": "id",
@@ -12215,8 +12325,23 @@
             "directives": []
           },
           {
+            "name": "artifact",
+            "description": "The artifact this expertise runs. Look it up again by URI to pick up module changes.",
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "Artifact"
+              }
+            },
+            "args": [],
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "directives": []
+          },
+          {
             "name": "name",
-            "description": "The agent function's name.",
+            "description": "The function's name.",
             "type": {
               "kind": "NON_NULL",
               "ofType": {
@@ -12231,7 +12356,7 @@
           },
           {
             "name": "description",
-            "description": "The agent function's description.",
+            "description": "The function's description.",
             "type": {
               "kind": "NON_NULL",
               "ofType": {
@@ -12246,7 +12371,7 @@
           },
           {
             "name": "path",
-            "description": "The agent function's path within its module.",
+            "description": "The function's path within its module.",
             "type": {
               "kind": "NON_NULL",
               "ofType": {
@@ -12267,7 +12392,7 @@
           },
           {
             "name": "originalModule",
-            "description": "The module that defines the agent function.",
+            "description": "The module that defines the function.",
             "type": {
               "kind": "NON_NULL",
               "ofType": {
@@ -14790,6 +14915,21 @@
             "directives": []
           },
           {
+            "name": "treeSHA",
+            "description": "The ID of the commit's Git tree object.\n\nCommits with identical trees have identical contents and file modes.",
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "String"
+              }
+            },
+            "args": [],
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "directives": []
+          },
+          {
             "name": "authoredDate",
             "description": "Git author date, in RFC3339 format.",
             "type": {
@@ -17097,6 +17237,239 @@
         "directives": []
       },
       {
+        "kind": "OBJECT",
+        "name": "Identifier",
+        "description": "A name parsed into words, which can be formatted in any casing.",
+        "fields": [
+          {
+            "name": "id",
+            "description": "A unique identifier for this Identifier.",
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "ID"
+              }
+            },
+            "args": [],
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "directives": []
+          },
+          {
+            "name": "format",
+            "description": "Format the identifier in a casing.",
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "String"
+              }
+            },
+            "args": [
+              {
+                "name": "casing",
+                "description": "The casing to format the identifier in.",
+                "defaultValue": null,
+                "type": {
+                  "kind": "NON_NULL",
+                  "ofType": {
+                    "kind": "ENUM",
+                    "name": "Casing"
+                  }
+                },
+                "directives": [],
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "acronyms",
+                "description": "How to write acronyms and terms where a word starts with a capital.",
+                "defaultValue": "UPPERCASE",
+                "type": {
+                  "kind": "ENUM",
+                  "name": "AcronymStyle"
+                },
+                "directives": [],
+                "isDeprecated": false,
+                "deprecationReason": null
+              }
+            ],
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "directives": []
+          },
+          {
+            "name": "name",
+            "description": "The name as given.",
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "String"
+              }
+            },
+            "args": [],
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "directives": []
+          },
+          {
+            "name": "words",
+            "description": "The words that make up the name, in order.",
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "LIST",
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "ofType": {
+                    "kind": "OBJECT",
+                    "name": "IdentifierWord"
+                  }
+                }
+              }
+            },
+            "args": [],
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "directives": []
+          }
+        ],
+        "interfaces": [
+          {
+            "kind": "INTERFACE",
+            "name": "Node",
+            "interfaces": null,
+            "possibleTypes": null,
+            "directives": null
+          }
+        ],
+        "possibleTypes": [],
+        "directives": []
+      },
+      {
+        "kind": "OBJECT",
+        "name": "IdentifierWord",
+        "description": "One word of an identifier.",
+        "fields": [
+          {
+            "name": "id",
+            "description": "A unique identifier for this IdentifierWord.",
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "ID"
+              }
+            },
+            "args": [],
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "directives": []
+          },
+          {
+            "name": "term",
+            "description": "The dictionary entry this word matched, if any.",
+            "type": {
+              "kind": "OBJECT",
+              "name": "NamingTerm"
+            },
+            "args": [],
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "directives": []
+          },
+          {
+            "name": "text",
+            "description": "Standard spelling: \"client\" (WORD), \"HTTP\" (ACRONYM), \"GitHub\" (TERM).",
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "String"
+              }
+            },
+            "args": [],
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "directives": []
+          },
+          {
+            "name": "suffix",
+            "description": "Trailing digits and/or a plural \"s\", in that order: SHA+\"s\", OAuth+\"2\", HTTP+\"2s\".",
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "String"
+              }
+            },
+            "args": [],
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "directives": []
+          },
+          {
+            "name": "kind",
+            "description": "The kind of word.",
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "ENUM",
+                "name": "IdentifierWordKind"
+              }
+            },
+            "args": [],
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "directives": []
+          }
+        ],
+        "interfaces": [
+          {
+            "kind": "INTERFACE",
+            "name": "Node",
+            "interfaces": null,
+            "possibleTypes": null,
+            "directives": null
+          }
+        ],
+        "possibleTypes": [],
+        "directives": []
+      },
+      {
+        "kind": "ENUM",
+        "name": "IdentifierWordKind",
+        "description": "The kind of a word in an identifier.",
+        "enumValues": [
+          {
+            "name": "WORD",
+            "description": "An ordinary word.",
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "directives": []
+          },
+          {
+            "name": "ACRONYM",
+            "description": "An acronym, from the dictionary or a run of capitals.",
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "directives": []
+          },
+          {
+            "name": "TERM",
+            "description": "A dictionary term with a fixed mixed-case spelling (GitHub, IPv6).",
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "directives": []
+          }
+        ],
+        "interfaces": [],
+        "possibleTypes": [],
+        "directives": []
+      },
+      {
         "kind": "ENUM",
         "name": "ImageLayerCompression",
         "description": "Compression algorithm to use for image layers.",
@@ -17859,55 +18232,29 @@
             "directives": []
           },
           {
-            "name": "compose",
-            "description": "Run expertise in list order, passing this conversation through each function. Retain existing contributions.",
+            "name": "expertise",
+            "description": "Expertise composed into this conversation, in order.",
             "type": {
               "kind": "NON_NULL",
               "ofType": {
-                "kind": "OBJECT",
-                "name": "LLM"
-              }
-            },
-            "args": [
-              {
-                "name": "expertise",
-                "description": "The expertise to run. Each reference retains its source workspace.",
-                "defaultValue": null,
-                "type": {
+                "kind": "LIST",
+                "ofType": {
                   "kind": "NON_NULL",
                   "ofType": {
-                    "kind": "LIST",
-                    "ofType": {
-                      "kind": "NON_NULL",
-                      "ofType": {
-                        "kind": "SCALAR",
-                        "name": "ID"
-                      }
-                    }
+                    "kind": "OBJECT",
+                    "name": "Expertise"
                   }
-                },
-                "directives": [
-                  {
-                    "name": "expectedType",
-                    "args": [
-                      {
-                        "name": "name",
-                        "value": "\"Expertise\""
-                      }
-                    ]
-                  }
-                ],
-                "isDeprecated": false,
-                "deprecationReason": null
+                }
               }
-            ],
+            },
+            "args": [],
             "isDeprecated": false,
             "deprecationReason": null,
             "directives": []
           },
           {
-            "name": "recompose",
-            "description": "Run expertise in list order, replacing their modules' contributions and preserving compatible tool state.\n\nClear each selected module's contributions once before execution. Retain unowned contributions and contributions from other modules. Keep this LLM's workspace.\n\nA change to a tool binding's version resets its state. Removed bindings, changed identities, and incompatible state are errors.",
+            "name": "compose",
+            "description": "Run expertise on this conversation, passing it through each function in order, and record it in expertise.\n\nComposing an entry that is already recorded refreshes its module: the module's contributions are cleared, all of its recorded entries run again, and compatible tool state is kept. Other contributions are untouched.\n\nAgent arguments receive the agent that owns this conversation. Without one, entries requiring an Agent are skipped.",
             "type": {
               "kind": "NON_NULL",
               "ofType": {
@@ -18980,6 +19327,34 @@
               }
             },
             "args": [
+              {
+                "name": "expertise",
+                "description": "Expertise to compose into the new agent's conversation. Agent arguments receive the new agent, which cannot be used until composition completes; if composition fails, the agent is left STOPPED.",
+                "defaultValue": "[]",
+                "type": {
+                  "kind": "LIST",
+                  "ofType": {
+                    "kind": "NON_NULL",
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "ID"
+                    }
+                  }
+                },
+                "directives": [
+                  {
+                    "name": "expectedType",
+                    "args": [
+                      {
+                        "name": "name",
+                        "value": "\"Expertise\""
+                      }
+                    ]
+                  }
+                ],
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
               {
                 "name": "name",
                 "description": "Display label for the agent — telemetry and error messages; carries no identity. Defaults to a short name derived from the conversation.",
@@ -22497,6 +22872,69 @@
         "directives": []
       },
       {
+        "kind": "OBJECT",
+        "name": "NamingTerm",
+        "description": "An entry in the naming dictionary.",
+        "fields": [
+          {
+            "name": "id",
+            "description": "A unique identifier for this NamingTerm.",
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "ID"
+              }
+            },
+            "args": [],
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "directives": []
+          },
+          {
+            "name": "spelling",
+            "description": "Standard spelling: \"HTTP\", \"IPv6\", \"GitHub\", \"iOS\".",
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "String"
+              }
+            },
+            "args": [],
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "directives": []
+          },
+          {
+            "name": "capitalized",
+            "description": "Spelling in the CAPITALIZED style: \"Http\", \"Ipv6\", \"GitHub\", \"Ios\".",
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "String"
+              }
+            },
+            "args": [],
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "directives": []
+          }
+        ],
+        "interfaces": [
+          {
+            "kind": "INTERFACE",
+            "name": "Node",
+            "interfaces": null,
+            "possibleTypes": null,
+            "directives": null
+          }
+        ],
+        "possibleTypes": [],
+        "directives": []
+      },
+      {
         "kind": "ENUM",
         "name": "NetworkProtocol",
         "description": "Transport layer network protocol associated to a port.",
@@ -22895,6 +23333,20 @@
           },
           {
             "kind": "OBJECT",
+            "name": "Identifier",
+            "interfaces": null,
+            "possibleTypes": null,
+            "directives": null
+          },
+          {
+            "kind": "OBJECT",
+            "name": "IdentifierWord",
+            "interfaces": null,
+            "possibleTypes": null,
+            "directives": null
+          },
+          {
+            "kind": "OBJECT",
             "name": "InputTypeDef",
             "interfaces": null,
             "possibleTypes": null,
@@ -22994,6 +23446,13 @@
           {
             "kind": "OBJECT",
             "name": "ModuleSource",
+            "interfaces": null,
+            "possibleTypes": null,
+            "directives": null
+          },
+          {
+            "kind": "OBJECT",
+            "name": "NamingTerm",
             "interfaces": null,
             "possibleTypes": null,
             "directives": null
@@ -25042,6 +25501,170 @@
             "isDeprecated": false,
             "deprecationReason": null,
             "directives": []
+          },
+          {
+            "name": "identifier",
+            "description": "Parse a name in any casing into words.\n\nKnown acronyms and terms come from the naming dictionary; everything else falls back to the case heuristic. Errors on non-ASCII input, input with no letters or digits, or input over 256 bytes.",
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "OBJECT",
+                "name": "Identifier"
+              }
+            },
+            "args": [
+              {
+                "name": "name",
+                "description": "The name to parse.",
+                "defaultValue": null,
+                "type": {
+                  "kind": "NON_NULL",
+                  "ofType": {
+                    "kind": "SCALAR",
+                    "name": "String"
+                  }
+                },
+                "directives": [],
+                "isDeprecated": false,
+                "deprecationReason": null
+              }
+            ],
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "directives": [
+              {
+                "name": "experimental",
+                "args": [
+                  {
+                    "name": "reason",
+                    "value": "\"Identifier casing APIs are likely to change.\""
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "formatIdentifiers",
+            "description": "Format many names at once, for codegen. Returns them in input order.",
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "LIST",
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "ofType": {
+                    "kind": "SCALAR",
+                    "name": "String"
+                  }
+                }
+              }
+            },
+            "args": [
+              {
+                "name": "names",
+                "description": "The names to format, in any casing.",
+                "defaultValue": null,
+                "type": {
+                  "kind": "NON_NULL",
+                  "ofType": {
+                    "kind": "LIST",
+                    "ofType": {
+                      "kind": "NON_NULL",
+                      "ofType": {
+                        "kind": "SCALAR",
+                        "name": "String"
+                      }
+                    }
+                  }
+                },
+                "directives": [],
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "casing",
+                "description": "The casing to format the names in.",
+                "defaultValue": null,
+                "type": {
+                  "kind": "NON_NULL",
+                  "ofType": {
+                    "kind": "ENUM",
+                    "name": "Casing"
+                  }
+                },
+                "directives": [],
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "acronyms",
+                "description": "How to write acronyms and terms where a word starts with a capital.",
+                "defaultValue": "UPPERCASE",
+                "type": {
+                  "kind": "ENUM",
+                  "name": "AcronymStyle"
+                },
+                "directives": [],
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "version",
+                "description": "The engine version whose naming dictionary to parse the names with, e.g. the __schemaVersion of a schema being generated. Defaults to the caller's engine version.",
+                "defaultValue": null,
+                "type": {
+                  "kind": "SCALAR",
+                  "name": "String"
+                },
+                "directives": [],
+                "isDeprecated": false,
+                "deprecationReason": null
+              }
+            ],
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "directives": [
+              {
+                "name": "experimental",
+                "args": [
+                  {
+                    "name": "reason",
+                    "value": "\"Identifier casing APIs are likely to change.\""
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "namingDictionary",
+            "description": "The acronyms and terms used to parse and format identifiers.",
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "LIST",
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "ofType": {
+                    "kind": "OBJECT",
+                    "name": "NamingTerm"
+                  }
+                }
+              }
+            },
+            "args": [],
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "directives": [
+              {
+                "name": "experimental",
+                "args": [
+                  {
+                    "name": "reason",
+                    "value": "\"Identifier casing APIs are likely to change.\""
+                  }
+                ]
+              }
+            ]
           },
           {
             "name": "schema",

@@ -1,5 +1,5 @@
 //! Generated bindings owned by the GraphQL `Query` type.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:8cbd134fc17405aa0ae54b45640f4bd6b93a022bd4a2c4594375f3658962bf7f","target_revision":"249edbd646e63c5181053c8af72623ed9bdf030d"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:df7839fc7381ed3e899c3e1262a3b7cf384f06c4ac6a72334be3bc543bf1e9be","target_revision":"80699ac67a1c72dc38d30c4186105cd9dd3afde6"}
 #[doc = "The root of the DAG."]
 #[derive(Clone)]
 pub struct Query {
@@ -132,6 +132,29 @@ impl QueryFileOpts {
     #[must_use]
     pub fn with_permissions(mut self, value: i64) -> Self {
         self.permissions = Some(value);
+        self
+    }
+}
+#[doc = "Owned optional arguments for GraphQL operation `Query.formatIdentifiers`; reuse does not mutate caller state."]
+#[derive(Clone, Debug, Default)]
+#[non_exhaustive]
+pub struct QueryFormatIdentifiersOpts {
+    #[doc = "How to write acronyms and terms where a word starts with a capital.\n\n`None` omits GraphQL field `acronyms` and preserves engine default `Enum(SchemaName(\"UPPERCASE\"))`."]
+    pub acronyms: Option<super::AcronymStyle>,
+    #[doc = "The engine version whose naming dictionary to parse the names with, e.g. the __schemaVersion of a schema being generated. Defaults to the caller's engine version.\n\n`None` omits GraphQL field `version`."]
+    pub version: Option<String>,
+}
+impl QueryFormatIdentifiersOpts {
+    #[doc = "Sets GraphQL argument `acronyms` to a concrete value instead of omitting it."]
+    #[must_use]
+    pub fn with_acronyms(mut self, value: super::AcronymStyle) -> Self {
+        self.acronyms = Some(value);
+        self
+    }
+    #[doc = "Sets GraphQL argument `version` to a concrete value instead of omitting it."]
+    #[must_use]
+    pub fn with_version(mut self, value: impl Into<String>) -> Self {
+        self.version = Some(value.into());
         self
     }
 }
@@ -724,6 +747,41 @@ impl Query {
             selection: query,
         }
     }
+    #[doc = "Format many names at once, for codegen. Returns them in input order.\n\nSelects GraphQL field `formatIdentifiers` on `Query`.\n\n**Experimental:** Identifier casing APIs are likely to change."]
+    pub async fn format_identifiers(
+        &self,
+        casing: super::Casing,
+        names: Vec<impl Into<String>>,
+    ) -> Result<Vec<String>, crate::QueryError> {
+        let query = self.selection.select("formatIdentifiers");
+        let query = query.arg("casing", casing);
+        let names = names.into_iter().map(Into::into).collect::<Vec<String>>();
+        let query = query.arg("names", names);
+        query.execute(&self.session).await
+    }
+    #[doc = "Executes GraphQL operation `formatIdentifiers` with a borrowed, reusable `QueryFormatIdentifiersOpts` value.\n\n**Experimental:** Identifier casing APIs are likely to change."]
+    pub async fn format_identifiers_opts(
+        &self,
+        casing: super::Casing,
+        names: Vec<impl Into<String>>,
+        opts: &QueryFormatIdentifiersOpts,
+    ) -> Result<Vec<String>, crate::QueryError> {
+        let query = self.selection.select("formatIdentifiers");
+        let query = if let Some(value) = &opts.acronyms {
+            query.arg("acronyms", value)
+        } else {
+            query
+        };
+        let query = query.arg("casing", casing);
+        let names = names.into_iter().map(Into::into).collect::<Vec<String>>();
+        let query = query.arg("names", names);
+        let query = if let Some(value) = &opts.version {
+            query.arg("version", value)
+        } else {
+            query
+        };
+        query.execute(&self.session).await
+    }
     #[doc = "Creates a function.\n\nSelects GraphQL field `function` on `Query`."]
     #[must_use]
     pub fn function(
@@ -866,6 +924,16 @@ impl Query {
         let query = self.selection.select("id");
         query.execute(&self.session).await
     }
+    #[doc = "Parse a name in any casing into words.\n\nKnown acronyms and terms come from the naming dictionary; everything else falls back to the case heuristic. Errors on non-ASCII input, input with no letters or digits, or input over 256 bytes.\n\nSelects GraphQL field `identifier` on `Query`.\n\n**Experimental:** Identifier casing APIs are likely to change."]
+    #[must_use]
+    pub fn identifier(&self, name: impl Into<String>) -> super::Identifier {
+        let query = self.selection.select("identifier");
+        let query = query.arg("name", name.into());
+        super::Identifier {
+            session: self.session.clone(),
+            selection: query,
+        }
+    }
     #[doc = "Initialize a JSON value\n\nSelects GraphQL field `json` on `Query`."]
     #[must_use]
     pub fn json(&self) -> super::JsonValue {
@@ -969,6 +1037,14 @@ impl Query {
             session: self.session.clone(),
             selection: query,
         }
+    }
+    #[doc = "The acronyms and terms used to parse and format identifiers.\n\nSelects GraphQL field `namingDictionary` on `Query`.\n\n**Experimental:** Identifier casing APIs are likely to change."]
+    pub async fn naming_dictionary(&self) -> Result<Vec<super::NamingTerm>, crate::QueryError> {
+        let query = self.selection.select("namingDictionary");
+        let query = query.select("id");
+        query
+            .execute_reentry::<super::NamingTerm, Vec<crate::Id>>(&self.session, "NamingTerm")
+            .await
     }
     #[doc = "Load any object by its ID.\n\nSelects GraphQL field `node` on `Query`."]
     pub async fn node(

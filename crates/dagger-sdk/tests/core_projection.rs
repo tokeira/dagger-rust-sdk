@@ -1,5 +1,5 @@
 //! Structured field and argument inventory for exhaustive query verification.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:8cbd134fc17405aa0ae54b45640f4bd6b93a022bd4a2c4594375f3658962bf7f","target_revision":"249edbd646e63c5181053c8af72623ed9bdf030d"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:df7839fc7381ed3e899c3e1262a3b7cf384f06c4ac6a72334be3bc543bf1e9be","target_revision":"80699ac67a1c72dc38d30c4186105cd9dd3afde6"}
 #![cfg(feature = "gen")]
 const FIELDS: &[(&str, &str, &str, &str, &str)] = &[
     (
@@ -44,6 +44,7 @@ const FIELDS: &[(&str, &str, &str, &str, &str)] = &[
     ("Agent.message", "Agent", "message", "lazy", "AgentMessage"),
     ("Agent.name", "Agent", "name", "execute", ""),
     ("Agent.notify", "Agent", "notify", "self-return", "Agent"),
+    ("Agent.parent", "Agent", "parent", "probe", "Agent"),
     ("Agent.pause", "Agent", "pause", "self-return", "Agent"),
     ("Agent.reseed", "Agent", "reseed", "self-return", "Agent"),
     ("Agent.resume", "Agent", "resume", "self-return", "Agent"),
@@ -109,6 +110,13 @@ const FIELDS: &[(&str, &str, &str, &str, &str)] = &[
     ("Artifact.path", "Artifact", "path", "execute", ""),
     ("Artifact.uri", "Artifact", "uri", "execute", ""),
     ("Artifact.value", "Artifact", "value", "lazy", "Node"),
+    (
+        "Artifact.workspace",
+        "Artifact",
+        "workspace",
+        "probe",
+        "Workspace",
+    ),
     (
         "ArtifactDimension.collectionType",
         "ArtifactDimension",
@@ -1587,6 +1595,13 @@ const FIELDS: &[(&str, &str, &str, &str, &str)] = &[
     ("ErrorValue.name", "ErrorValue", "name", "execute", ""),
     ("ErrorValue.value", "ErrorValue", "value", "execute", ""),
     (
+        "Expertise.artifact",
+        "Expertise",
+        "artifact",
+        "lazy",
+        "Artifact",
+    ),
+    (
         "Expertise.description",
         "Expertise",
         "description",
@@ -2043,6 +2058,7 @@ const FIELDS: &[(&str, &str, &str, &str, &str)] = &[
     ("GitCommit.sha", "GitCommit", "sha", "execute", ""),
     ("GitCommit.shortSha", "GitCommit", "shortSha", "execute", ""),
     ("GitCommit.tree", "GitCommit", "tree", "lazy", "Directory"),
+    ("GitCommit.treeSHA", "GitCommit", "treeSHA", "execute", ""),
     (
         "GitPushResult.disposition",
         "GitPushResult",
@@ -2299,6 +2315,45 @@ const FIELDS: &[(&str, &str, &str, &str, &str)] = &[
     ("Host.service", "Host", "service", "lazy", "Service"),
     ("Host.tunnel", "Host", "tunnel", "lazy", "Service"),
     ("Host.unixSocket", "Host", "unixSocket", "lazy", "Socket"),
+    ("Identifier.format", "Identifier", "format", "execute", ""),
+    ("Identifier.id", "Identifier", "id", "execute", ""),
+    ("Identifier.name", "Identifier", "name", "execute", ""),
+    (
+        "Identifier.words",
+        "Identifier",
+        "words",
+        "reenter",
+        "IdentifierWord",
+    ),
+    ("IdentifierWord.id", "IdentifierWord", "id", "execute", ""),
+    (
+        "IdentifierWord.kind",
+        "IdentifierWord",
+        "kind",
+        "execute",
+        "",
+    ),
+    (
+        "IdentifierWord.suffix",
+        "IdentifierWord",
+        "suffix",
+        "execute",
+        "",
+    ),
+    (
+        "IdentifierWord.term",
+        "IdentifierWord",
+        "term",
+        "probe",
+        "NamingTerm",
+    ),
+    (
+        "IdentifierWord.text",
+        "IdentifierWord",
+        "text",
+        "execute",
+        "",
+    ),
     (
         "InputTypeDef.fields",
         "InputTypeDef",
@@ -2416,6 +2471,7 @@ const FIELDS: &[(&str, &str, &str, &str, &str)] = &[
     ("LLM.compose", "LLM", "compose", "lazy", "LLM"),
     ("LLM.contextTokens", "LLM", "contextTokens", "execute", ""),
     ("LLM.contextWindow", "LLM", "contextWindow", "execute", ""),
+    ("LLM.expertise", "LLM", "expertise", "reenter", "Expertise"),
     ("LLM.fork", "LLM", "fork", "lazy", "LLM"),
     ("LLM.hasPending", "LLM", "hasPending", "execute", ""),
     ("LLM.id", "LLM", "id", "execute", ""),
@@ -2431,7 +2487,6 @@ const FIELDS: &[(&str, &str, &str, &str, &str)] = &[
         "execute",
         "",
     ),
-    ("LLM.recompose", "LLM", "recompose", "lazy", "LLM"),
     ("LLM.skills", "LLM", "skills", "reenter", "LLMSkill"),
     ("LLM.spawn", "LLM", "spawn", "id-return", "Agent"),
     ("LLM.step", "LLM", "step", "lazy", "LLM"),
@@ -3168,6 +3223,21 @@ const FIELDS: &[(&str, &str, &str, &str, &str)] = &[
         "lazy",
         "ModuleSource",
     ),
+    (
+        "NamingTerm.capitalized",
+        "NamingTerm",
+        "capitalized",
+        "execute",
+        "",
+    ),
+    ("NamingTerm.id", "NamingTerm", "id", "execute", ""),
+    (
+        "NamingTerm.spelling",
+        "NamingTerm",
+        "spelling",
+        "execute",
+        "",
+    ),
     ("Node.id", "Node", "id", "execute", ""),
     (
         "ObjectTypeDef.constructor",
@@ -3298,6 +3368,13 @@ const FIELDS: &[(&str, &str, &str, &str, &str)] = &[
     ("Query.envFile", "Query", "envFile", "lazy", "EnvFile"),
     ("Query.error", "Query", "error", "lazy", "Error"),
     ("Query.file", "Query", "file", "lazy", "File"),
+    (
+        "Query.formatIdentifiers",
+        "Query",
+        "formatIdentifiers",
+        "execute",
+        "",
+    ),
     ("Query.function", "Query", "function", "lazy", "Function"),
     (
         "Query.generatedCode",
@@ -3310,6 +3387,13 @@ const FIELDS: &[(&str, &str, &str, &str, &str)] = &[
     ("Query.host", "Query", "host", "lazy", "Host"),
     ("Query.http", "Query", "http", "lazy", "File"),
     ("Query.id", "Query", "id", "execute", ""),
+    (
+        "Query.identifier",
+        "Query",
+        "identifier",
+        "lazy",
+        "Identifier",
+    ),
     ("Query.json", "Query", "json", "lazy", "JSONValue"),
     ("Query.llm", "Query", "llm", "lazy", "LLM"),
     (
@@ -3326,6 +3410,13 @@ const FIELDS: &[(&str, &str, &str, &str, &str)] = &[
         "moduleSource",
         "lazy",
         "ModuleSource",
+    ),
+    (
+        "Query.namingDictionary",
+        "Query",
+        "namingDictionary",
+        "reenter",
+        "NamingTerm",
     ),
     ("Query.node", "Query", "node", "probe", "Node"),
     ("Query.schema", "Query", "schema", "lazy", "Schema"),
@@ -5607,6 +5698,8 @@ const ARGUMENTS: &[(&str, &str, bool, bool)] = &[
     ("Host.tunnel(ports:)", "ports", false, false),
     ("Host.tunnel(service:)", "service", true, true),
     ("Host.unixSocket(path:)", "path", true, false),
+    ("Identifier.format(acronyms:)", "acronyms", false, false),
+    ("Identifier.format(casing:)", "casing", true, false),
     ("JSONValue.contents(indent:)", "indent", false, false),
     ("JSONValue.contents(pretty:)", "pretty", false, false),
     ("JSONValue.field(path:)", "path", true, false),
@@ -5623,8 +5716,8 @@ const ARGUMENTS: &[(&str, &str, bool, bool)] = &[
     ("LLM.fork(label:)", "label", true, false),
     ("LLM.loop(maxSteps:)", "maxSteps", false, false),
     ("LLM.loop(maxTokens:)", "maxTokens", false, false),
-    ("LLM.recompose(expertise:)", "expertise", true, true),
     ("LLM.spawn(error:)", "error", false, false),
+    ("LLM.spawn(expertise:)", "expertise", false, true),
     ("LLM.spawn(handle:)", "handle", false, false),
     ("LLM.spawn(name:)", "name", false, false),
     ("LLM.spawn(parentHandle:)", "parentHandle", false, false),
@@ -5817,6 +5910,15 @@ const ARGUMENTS: &[(&str, &str, bool, bool)] = &[
     ("Query.file(contents:)", "contents", true, false),
     ("Query.file(name:)", "name", true, false),
     ("Query.file(permissions:)", "permissions", false, false),
+    (
+        "Query.formatIdentifiers(acronyms:)",
+        "acronyms",
+        false,
+        false,
+    ),
+    ("Query.formatIdentifiers(casing:)", "casing", true, false),
+    ("Query.formatIdentifiers(names:)", "names", true, false),
+    ("Query.formatIdentifiers(version:)", "version", false, false),
     ("Query.function(name:)", "name", true, false),
     ("Query.function(returnType:)", "returnType", true, true),
     ("Query.generatedCode(code:)", "code", true, true),
@@ -5849,6 +5951,7 @@ const ARGUMENTS: &[(&str, &str, bool, bool)] = &[
     ("Query.http(name:)", "name", false, false),
     ("Query.http(permissions:)", "permissions", false, false),
     ("Query.http(url:)", "url", true, false),
+    ("Query.identifier(name:)", "name", true, false),
     ("Query.llm(model:)", "model", false, false),
     ("Query.llm(provider:)", "provider", false, false),
     (
@@ -6271,8 +6374,8 @@ impl RecordingExecutor {
 }
 #[test]
 fn generated_query_projection_inventory_is_exhaustive() {
-    assert_eq!(FIELDS.len(), 901usize);
-    assert_eq!(ARGUMENTS.len(), 784usize);
+    assert_eq!(FIELDS.len(), 920usize);
+    assert_eq!(ARGUMENTS.len(), 791usize);
     assert!(FIELDS.windows(2).all(|pair| pair[0].0 < pair[1].0));
     assert!(ARGUMENTS.windows(2).all(|pair| pair[0].0 < pair[1].0));
     for field in FIELDS {

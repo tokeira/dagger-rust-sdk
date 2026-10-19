@@ -241,7 +241,7 @@ func moduleRuntimeSource(modSource *dagger.ModuleSource) runtimeReference {
 
 // isRemoteModuleReference follows the engine's classification of a module source
 // (core/gitref.FastKindCheck and core/workspace.IsLocalRef @
-// 249edbd646e63c5181053c8af72623ed9bdf030d): a leading path marker or a dot-free
+// 80699ac67a1c72dc38d30c4186105cd9dd3afde6): a leading path marker or a dot-free
 // source is a workspace path, and a Git scheme or a host ahead of the first
 // separator names a remote reference.
 func isRemoteModuleReference(source string) bool {

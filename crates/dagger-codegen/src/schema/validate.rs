@@ -28,17 +28,17 @@ const MAX_DEFAULT_DEPTH: usize = 64;
 // prevents an otherwise valid omission and addition from quietly redefining the target.
 const EXACT_INVENTORY: CoordinateInventory = CoordinateInventory {
     query_roots: 1,
-    named_types: 132,
+    named_types: 138,
     scalars: 9,
-    objects: 90,
+    objects: 93,
     interfaces: 3,
-    enums: 25,
+    enums: 28,
     input_objects: 5,
-    fields: 901,
-    arguments: 784,
+    fields: 920,
+    arguments: 791,
     input_fields: 22,
-    enum_values: 113,
-    interface_edges: 105,
+    enum_values: 124,
+    interface_edges: 108,
     directives: 18,
     directive_arguments: 15,
 };
@@ -1371,7 +1371,7 @@ fn allows_engine_source_map_omission(
 
     // The target declares every sourceMap input non-null, but its dynamic schema
     // merger stamps module-owned types with only this discriminator
-    // (core/schematool.go @ 249edbd646e63c5181053c8af72623ed9bdf030d). Keeping the
+    // (core/schematool.go @ 80699ac67a1c72dc38d30c4186105cd9dd3afde6). Keeping the
     // exception conditional on a valued module argument prevents it from weakening
     // ordinary GraphQL required-argument validation.
     supplied.get(&module).is_some_and(Option::is_some)

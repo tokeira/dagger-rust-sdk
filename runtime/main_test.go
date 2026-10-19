@@ -161,9 +161,9 @@ func TestRuntimeConstructorTakesNoWorkspaceDefaultPath(t *testing.T) {
 }
 
 func TestNewModuleManifestQuotesEveryValue(t *testing.T) {
-	got := moduleManifest("gate", "v1.0.0-beta.18+249edbd6", `github.com/acme/sdk/"rust"\runtime@`+strings.Repeat("a", 40)+"\x01")
+	got := moduleManifest("gate", "v1.0.0-beta.19+80699ac6", `github.com/acme/sdk/"rust"\runtime@`+strings.Repeat("a", 40)+"\x01")
 	want := "name = \"gate\"\n" +
-		"engineVersion = \"v1.0.0-beta.18\"\n\n" +
+		"engineVersion = \"v1.0.0-beta.19\"\n\n" +
 		"[runtime]\n" +
 		"  source = \"github.com/acme/sdk/\\\"rust\\\"\\\\runtime@" + strings.Repeat("a", 40) + "\\u0001\"\n"
 	if got != want {

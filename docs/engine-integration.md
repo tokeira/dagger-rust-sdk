@@ -116,13 +116,13 @@ the CLI manages, and keep its state on a volume:
 
 ```console
 docker run -d --privileged --name rust-sdk-acceptance \
-  -v rust-sdk-acceptance-state:/var/lib/dagger registry.dagger.io/engine:v1.0.0-beta.18
+  -v rust-sdk-acceptance-state:/var/lib/dagger registry.dagger.io/engine:v1.0.0-beta.19
 export DAGGER_ENGINE=container+docker://rust-sdk-acceptance
 dagger version
 ```
 
 `dagger version` must report the target engine and revision. Then, with the runtime
-pushed at `<commit>`, work in a new Git repository, because beta.18's `Workspace.export`
+pushed at `<commit>`, work in a new Git repository, because beta.19's `Workspace.export`
 needs a Git workspace:
 
 1. `dagger install github.com/tokeira/dagger-rust-sdk/runtime@<commit>` installs the

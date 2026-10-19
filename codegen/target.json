@@ -1,11 +1,11 @@
 {
   "contract_format_version": "1.0.0",
   "dagger_repository": "github.com/dagger/dagger",
-  "dagger_revision": "249edbd646e63c5181053c8af72623ed9bdf030d",
-  "engine_version": "v1.0.0-beta.18",
+  "dagger_revision": "80699ac67a1c72dc38d30c4186105cd9dd3afde6",
+  "engine_version": "v1.0.0-beta.19",
   "rust_edition": "2024",
   "rust_sdk_version": "0.1.0",
   "rust_version": "1.99.1",
-  "schema_digest": "sha256:8cbd134fc17405aa0ae54b45640f4bd6b93a022bd4a2c4594375f3658962bf7f",
+  "schema_digest": "sha256:df7839fc7381ed3e899c3e1262a3b7cf384f06c4ac6a72334be3bc543bf1e9be",
   "schema_version": "v1.0.0"
 }

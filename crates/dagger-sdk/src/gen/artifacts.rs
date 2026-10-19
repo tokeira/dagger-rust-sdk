@@ -1,6 +1,6 @@
 //! Generated bindings owned by the GraphQL `Artifacts` type.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:8cbd134fc17405aa0ae54b45640f4bd6b93a022bd4a2c4594375f3658962bf7f","target_revision":"249edbd646e63c5181053c8af72623ed9bdf030d"}
-#[doc = "An immutable selection of workspace artifacts. Listed types, dimensions, and keys use OR; chained filters use AND. Empty alternatives and unknown names match nothing. Filters never change addresses or dimension identifiers."]
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:df7839fc7381ed3e899c3e1262a3b7cf384f06c4ac6a72334be3bc543bf1e9be","target_revision":"80699ac67a1c72dc38d30c4186105cd9dd3afde6"}
+#[doc = "An immutable selection of workspace artifacts. Listed types, dimensions, and keys use OR; chained filters use AND. Empty alternatives match nothing; unknown names match nothing but module load failures. Filters never change addresses or dimension identifiers. Module keys match a module's configured or kebab-case name. A module that failed to load has no schema, so its load failure stands in for whatever it would hold: a filter keeps it when the module could hold something the filter selects, and an exclusion drops it only by its own address, such as &lt;module&gt;/** or ?module=&lt;module&gt;."]
 #[derive(Clone)]
 pub struct Artifacts {
     pub(crate) session: crate::lifecycle::SessionHandle,
@@ -159,7 +159,7 @@ impl From<Artifacts> for crate::IdInput<super::NodeClient> {
     }
 }
 impl Artifacts {
-    #[doc = "Convert the selection to Changesets. Fail if any artifact is not a Changeset. Does not apply command filters.\n\nSelects GraphQL field `asChangesets` on `Artifacts`."]
+    #[doc = "Convert the selection to Changesets. Fail if any artifact is not a Changeset; a module load failure fails with its load error. Does not apply command filters.\n\nSelects GraphQL field `asChangesets` on `Artifacts`."]
     pub async fn as_changesets(&self) -> Result<Vec<super::Changeset>, crate::QueryError> {
         let query = self.selection.select("asChangesets");
         let query = query.select("id");
@@ -167,7 +167,7 @@ impl Artifacts {
             .execute_reentry::<super::Changeset, Vec<crate::Id>>(&self.session, "Changeset")
             .await
     }
-    #[doc = "Convert the selection to Checks. Fail if any artifact is not a Check. Does not apply command filters or run the checks.\n\nSelects GraphQL field `asChecks` on `Artifacts`."]
+    #[doc = "Convert the selection to Checks. Fail if any artifact is not a Check. A module load failure is a Check that fails with its load error. Does not apply command filters or run the checks.\n\nSelects GraphQL field `asChecks` on `Artifacts`."]
     pub async fn as_checks(&self) -> Result<Vec<super::Check>, crate::QueryError> {
         let query = self.selection.select("asChecks");
         let query = query.select("id");
@@ -175,7 +175,7 @@ impl Artifacts {
             .execute_reentry::<super::Check, Vec<crate::Id>>(&self.session, "Check")
             .await
     }
-    #[doc = "Convert the selection to expertise without running the functions. Fail if any artifact is not a source of expertise.\n\nSelects GraphQL field `asExpertise` on `Artifacts`."]
+    #[doc = "Convert the selection to expertise without running the functions. Each must take one LLM! argument and return LLM!; any other arguments must be optional or auto-filled. Agent arguments receive the agent that owns the conversation. A module load failure fails with its load error.\n\nSelects GraphQL field `asExpertise` on `Artifacts`."]
     pub async fn as_expertise(&self) -> Result<Vec<super::Expertise>, crate::QueryError> {
         let query = self.selection.select("asExpertise");
         let query = query.select("id");
@@ -183,7 +183,7 @@ impl Artifacts {
             .execute_reentry::<super::Expertise, Vec<crate::Id>>(&self.session, "Expertise")
             .await
     }
-    #[doc = "Convert the selection to Generators without running them. Fail if any artifact is not a Generator.\n\nSelects GraphQL field `asGenerators` on `Artifacts`."]
+    #[doc = "Convert the selection to Generators without running them. Fail if any artifact is not a Generator. Module load failures are skipped: generating can repair them.\n\nSelects GraphQL field `asGenerators` on `Artifacts`."]
     pub async fn as_generators(&self) -> Result<Vec<super::Generator>, crate::QueryError> {
         let query = self.selection.select("asGenerators");
         let query = query.select("id");
@@ -191,7 +191,7 @@ impl Artifacts {
             .execute_reentry::<super::Generator, Vec<crate::Id>>(&self.session, "Generator")
             .await
     }
-    #[doc = "Convert the selection to Services. Fail if any artifact is not a Service. Does not apply command filters or start the services.\n\nSelects GraphQL field `asServices` on `Artifacts`."]
+    #[doc = "Convert the selection to Services. Fail if any artifact is not a Service; a module load failure fails with its load error. Does not apply command filters or start the services.\n\nSelects GraphQL field `asServices` on `Artifacts`."]
     pub async fn as_services(&self) -> Result<Vec<super::Service>, crate::QueryError> {
         let query = self.selection.select("asServices");
         let query = query.select("id");
@@ -425,7 +425,7 @@ impl Artifacts {
             selection: query,
         }
     }
-    #[doc = "Apply a DAG address as one filter: the chain of path, type, and dimension-key filters it encodes.\n\nThe scheme is optional. The path may be a pattern; an empty path selects all artifacts.\n\nSelects GraphQL field `filterUri` on `Artifacts`."]
+    #[doc = "Apply a DAG address as one filter: the chain of path, type, and dimension-key filters it encodes.\n\nThe scheme is optional. The path may be a pattern; an empty path selects all artifacts.\n\nA module that failed to load keeps its load failure when the module could hold what the address selects, as with every filter (see Artifacts).\n\nSelects GraphQL field `filterUri` on `Artifacts`."]
     #[must_use]
     pub fn filter_uri(&self, uri: impl Into<String>) -> super::Artifacts {
         let query = self.selection.select("filterUri");

@@ -1,5 +1,5 @@
 //! Generated bindings owned by the GraphQL `GitCommit` type.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:8cbd134fc17405aa0ae54b45640f4bd6b93a022bd4a2c4594375f3658962bf7f","target_revision":"249edbd646e63c5181053c8af72623ed9bdf030d"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:df7839fc7381ed3e899c3e1262a3b7cf384f06c4ac6a72334be3bc543bf1e9be","target_revision":"80699ac67a1c72dc38d30c4186105cd9dd3afde6"}
 #[doc = "An immutable git commit."]
 #[derive(Clone)]
 pub struct GitCommit {
@@ -281,6 +281,11 @@ impl GitCommit {
             session: self.session.clone(),
             selection: query,
         }
+    }
+    #[doc = "The ID of the commit's Git tree object.\n\nCommits with identical trees have identical contents and file modes.\n\nSelects GraphQL field `treeSHA` on `GitCommit`."]
+    pub async fn tree_sha(&self) -> Result<String, crate::QueryError> {
+        let query = self.selection.select("treeSHA");
+        query.execute(&self.session).await
     }
 }
 impl super::Node for GitCommit {

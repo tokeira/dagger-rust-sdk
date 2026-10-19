@@ -350,14 +350,14 @@ proptest! {
                     Architecture::Arm64 => "arm64",
                 };
                 let extension = if os == OperatingSystem::Windows { "zip" } else { "tar.gz" };
-                let expected_name = format!("dagger_v1.0.0-beta.18_{os_name}_{arch_name}.{extension}");
+                let expected_name = format!("dagger_v1.0.0-beta.19_{os_name}_{arch_name}.{extension}");
                 prop_assert_eq!(descriptor.archive_name(), expected_name.as_str());
                 prop_assert_eq!(
                     descriptor.member_name(),
                     if os == OperatingSystem::Windows { "dagger.exe" } else { "dagger" }
                 );
-                prop_assert_eq!(descriptor.manifest_url().as_str(), "https://dl.dagger.io/dagger/releases/1.0.0-beta.18/checksums.txt");
-                prop_assert_eq!(descriptor.archive_url().as_str(), format!("https://dl.dagger.io/dagger/releases/1.0.0-beta.18/{expected_name}"));
+                prop_assert_eq!(descriptor.manifest_url().as_str(), "https://dl.dagger.io/dagger/releases/1.0.0-beta.19/checksums.txt");
+                prop_assert_eq!(descriptor.archive_url().as_str(), format!("https://dl.dagger.io/dagger/releases/1.0.0-beta.19/{expected_name}"));
             }
             (Err(error), _) => prop_assert_eq!(error.kind(), PlatformErrorKind::UnsupportedOperatingSystem),
             (_, Err(error)) => prop_assert_eq!(error.kind(), PlatformErrorKind::UnsupportedArchitecture),
@@ -478,13 +478,13 @@ fn six_release_descriptors_match_the_published_naming_policy() {
         } else {
             "tar.gz"
         };
-        let archive = format!("dagger_v1.0.0-beta.18_{os_name}_{arch_name}.{extension}");
+        let archive = format!("dagger_v1.0.0-beta.19_{os_name}_{arch_name}.{extension}");
         assert_eq!(descriptor.archive_name(), archive);
         assert_eq!(descriptor.member_name(), member);
         assert_eq!(descriptor.format(), format);
         assert_eq!(
             descriptor.archive_url().as_str(),
-            format!("https://dl.dagger.io/dagger/releases/1.0.0-beta.18/{archive}")
+            format!("https://dl.dagger.io/dagger/releases/1.0.0-beta.19/{archive}")
         );
     }
 }

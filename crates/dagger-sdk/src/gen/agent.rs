@@ -1,5 +1,5 @@
 //! Generated bindings owned by the GraphQL `Agent` type.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:8cbd134fc17405aa0ae54b45640f4bd6b93a022bd4a2c4594375f3658962bf7f","target_revision":"249edbd646e63c5181053c8af72623ed9bdf030d"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:df7839fc7381ed3e899c3e1262a3b7cf384f06c4ac6a72334be3bc543bf1e9be","target_revision":"80699ac67a1c72dc38d30c4186105cd9dd3afde6"}
 #[doc = "EXPERIMENTAL: Agent APIs are likely to change.\n\nA conversation loop running as an addressable, long-lived entity within the session. The conversation itself remains observable at any time as an immutable LLM value."]
 #[derive(Clone)]
 pub struct Agent {
@@ -168,6 +168,14 @@ impl Agent {
             id,
             "Agent",
         ))
+    }
+    #[doc = "The agent that spawned this agent, or null for a root agent.\n\nSelects GraphQL field `parent` on `Agent`.\n\n**Experimental:** Agent APIs are likely to change."]
+    pub async fn parent(&self) -> Result<Option<super::Agent>, crate::QueryError> {
+        let query = self.selection.select("parent");
+        let query = query.select("id");
+        query
+            .execute_reentry::<super::Agent, Option<crate::Id>>(&self.session, "Agent")
+            .await
     }
     #[doc = "Stop draining the mailbox once the in-flight step completes, or immediately with interrupt.\n\nPause takes priority over pending work: a mid-turn pause suspends the turn, which resume continues. Messages sent while paused enqueue with QUEUED delivery until a resume.\n\nPausing a never-started agent leaves it paused for its eventual resume; pausing a failed agent is allowed (resume decides the retry); pausing a stopped agent fails.\n\nSelects GraphQL field `pause` on `Agent`.\n\n**Experimental:** Agent APIs are likely to change."]
     pub async fn pause(&self) -> Result<super::Agent, crate::QueryError> {

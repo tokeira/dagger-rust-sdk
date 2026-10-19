@@ -1,5 +1,7 @@
 //! Generated Dagger core-schema bindings and stable public re-exports.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:8cbd134fc17405aa0ae54b45640f4bd6b93a022bd4a2c4594375f3658962bf7f","target_revision":"249edbd646e63c5181053c8af72623ed9bdf030d"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:df7839fc7381ed3e899c3e1262a3b7cf384f06c4ac6a72334be3bc543bf1e9be","target_revision":"80699ac67a1c72dc38d30c4186105cd9dd3afde6"}
+#[path = "acronym_style.rs"]
+mod acronym_style;
 #[path = "address.rs"]
 mod address;
 #[path = "agent.rs"]
@@ -32,6 +34,8 @@ mod bytes;
 mod cache_sharing_mode;
 #[path = "cache_volume.rs"]
 mod cache_volume;
+#[path = "casing.rs"]
+mod casing;
 #[path = "changeset.rs"]
 mod changeset;
 #[path = "changeset_merge_conflict.rs"]
@@ -128,6 +132,12 @@ mod healthcheck_config;
 mod host;
 #[path = "http_state.rs"]
 mod http_state;
+#[path = "identifier.rs"]
+mod identifier;
+#[path = "identifier_word.rs"]
+mod identifier_word;
+#[path = "identifier_word_kind.rs"]
+mod identifier_word_kind;
 #[path = "image_layer_compression.rs"]
 mod image_layer_compression;
 #[path = "image_media_types.rs"]
@@ -176,6 +186,8 @@ mod module_source;
 mod module_source_experimental_feature;
 #[path = "module_source_kind.rs"]
 mod module_source_kind;
+#[path = "naming_term.rs"]
+mod naming_term;
 #[path = "network_protocol.rs"]
 mod network_protocol;
 #[path = "node.rs"]
@@ -248,6 +260,7 @@ mod workspace_module;
 mod workspace_module_setting;
 #[path = "workspace_sdk.rs"]
 mod workspace_sdk;
+pub use acronym_style::*;
 pub use address::*;
 pub use agent::*;
 pub use agent_message::*;
@@ -264,6 +277,7 @@ pub use build_arg::*;
 pub use bytes::*;
 pub use cache_sharing_mode::*;
 pub use cache_volume::*;
+pub use casing::*;
 pub use changeset::*;
 pub use changeset_merge_conflict::*;
 pub use changesets_merge_conflict::*;
@@ -312,6 +326,9 @@ pub use git_repository::*;
 pub use healthcheck_config::*;
 pub use host::*;
 pub use http_state::*;
+pub use identifier::*;
+pub use identifier_word::*;
+pub use identifier_word_kind::*;
 pub use image_layer_compression::*;
 pub use image_media_types::*;
 pub use input_type_def::*;
@@ -336,6 +353,7 @@ pub use module_config_client::*;
 pub use module_source::*;
 pub use module_source_experimental_feature::*;
 pub use module_source_kind::*;
+pub use naming_term::*;
 pub use network_protocol::*;
 pub use node::*;
 pub use object_type_def::*;

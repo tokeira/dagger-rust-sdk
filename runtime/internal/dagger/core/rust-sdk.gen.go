@@ -17,7 +17,7 @@ type RustSDKOpts struct {
 	SDKSourceDir *Directory
 }
 
-func (r *Query) RustSDK(opts ...RustSDKOpts) *RustSDK { // rust-sdk (../../../:0:0)
+func (r *Query) RustSDK(opts ...RustSDKOpts) *RustSDK { // rust-sdk (../../../../:0:0)
 	q := r.query.Select("rustSdk")
 	for i := len(opts) - 1; i >= 0; i-- {
 		// `sdkSourceDir` optional argument
@@ -34,7 +34,7 @@ func (r *Query) RustSDK(opts ...RustSDKOpts) *RustSDK { // rust-sdk (../../../:0
 
 // RustSDK is immutable packaged state. Operation methods build fresh Dagger object
 // graphs from this source instead of retaining mutable container or project handles.
-type RustSDK struct { // rust-sdk (../../../:0:0)
+type RustSDK struct { // rust-sdk (../../../../:0:0)
 	query *querybuilder.Selection
 	// refetchID is set when this object is built through a field marked
 	// @reevaluate: it fetches its ID on every use, so each use evaluates that

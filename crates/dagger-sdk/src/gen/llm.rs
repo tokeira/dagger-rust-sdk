@@ -1,5 +1,5 @@
 //! Generated bindings owned by the GraphQL `LLM` type.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:8cbd134fc17405aa0ae54b45640f4bd6b93a022bd4a2c4594375f3658962bf7f","target_revision":"249edbd646e63c5181053c8af72623ed9bdf030d"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:df7839fc7381ed3e899c3e1262a3b7cf384f06c4ac6a72334be3bc543bf1e9be","target_revision":"80699ac67a1c72dc38d30c4186105cd9dd3afde6"}
 #[doc = "A conversation with a large language model (LLM): queue prompts, expose tools, and step the model until it completes its turn."]
 #[derive(Clone)]
 pub struct Llm {
@@ -50,6 +50,8 @@ impl LlmLoopOpts {
 pub struct LlmSpawnOpts {
     #[doc = "The loop error to create the agent with, for state FAILED. Refused with any other state.\n\n`None` omits GraphQL field `error` and preserves engine default `String(\"\")`."]
     pub error: Option<String>,
+    #[doc = "Expertise to compose into the new agent's conversation. Agent arguments receive the new agent, which cannot be used until composition completes; if composition fails, the agent is left STOPPED.\n\n`None` omits GraphQL field `expertise` and preserves engine default `List(\\[\\])`."]
+    pub expertise: Option<Vec<crate::IdInput<super::Expertise>>>,
     #[doc = "The runtime handle to restore the instance under, as published on its loop span as dagger.io/agent.id. Omit to mint a fresh instance.\n\n`None` omits GraphQL field `handle`."]
     pub handle: Option<String>,
     #[doc = "Display label for the agent — telemetry and error messages; carries no identity. Defaults to a short name derived from the conversation.\n\n`None` omits GraphQL field `name`."]
@@ -64,6 +66,12 @@ impl LlmSpawnOpts {
     #[must_use]
     pub fn with_error(mut self, value: impl Into<String>) -> Self {
         self.error = Some(value.into());
+        self
+    }
+    #[doc = "Sets GraphQL argument `expertise` to a concrete value instead of omitting it."]
+    #[must_use]
+    pub fn with_expertise(mut self, value: Vec<crate::IdInput<super::Expertise>>) -> Self {
+        self.expertise = Some(value);
         self
     }
     #[doc = "Sets GraphQL argument `handle` to a concrete value instead of omitting it."]
@@ -321,7 +329,7 @@ impl Llm {
             selection: query,
         }
     }
-    #[doc = "Run expertise in list order, passing this conversation through each function. Retain existing contributions.\n\nSelects GraphQL field `compose` on `LLM`."]
+    #[doc = "Run expertise on this conversation, passing it through each function in order, and record it in expertise.\n\nComposing an entry that is already recorded refreshes its module: the module's contributions are cleared, all of its recorded entries run again, and compatible tool state is kept. Other contributions are untouched.\n\nAgent arguments receive the agent that owns this conversation. Without one, entries requiring an Agent are skipped.\n\nSelects GraphQL field `compose` on `LLM`."]
     #[must_use]
     pub fn compose(&self, expertise: Vec<crate::IdInput<super::Expertise>>) -> super::Llm {
         let query = self.selection.select("compose");
@@ -340,6 +348,14 @@ impl Llm {
     pub async fn context_window(&self) -> Result<Option<i64>, crate::QueryError> {
         let query = self.selection.select("contextWindow");
         query.execute(&self.session).await
+    }
+    #[doc = "Expertise composed into this conversation, in order.\n\nSelects GraphQL field `expertise` on `LLM`."]
+    pub async fn expertise(&self) -> Result<Vec<super::Expertise>, crate::QueryError> {
+        let query = self.selection.select("expertise");
+        let query = query.select("id");
+        query
+            .execute_reentry::<super::Expertise, Vec<crate::Id>>(&self.session, "Expertise")
+            .await
     }
     #[doc = "Fork the conversation, so that otherwise-identical follow-ups evaluate independently instead of deduplicating to a single cached result.\n\nSelects GraphQL field `fork` on `LLM`."]
     #[must_use]
@@ -417,16 +433,6 @@ impl Llm {
         let query = self.selection.select("reasoningEffort");
         query.execute(&self.session).await
     }
-    #[doc = "Run expertise in list order, replacing their modules' contributions and preserving compatible tool state.\n\nClear each selected module's contributions once before execution. Retain unowned contributions and contributions from other modules. Keep this LLM's workspace.\n\nA change to a tool binding's version resets its state. Removed bindings, changed identities, and incompatible state are errors.\n\nSelects GraphQL field `recompose` on `LLM`."]
-    #[must_use]
-    pub fn recompose(&self, expertise: Vec<crate::IdInput<super::Expertise>>) -> super::Llm {
-        let query = self.selection.select("recompose");
-        let query = query.arg_id_input("expertise", expertise);
-        super::Llm {
-            session: self.session.clone(),
-            selection: query,
-        }
-    }
     #[doc = "The skills visible to the model, exactly as the ListSkills tool serves them: engine-embedded skills, skills installed with withSkills, and skills discovered in the workspace.\n\nSelects GraphQL field `skills` on `LLM`."]
     pub async fn skills(&self) -> Result<Vec<super::LlmSkill>, crate::QueryError> {
         let query = self.selection.select("skills");
@@ -450,6 +456,11 @@ impl Llm {
         let query = self.selection.select("spawn");
         let query = if let Some(value) = &opts.error {
             query.arg("error", value)
+        } else {
+            query
+        };
+        let query = if let Some(value) = &opts.expertise {
+            query.arg_id_input("expertise", value.clone())
         } else {
             query
         };

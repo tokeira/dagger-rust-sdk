@@ -1,6 +1,6 @@
 //! Generated bindings owned by the GraphQL `Expertise` type.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:8cbd134fc17405aa0ae54b45640f4bd6b93a022bd4a2c4594375f3658962bf7f","target_revision":"249edbd646e63c5181053c8af72623ed9bdf030d"}
-#[doc = "An agent function that can modify a conversation."]
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:df7839fc7381ed3e899c3e1262a3b7cf384f06c4ac6a72334be3bc543bf1e9be","target_revision":"80699ac67a1c72dc38d30c4186105cd9dd3afde6"}
+#[doc = "A function that can modify a conversation."]
 #[derive(Clone)]
 pub struct Expertise {
     pub(crate) session: crate::lifecycle::SessionHandle,
@@ -37,7 +37,16 @@ impl From<Expertise> for crate::IdInput<super::NodeClient> {
     }
 }
 impl Expertise {
-    #[doc = "The agent function's description.\n\nSelects GraphQL field `description` on `Expertise`."]
+    #[doc = "The artifact this expertise runs. Look it up again by URI to pick up module changes.\n\nSelects GraphQL field `artifact` on `Expertise`."]
+    #[must_use]
+    pub fn artifact(&self) -> super::Artifact {
+        let query = self.selection.select("artifact");
+        super::Artifact {
+            session: self.session.clone(),
+            selection: query,
+        }
+    }
+    #[doc = "The function's description.\n\nSelects GraphQL field `description` on `Expertise`."]
     pub async fn description(&self) -> Result<String, crate::QueryError> {
         let query = self.selection.select("description");
         query.execute(&self.session).await
@@ -47,12 +56,12 @@ impl Expertise {
         let query = self.selection.select("id");
         query.execute(&self.session).await
     }
-    #[doc = "The agent function's name.\n\nSelects GraphQL field `name` on `Expertise`."]
+    #[doc = "The function's name.\n\nSelects GraphQL field `name` on `Expertise`."]
     pub async fn name(&self) -> Result<String, crate::QueryError> {
         let query = self.selection.select("name");
         query.execute(&self.session).await
     }
-    #[doc = "The module that defines the agent function.\n\nSelects GraphQL field `originalModule` on `Expertise`."]
+    #[doc = "The module that defines the function.\n\nSelects GraphQL field `originalModule` on `Expertise`."]
     #[must_use]
     pub fn original_module(&self) -> super::Module {
         let query = self.selection.select("originalModule");
@@ -61,7 +70,7 @@ impl Expertise {
             selection: query,
         }
     }
-    #[doc = "The agent function's path within its module.\n\nSelects GraphQL field `path` on `Expertise`."]
+    #[doc = "The function's path within its module.\n\nSelects GraphQL field `path` on `Expertise`."]
     pub async fn path(&self) -> Result<Vec<String>, crate::QueryError> {
         let query = self.selection.select("path");
         query.execute(&self.session).await

@@ -1,5 +1,5 @@
 //! Compile-only reachability proof for every generated public Rust symbol.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:8cbd134fc17405aa0ae54b45640f4bd6b93a022bd4a2c4594375f3658962bf7f","target_revision":"249edbd646e63c5181053c8af72623ed9bdf030d"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:df7839fc7381ed3e899c3e1262a3b7cf384f06c4ac6a72334be3bc543bf1e9be","target_revision":"80699ac67a1c72dc38d30c4186105cd9dd3afde6"}
 #![cfg(feature = "gen")]
 use dagger_sdk::*;
 fn generated_value<T>() -> T {
@@ -64,6 +64,7 @@ fn reach_agent(value: &Agent) {
     drop(value.notify_opts(Id::from("generated-id"), &opts));
     let _ = &opts.on;
     drop(AgentNotifyOpts::default().with_on(generated_value::<Vec<AgentState>>()));
+    drop(value.parent());
     drop(value.pause());
     let opts = AgentPauseOpts::default();
     drop(value.pause_opts(&opts));
@@ -119,6 +120,7 @@ fn reach_artifact(value: &Artifact) {
     drop(value.value_opts(&opts));
     let _ = &opts.arguments;
     drop(ArtifactValueOpts::default().with_arguments(generated_value::<dagger_sdk::Json>()));
+    drop(value.workspace());
 }
 #[allow(deprecated)]
 fn reach_artifactdimension(value: &ArtifactDimension) {
@@ -1201,6 +1203,7 @@ fn reach_errorvalue(value: &ErrorValue) {
 }
 #[allow(deprecated)]
 fn reach_expertise(value: &Expertise) {
+    drop(value.artifact());
     drop(value.description());
     drop(value.id());
     drop(value.name());
@@ -1438,6 +1441,7 @@ fn reach_gitcommit(value: &GitCommit) {
     drop(GitCommitTreeOpts::default().with_discard_git_dir(generated_value::<bool>()));
     let _ = &opts.include_tags;
     drop(GitCommitTreeOpts::default().with_include_tags(generated_value::<bool>()));
+    drop(value.tree_sha());
 }
 #[allow(deprecated)]
 fn reach_gitpushresult(value: &GitPushResult) {
@@ -1648,6 +1652,25 @@ fn reach_host(value: &Host) {
     drop(value.unix_socket(String::new()));
 }
 #[allow(deprecated)]
+fn reach_identifier(value: &Identifier) {
+    drop(value.format(generated_value::<Casing>()));
+    let opts = IdentifierFormatOpts::default();
+    drop(value.format_opts(generated_value::<Casing>(), &opts));
+    let _ = &opts.acronyms;
+    drop(IdentifierFormatOpts::default().with_acronyms(generated_value::<AcronymStyle>()));
+    drop(value.id());
+    drop(value.name());
+    drop(value.words());
+}
+#[allow(deprecated)]
+fn reach_identifierword(value: &IdentifierWord) {
+    drop(value.id());
+    drop(value.kind());
+    drop(value.suffix());
+    drop(value.term());
+    drop(value.text());
+}
+#[allow(deprecated)]
 fn reach_inputtypedef(value: &InputTypeDef) {
     drop(value.fields());
     drop(value.id());
@@ -1695,6 +1718,7 @@ fn reach_llm(value: &Llm) {
     drop(value.compose(generated_value::<Vec<dagger_sdk::IdInput<Expertise>>>()));
     drop(value.context_tokens());
     drop(value.context_window());
+    drop(value.expertise());
     drop(value.fork(String::new()));
     drop(value.has_pending());
     drop(value.id());
@@ -1710,13 +1734,17 @@ fn reach_llm(value: &Llm) {
     drop(value.model());
     drop(value.provider());
     drop(value.reasoning_effort());
-    drop(value.recompose(generated_value::<Vec<dagger_sdk::IdInput<Expertise>>>()));
     drop(value.skills());
     drop(value.spawn());
     let opts = LlmSpawnOpts::default();
     drop(value.spawn_opts(&opts));
     let _ = &opts.error;
     drop(LlmSpawnOpts::default().with_error(String::new()));
+    let _ = &opts.expertise;
+    drop(
+        LlmSpawnOpts::default()
+            .with_expertise(generated_value::<Vec<dagger_sdk::IdInput<Expertise>>>()),
+    );
     let _ = &opts.handle;
     drop(LlmSpawnOpts::default().with_handle(String::new()));
     let _ = &opts.name;
@@ -2014,6 +2042,12 @@ fn reach_modulesource(value: &ModuleSource) {
     drop(value.without_toolchains(generated_value::<Vec<String>>()));
 }
 #[allow(deprecated)]
+fn reach_namingterm(value: &NamingTerm) {
+    drop(value.capitalized());
+    drop(value.id());
+    drop(value.spelling());
+}
+#[allow(deprecated)]
 fn reach_nodeclient(value: &NodeClient) {
     drop(value.id());
 }
@@ -2115,6 +2149,20 @@ fn reach_query(value: &Query) {
     drop(value.file_opts(String::new(), String::new(), &opts));
     let _ = &opts.permissions;
     drop(QueryFileOpts::default().with_permissions(generated_value::<i64>()));
+    drop(value.format_identifiers(
+        generated_value::<Casing>(),
+        generated_value::<Vec<String>>(),
+    ));
+    let opts = QueryFormatIdentifiersOpts::default();
+    drop(value.format_identifiers_opts(
+        generated_value::<Casing>(),
+        generated_value::<Vec<String>>(),
+        &opts,
+    ));
+    let _ = &opts.acronyms;
+    drop(QueryFormatIdentifiersOpts::default().with_acronyms(generated_value::<AcronymStyle>()));
+    let _ = &opts.version;
+    drop(QueryFormatIdentifiersOpts::default().with_version(String::new()));
     drop(value.function(String::new(), Id::from("generated-id")));
     drop(value.generated_code(Id::from("generated-id")));
     drop(value.git(String::new()));
@@ -2149,6 +2197,7 @@ fn reach_query(value: &Query) {
     let _ = &opts.permissions;
     drop(QueryHttpOpts::default().with_permissions(generated_value::<i64>()));
     drop(value.id());
+    drop(value.identifier(String::new()));
     drop(value.json());
     drop(value.llm());
     let opts = QueryLlmOpts::default();
@@ -2172,6 +2221,7 @@ fn reach_query(value: &Query) {
     drop(QueryModuleSourceOpts::default().with_require_kind(generated_value::<ModuleSourceKind>()));
     let _ = &opts.version;
     drop(QueryModuleSourceOpts::default().with_version(String::new()));
+    drop(value.naming_dictionary());
     drop(value.node(generated_value::<dagger_sdk::Id>()));
     drop(value.schema(generated_value::<dagger_sdk::Json>()));
     drop(value.secret(String::new()));
@@ -2738,6 +2788,11 @@ fn reach_workspacesdk(value: &WorkspaceSdk) {
 }
 #[test]
 fn generated_public_reachability() {
+    let _ = core::mem::size_of::<AcronymStyle>();
+    #[allow(deprecated)]
+    let _ = AcronymStyle::Capitalized;
+    #[allow(deprecated)]
+    let _ = AcronymStyle::Uppercase;
     let _ = core::mem::size_of::<Address>();
     let _ = reach_address as fn(&Address);
     let _ = core::mem::size_of::<Agent>();
@@ -2795,6 +2850,19 @@ fn generated_public_reachability() {
     let _ = CacheSharingMode::Shared;
     let _ = core::mem::size_of::<CacheVolume>();
     let _ = reach_cachevolume as fn(&CacheVolume);
+    let _ = core::mem::size_of::<Casing>();
+    #[allow(deprecated)]
+    let _ = Casing::Camel;
+    #[allow(deprecated)]
+    let _ = Casing::Flat;
+    #[allow(deprecated)]
+    let _ = Casing::Kebab;
+    #[allow(deprecated)]
+    let _ = Casing::Pascal;
+    #[allow(deprecated)]
+    let _ = Casing::ScreamingSnake;
+    #[allow(deprecated)]
+    let _ = Casing::Snake;
     let _ = core::mem::size_of::<Changeset>();
     let _ = reach_changeset as fn(&Changeset);
     let _ = core::mem::size_of::<ChangesetMergeConflict>();
@@ -2936,6 +3004,17 @@ fn generated_public_reachability() {
     let _ = core::mem::size_of::<Host>();
     let _ = reach_host as fn(&Host);
     let _ = core::mem::size_of::<Id>();
+    let _ = core::mem::size_of::<Identifier>();
+    let _ = reach_identifier as fn(&Identifier);
+    let _ = core::mem::size_of::<IdentifierWord>();
+    let _ = reach_identifierword as fn(&IdentifierWord);
+    let _ = core::mem::size_of::<IdentifierWordKind>();
+    #[allow(deprecated)]
+    let _ = IdentifierWordKind::Acronym;
+    #[allow(deprecated)]
+    let _ = IdentifierWordKind::Term;
+    #[allow(deprecated)]
+    let _ = IdentifierWordKind::Word;
     let _ = core::mem::size_of::<ImageLayerCompression>();
     #[allow(deprecated)]
     let _ = ImageLayerCompression::EStarGz;
@@ -3024,6 +3103,8 @@ fn generated_public_reachability() {
     let _ = ModuleSourceKind::GitSource;
     #[allow(deprecated)]
     let _ = ModuleSourceKind::LocalSource;
+    let _ = core::mem::size_of::<NamingTerm>();
+    let _ = reach_namingterm as fn(&NamingTerm);
     let _ = core::mem::size_of::<NetworkProtocol>();
     #[allow(deprecated)]
     let _ = NetworkProtocol::Tcp;
