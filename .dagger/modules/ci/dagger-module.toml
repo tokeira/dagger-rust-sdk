@@ -2,4 +2,4 @@ name = "ci"
 engineVersion = "v1.0.0-beta.19"
 
 [runtime]
-  source = "github.com/tokeira/dagger-rust-sdk/runtime@174f32852f11f0ff58eaa3f446afb43a2acebe07"
+  source = "github.com/tokeira/dagger-rust-sdk/runtime@128a77c5543dfd21e170d778588c2bb0ecc9419e"
