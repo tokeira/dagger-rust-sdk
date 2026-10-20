@@ -20,13 +20,13 @@ use serde_json::Value;
 /// The runtime's digest-pinned builder, so CI compiles with the inputs module builds use.
 const RUST_IMAGE: &str =
     "rust:1.99.1-bookworm@sha256:e12566d5abc17a0da741628782cdb504b68b8961f5bfcf677936bf3e8b32de29";
-/// The Go release the runtime's and rust-client-dev's `go.mod` files name.
+/// The Go release the runtime's `go.mod` names.
 const GO_IMAGE: &str = "golang:1.26.1-bookworm@sha256:ab3d6955bbc813a0f3fdf220c1d817dd89c0b3f283777db8ece4a32fe7858edd";
 const CARGO_DENY_VERSION: &str = "0.19.9";
 /// How much of a failed step's output an error keeps, from the end.
 const OUTPUT_TAIL: usize = 16 * 1024;
 const GATES_PASSED: &str = "cargo fmt, check, clippy, doc, test (all and no default features), \
-    deny and the generated-output check, and the runtime and rust-client-dev Go tests passed";
+    deny and the generated-output check, and the runtime's Go tests passed";
 /// The repository the acceptance installs the runtime from and builds the client against.
 const REPOSITORY: &str = "github.com/tokeira/dagger-rust-sdk";
 /// The release of the CLI the acceptance drives the engine with: the one the SDK targets.
@@ -36,6 +36,14 @@ const README_MARKER: &str = "<!-- The ci module's acceptance runs the module bel
 /// The manifest of the application that asks for a Rust client scope.
 const APP_MANIFEST: &str =
     "[package]\nname = \"app\"\nversion = \"0.0.0\"\nedition = \"2024\"\npublish = false\n";
+/// The manifest of an existing crate that `dagger module init` adopts, with a dependency
+/// of its own.
+const EXISTING_MANIFEST: &str = "[package]\nname = \"existing\"\nversion = \"0.1.0\"\n\
+    edition = \"2024\"\nrust-version = \"1.99.1\"\n\n[dependencies]\nserde = \"1\"\n";
+/// A toolchain file naming a Rust release older than the SDK's minimum.
+const OLD_TOOLCHAIN: &str = "[toolchain]\nchannel = \"1.96.0\"\nprofile = \"minimal\"\n";
+/// The password in a dependency URL that `dagger module init` must refuse without printing.
+const CREDENTIAL: &str = "rust-sdk-secret-should-not-render";
 /// The crates a release publishes, in the order it publishes them: the SDK depends on the
 /// macros crate at the same version.
 const PUBLISHED: [&str; 2] = ["tokeira-dagger-sdk-macros", "tokeira-dagger-sdk"];
@@ -80,8 +88,9 @@ impl Ci {
 
     /// Runs the stock-engine acceptance of docs/engine-integration.md for a pushed commit:
     /// the runtime installed from it, a module initialized, regenerated, loaded and called,
-    /// a plain client, a refused client scope, and the README module's test and build. It
-    /// needs an engine of the release the commit targets.
+    /// plain clients, a refused client scope, an existing crate adopted, the refusals of
+    /// broken modules and unsafe initializations, a legacy module, and the README module's
+    /// test and build. It needs an engine of the release the commit targets.
     #[dagger(function)]
     pub async fn acceptance(
         &self,
@@ -104,14 +113,22 @@ impl Ci {
         let runtime = format!("{REPOSITORY}/runtime@{commit}");
         tokio::try_join!(
             module_flows(&cli, &fixtures, &runtime, &dependency),
-            plain_client(dag, &cli, &fixtures, &tree, &engine),
+            plain_clients(dag, &cli, &fixtures, &tree, &engine),
+            adoption(&cli, &fixtures, &runtime, &dependency),
+            load_refusals(&cli, &runtime),
+            init_refusals(&cli, &fixtures, &runtime, &commit),
+            legacy_module(&cli, &fixtures, &runtime),
             readme_module(&cli, &fixtures, &tree, &runtime),
         )?;
         Ok(format!(
             "{commit} passed on {engine}: the runtime installed; a module initialized, \
-             regenerated, loaded and answered calls; a plain client made Void calls and exported \
-             an image; a Rust client scope was refused; and the README module's test and build \
-             passed"
+             regenerated, loaded and answered calls; plain clients made each kind of Core call, \
+             met each kind of failure and exported an image; a Rust client scope was refused; an \
+             existing crate was adopted and one without a root object refused; modules with \
+             missing or stale generated files or too old a toolchain failed to load; \
+             initialization wrote nothing outside the workspace and refused to overwrite a file \
+             or print a credential; a legacy module answered a call; and the README module's \
+             test and build passed"
         ))
     }
 
@@ -329,7 +346,7 @@ async fn cargo_gates(dag: &Query, source: &Directory) -> Result<Container, Modul
         ]))
 }
 
-/// The Go half: the runtime's adapter and the rust-client-dev engine-free suites.
+/// The Go half: the runtime's adapter.
 fn go_gates(dag: &Query, source: &Directory) -> Container {
     dag.container()
         .from(GO_IMAGE)
@@ -343,17 +360,6 @@ fn go_gates(dag: &Query, source: &Directory) -> Container {
         .with_env_variable("DAGGER_SESSION_PORT", "1")
         .with_env_variable("DAGGER_SESSION_TOKEN", "placeholder")
         .with_exec(vec!["go", "test", "-count=1", "."])
-        .without_env_variable("DAGGER_SESSION_PORT")
-        .without_env_variable("DAGGER_SESSION_TOKEN")
-        .with_workdir("/src/.dagger/modules/rust-client-dev")
-        .with_exec(vec![
-            "go",
-            "test",
-            "-count=1",
-            ".",
-            "./internal/enginefixture",
-            "./internal/enginefree",
-        ])
 }
 
 /// A Rust container with the target release's CLI, for the `dagger` commands that the
@@ -407,9 +413,8 @@ async fn module_flows(
     runtime: &str,
     dependency: &str,
 ) -> Result<(), ModuleError> {
-    let workspace = dagger(&repository(cli, "/ws"), &["install", runtime]);
     let workspace = dagger(
-        &workspace,
+        &installed(cli, "/ws", runtime),
         &["-y", "module", "init", "rust", "--name", "gate"],
     );
     let manifest = workspace
@@ -456,9 +461,8 @@ async fn module_flows(
             &["call", "gate", "count", "--source", "gate-input"],
             "1"
         ),
-        client_scope_refused(&workspace),
     )?;
-    Ok(())
+    client_scope_refused(&workspace).await
 }
 
 /// Step 7: adding a Rust client scope is refused before anything is written.
@@ -497,9 +501,10 @@ async fn client_scope_refused(workspace: &Container) -> Result<(), ModuleError> 
     Ok(())
 }
 
-/// Step 6: a plain client, built from the commit, runs under `dagger run`, makes Void calls,
-/// and exports an image.
-async fn plain_client(
+/// Step 6: plain clients, built from the commit, run under `dagger run`. One makes Void calls
+/// and exports an image; the other makes each kind of generated Core call and meets each kind
+/// of failure the client reports.
+async fn plain_clients(
     dag: &Query,
     cli: &Container,
     fixtures: &Directory,
@@ -517,27 +522,362 @@ async fn plain_client(
     let client = repository(&client, "/client")
         .with_exec(vec!["cargo", "generate-lockfile", "--quiet"])
         .with_exec(vec!["cargo", "build", "--quiet", "--locked"]);
-    let run = dagger(&client, &["run", "cargo", "run", "--quiet", "--locked"]);
-    let output = run.stdout().await.map_err(step_failure)?;
-    let expected = format!("ACCEPTANCE-CLIENT-OK {engine}");
-    if !output.lines().any(|line| line == expected) {
-        return Err(check_failed(
-            "the plain client",
-            format!("printed no `{expected}`:\n{}", tail(&output)),
-        ));
-    }
-    let image = run
-        .with_exec(vec!["tar", "-tf", "canary.tar"])
-        .stdout()
-        .await
-        .map_err(step_failure)?;
-    if !image.lines().any(|line| line == "index.json") {
-        return Err(check_failed(
-            "the plain client",
-            format!("exported no OCI image:\n{image}"),
-        ));
-    }
+    let canary = async {
+        let expected = format!("ACCEPTANCE-CLIENT-OK {engine}");
+        let run = client_run(&client, "acceptance-client", &expected).await?;
+        let image = run
+            .with_exec(vec!["tar", "-tf", "canary.tar"])
+            .stdout()
+            .await
+            .map_err(step_failure)?;
+        if image.lines().any(|line| line == "index.json") {
+            Ok(())
+        } else {
+            Err(check_failed(
+                "the plain client",
+                format!("exported no OCI image:\n{image}"),
+            ))
+        }
+    };
+    let expected = format!("ACCEPTANCE-CONFORMANCE-OK {engine}");
+    tokio::try_join!(canary, client_run(&client, "conformance", &expected))?;
     Ok(())
+}
+
+/// Runs the client binary `bin` under `dagger run`, which must print the line `expected`,
+/// and returns the container as the run left it.
+async fn client_run(
+    client: &Container,
+    bin: &str,
+    expected: &str,
+) -> Result<Container, ModuleError> {
+    let args = ["run", "cargo", "run", "--quiet", "--locked", "--bin", bin];
+    let run = dagger(client, &args);
+    let output = run.stdout().await.map_err(step_failure)?;
+    if output.lines().any(|line| line == expected) {
+        Ok(run)
+    } else {
+        Err(check_failed(
+            &format!("dagger {}", args.join(" ")),
+            format!("printed no `{expected}`:\n{}", tail(&output)),
+        ))
+    }
+}
+
+/// Step 8: `dagger module init` adopts an existing crate whose source declares a root object,
+/// keeping its source and its own dependencies, and refuses one that declares none.
+async fn adoption(
+    cli: &Container,
+    fixtures: &Directory,
+    runtime: &str,
+    dependency: &str,
+) -> Result<(), ModuleError> {
+    let adopted = async {
+        let source = fixtures.file("adopted.rs");
+        let existing = commit_all(
+            &installed(cli, "/adopt", runtime)
+                .with_new_file(
+                    EXISTING_MANIFEST,
+                    "/adopt/.dagger/modules/existing/Cargo.toml",
+                )
+                .with_file("/adopt/.dagger/modules/existing/src/lib.rs", source.clone()),
+            "existing crate",
+        );
+        let adopted = commit_all(
+            &dagger(
+                &existing,
+                &["-y", "module", "init", "rust", "--name", "existing"],
+            ),
+            "adopt existing crate",
+        );
+        let kept = adopted.file("/adopt/.dagger/modules/existing/src/lib.rs");
+        let manifest = adopted.file("/adopt/.dagger/modules/existing/Cargo.toml");
+        let (kept, authored, manifest) =
+            tokio::try_join!(kept.contents(), source.contents(), manifest.contents())
+                .map_err(step_failure)?;
+        if kept != authored {
+            return Err(check_failed(
+                "dagger module init",
+                "changed the adopted crate's src/lib.rs",
+            ));
+        }
+        for line in ["serde = \"1\"", dependency] {
+            if !manifest.lines().any(|candidate| candidate == line) {
+                return Err(check_failed(
+                    "dagger module init",
+                    format!("the adopted crate's Cargo.toml lacks `{line}`:\n{manifest}"),
+                ));
+            }
+        }
+        prints(&adopted, &["call", "existing", "adopted"], "adopted").await
+    };
+
+    let rootless = async {
+        let rootless = commit_all(
+            &installed(cli, "/rootless", runtime)
+                .with_new_file(
+                    crate_manifest("rootless"),
+                    "/rootless/.dagger/modules/rootless/Cargo.toml",
+                )
+                .with_new_file(
+                    "pub fn caller_owned() {}\n",
+                    "/rootless/.dagger/modules/rootless/src/lib.rs",
+                ),
+            "crate without a root object",
+        );
+        let refusal = refused(
+            &rootless,
+            &["-y", "module", "init", "rust", "--name", "rootless"],
+            "module.root-missing",
+        )
+        .await?;
+        unchanged(&refusal, "the refused crate without a root object").await
+    };
+
+    tokio::try_join!(adopted, rootless)?;
+    Ok(())
+}
+
+/// Step 9: a module whose generated files are missing, or which changed after its last
+/// generation, fails to load; so does one whose toolchain is older than the SDK's minimum,
+/// even once regenerated.
+async fn load_refusals(cli: &Container, runtime: &str) -> Result<(), ModuleError> {
+    let ungenerated = async {
+        let module = initialized(cli, "ungenerated", runtime).with_exec(vec![
+            "rm",
+            ".dagger/modules/ungenerated/.dagger/rust/operation-manifest.json",
+        ]);
+        refused(&module, &["functions", "ungenerated"], "GENERATED_MISSING").await
+    };
+
+    // A dependency added without regenerating.
+    let stale = async {
+        let module = initialized(cli, "stale", runtime);
+        let manifest = module
+            .file("/stale/.dagger/modules/stale/Cargo.toml")
+            .contents()
+            .await
+            .map_err(step_failure)?;
+        let module = module.with_new_file(
+            manifest.replacen("[dependencies]\n", "[dependencies]\nanyhow = \"1\"\n", 1),
+            "/stale/.dagger/modules/stale/Cargo.toml",
+        );
+        refused(&module, &["functions", "stale"], "GENERATED_STALE").await
+    };
+
+    let toolchain = async {
+        let module = dagger(
+            &initialized(cli, "toolchain", runtime).with_new_file(
+                OLD_TOOLCHAIN,
+                "/toolchain/.dagger/modules/toolchain/rust-toolchain.toml",
+            ),
+            &["generate", "-y"],
+        );
+        refused(
+            &module,
+            &["functions", "toolchain"],
+            "TOOLCHAIN_UNSUPPORTED",
+        )
+        .await
+    };
+
+    tokio::try_join!(ungenerated, stale, toolchain)?;
+    Ok(())
+}
+
+/// Step 10: `dagger module init` writes nothing outside the workspace, whether a path climbs
+/// out of it or a symbolic link leads out, and it refuses to overwrite a file it does not own
+/// or to depend on a URL that carries a credential, which it does not print.
+async fn init_refusals(
+    cli: &Container,
+    fixtures: &Directory,
+    runtime: &str,
+    commit: &str,
+) -> Result<(), ModuleError> {
+    let escape = async {
+        let refusal = refused(
+            &installed(cli, "/escape", runtime),
+            &[
+                "-y",
+                "module",
+                "init",
+                "rust",
+                "--name",
+                "escape",
+                "--path",
+                "../../rust-sdk-escape",
+            ],
+            "escapes workspace root",
+        )
+        .await?;
+        unchanged(&refusal, "the refused path outside the workspace").await?;
+        if refusal
+            .exists("/rust-sdk-escape")
+            .await
+            .map_err(step_failure)?
+        {
+            return Err(check_failed(
+                "the refused path outside the workspace",
+                "wrote /rust-sdk-escape",
+            ));
+        }
+        Ok(())
+    };
+
+    let symlink = async {
+        let linked = commit_all(
+            &installed(cli, "/symlink", runtime)
+                .with_exec(vec!["mkdir", "-p", "/outside", ".dagger/modules"])
+                .with_exec(vec!["ln", "-s", "/outside", ".dagger/modules/symlink"]),
+            "module path that links outside the workspace",
+        );
+        let initialized = dagger(
+            &linked,
+            &[
+                "-y",
+                "module",
+                "init",
+                "rust",
+                "--name",
+                "symlink",
+                "--path",
+                ".dagger/modules/symlink",
+            ],
+        );
+        let outside = initialized
+            .directory("/outside")
+            .entries()
+            .await
+            .map_err(step_failure)?;
+        if outside.is_empty() {
+            Ok(())
+        } else {
+            Err(check_failed(
+                "dagger module init through a symbolic link",
+                format!("wrote outside the workspace: {outside:?}"),
+            ))
+        }
+    };
+
+    let collision = async {
+        let occupied = commit_all(
+            &installed(cli, "/collision", runtime)
+                .with_new_file(
+                    crate_manifest("collision"),
+                    "/collision/.dagger/modules/collision/Cargo.toml",
+                )
+                .with_file(
+                    "/collision/.dagger/modules/collision/src/lib.rs",
+                    fixtures.file("collision.rs"),
+                )
+                .with_new_file(
+                    "fn caller_owned() {}\n",
+                    "/collision/.dagger/modules/collision/src/bin/dagger-module.rs",
+                ),
+            "crate with its own src/bin/dagger-module.rs",
+        );
+        let refusal = refused(
+            &occupied,
+            &["-y", "module", "init", "rust", "--name", "collision"],
+            "OWNERSHIP_CONFLICT",
+        )
+        .await?;
+        unchanged(&refusal, "the refused ownership conflict").await
+    };
+
+    let credential = async {
+        let manifest = format!(
+            "{}rust-version = \"1.99.1\"\n\n[dependencies]\n\
+             dagger-sdk = {{ package = \"tokeira-dagger-sdk\", \
+             git = \"https://user:{CREDENTIAL}@{REPOSITORY}\", rev = \"{commit}\" }}\n",
+            crate_manifest("credential")
+        );
+        let fixture = commit_all(
+            &installed(cli, "/credential", runtime)
+                .with_new_file(
+                    manifest,
+                    "/credential/.dagger/modules/credential/Cargo.toml",
+                )
+                .with_new_file(
+                    "pub fn caller_owned() {}\n",
+                    "/credential/.dagger/modules/credential/src/lib.rs",
+                ),
+            "crate whose dependency URL carries a credential",
+        );
+        let refusal = refused(
+            &fixture,
+            &["-y", "module", "init", "rust", "--name", "credential"],
+            "SDK_DEPENDENCY_CONFLICT",
+        )
+        .await?;
+        let output = refusal.combined_output().await.map_err(step_failure)?;
+        if output.contains(CREDENTIAL) {
+            return Err(check_failed(
+                "the refused credential-bearing dependency",
+                "printed the credential",
+            ));
+        }
+        unchanged(&refusal, "the refused credential-bearing dependency").await
+    };
+
+    tokio::try_join!(escape, symlink, collision, credential)?;
+    Ok(())
+}
+
+/// Step 11: a module configured by a legacy `dagger.json`, without generated files, loads and
+/// answers a call. The runtime generates its code privately, so the workspace stays as it was.
+async fn legacy_module(
+    cli: &Container,
+    fixtures: &Directory,
+    runtime: &str,
+) -> Result<(), ModuleError> {
+    let workspace = dagger(
+        &installed(cli, "/legacy", runtime),
+        &[
+            "-y",
+            "module",
+            "init",
+            "rust",
+            "--name",
+            "legacy",
+            "--path",
+            "modules/legacy",
+        ],
+    );
+    let config = serde_json::json!({
+        "name": "legacy",
+        "engineVersion": format!("v{DAGGER_VERSION}"),
+        "sdk": { "source": runtime },
+    });
+    // What a legacy module never had: the generated files and `dagger-module.toml`.
+    let workspace = commit_all(
+        &workspace
+            .with_workdir("/legacy/modules/legacy")
+            .with_exec(vec![
+                "rm",
+                "-r",
+                "dagger-module.toml",
+                ".dagger",
+                "src/dagger_generated",
+                "src/bin",
+                ".gitattributes",
+                ".gitignore",
+            ])
+            .with_workdir("/legacy")
+            .with_file(
+                "/legacy/modules/legacy/src/lib.rs",
+                fixtures.file("legacy.rs"),
+            )
+            .with_new_file(config.to_string(), "/legacy/modules/legacy/dagger.json"),
+        "legacy module",
+    );
+    let called = prints(
+        &workspace,
+        &["-m", "modules/legacy", "call", "probe"],
+        "rust-sdk-protocol-ok",
+    )
+    .await?;
+    unchanged(&called, "a call to the legacy module").await
 }
 
 /// The README's module, as readers copy it: generated into a sample service, then its
@@ -551,11 +891,11 @@ async fn readme_module(
 ) -> Result<(), ModuleError> {
     let readme = tree.file("README.md").contents().await?;
     let module = marked_module(&readme)?;
-    let service = repository(
+    let service = installed(
         &cli.with_directory("/api", fixtures.directory("api")),
         "/api",
+        runtime,
     );
-    let service = dagger(&service, &["install", runtime]);
     let service = commit_all(
         &dagger(&service, &["-y", "module", "init", "rust", "--name", "ci"]),
         "initialize ci module",
@@ -990,7 +1330,10 @@ fn release_sums(sums: &str) -> Result<ReleaseSums, ModuleError> {
 }
 
 /// A Git repository at `path` that commits whatever the container already holds there, as
-/// beta.19's workspaces require.
+/// beta.19's workspaces require. The engine caches the directories a session syncs by path
+/// and by the client ID that the first `dagger` command stores in the container, so
+/// sessions that run at once and sync different contents each need a repository of their
+/// own.
 fn repository(container: &Container, path: &str) -> Container {
     commit_all(
         &container
@@ -998,6 +1341,32 @@ fn repository(container: &Container, path: &str) -> Container {
             .with_workdir(path),
         "initialize workspace",
     )
+}
+
+/// A new repository at `path`, as `repository` makes it, with the runtime installed and the
+/// installation committed.
+fn installed(container: &Container, path: &str, runtime: &str) -> Container {
+    commit_all(
+        &dagger(&repository(container, path), &["install", runtime]),
+        "install the runtime",
+    )
+}
+
+/// A new repository at `/<name>`, as `installed` makes it, with a module named `name`
+/// initialized and committed.
+fn initialized(cli: &Container, name: &str, runtime: &str) -> Container {
+    commit_all(
+        &dagger(
+            &installed(cli, &format!("/{name}"), runtime),
+            &["-y", "module", "init", "rust", "--name", name],
+        ),
+        "initialize module",
+    )
+}
+
+/// The manifest of a crate named `name` with no dependencies.
+fn crate_manifest(name: &str) -> String {
+    format!("[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n")
 }
 
 /// Commits every change in the repository at the working directory.
@@ -1029,14 +1398,17 @@ fn dagger_command<'a>(args: &[&'a str]) -> Vec<&'a str> {
     command
 }
 
-/// Runs `dagger <args>` and checks what it prints, less the final newline.
-async fn prints(container: &Container, args: &[&str], expected: &str) -> Result<(), ModuleError> {
-    let output = dagger(container, args)
-        .stdout()
-        .await
-        .map_err(step_failure)?;
+/// Runs `dagger <args>` and checks what it prints, less the final newline. Returns the
+/// container as the command left it.
+async fn prints(
+    container: &Container,
+    args: &[&str],
+    expected: &str,
+) -> Result<Container, ModuleError> {
+    let run = dagger(container, args);
+    let output = run.stdout().await.map_err(step_failure)?;
     if output.trim_end() == expected {
-        Ok(())
+        Ok(run)
     } else {
         Err(check_failed(
             &format!("dagger {}", args.join(" ")),

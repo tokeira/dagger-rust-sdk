@@ -18,9 +18,12 @@ Dagger SDKs while keeping implementation policy in Rust.
 | Credentials cannot become artifacts | Control data, runtime identity, cache keys, and generated files contain no credentials. Unsafe Cargo output becomes a bounded typed diagnostic; no socket, secret, Cargo home, or cache enters the runtime. |
 | Runtime shape is fixed | The image clears inherited arguments, installs one entrypoint, and uses the engine-owned work directory and platform target. |
 
-`.dagger/modules/rust-client-dev/internal/enginefree` keeps this source-level audit
-executable. If an owning build contract changes, update the test and review the Rust
-decision rather than allowing silent drift.
+`crates/dagger-sdk-engine/tests/runtime_properties.rs` exercises these decisions: the
+generation-mode state machine, the locked build on the pinned toolchain and target,
+secret-free provenance and redacted output, and a runtime that receives only its binary
+and provenance. `runtime/main_test.go` checks that a module's identity leaves out only
+what generation writes. If an owning build contract changes, update the tests and review
+the Rust decision rather than allowing silent drift.
 
 ## Verification boundaries
 
@@ -34,9 +37,6 @@ Use three deliberately separate boundaries:
    pushed commit on a stock engine of the target release and drives module and client
    flows against it.
 
-Focused engine cases remain diagnostic tools for engine-only behavior. They are not a
-second release gate and do not replace the acceptance run.
-
 ## Engine-free development workflow
 
 From the repository root, run the canonical Rust commands in `AGENTS.md`. Useful focused suites
@@ -47,13 +47,10 @@ cargo test -p dagger-codegen --test engine_operations --test visible_schema_prop
 cargo test -p dagger-sdk-engine --locked
 ```
 
-The direct Go boundaries are also engine-free:
+The runtime's Go tests are also engine-free:
 
 ```console
-cd .dagger/modules/rust-client-dev
-go test . ./internal/enginefixture ./internal/enginefree -count=1
-
-cd ../../../runtime
+cd runtime
 go vet ./...
 go test ./internal/metadata -count=1
 DAGGER_SESSION_PORT=1 DAGGER_SESSION_TOKEN=placeholder go test . -count=1
@@ -135,10 +132,31 @@ needs a Git workspace:
 4. `dagger generate` regenerates. A second run changes nothing, and the module's
    `.gitattributes` stays scoped to the module.
 5. `dagger call gate <function>` loads the module and calls each export.
-6. A plain client built against the commit's crates runs under `dagger run`, makes Void
-   calls, and exports an image.
+6. Plain clients built against the commit's crates run under `dagger run`. One makes
+   Void calls and exports an image; the other makes each kind of generated Core call and
+   meets each kind of failure the client reports.
 7. Adding a Rust client scope with `dagger module client add` is refused before
    anything is written.
+8. `dagger module init rust --name existing` adopts an existing crate at
+   `.dagger/modules/existing` whose source declares a root object and
+   `pub mod dagger_generated;`. Its source is unchanged, its own dependencies stay, its
+   `Cargo.toml` gains the SDK dependency, and the module answers calls. A crate without
+   a root object is refused, and nothing is written.
+9. A module whose generated files are missing fails to load with `GENERATED_MISSING`,
+   and one changed since its last generation, such as by a new dependency, with
+   `GENERATED_STALE`. One whose `rust-toolchain.toml` names a release older than the
+   SDK's minimum fails to load with `TOOLCHAIN_UNSUPPORTED`, even after
+   `dagger generate`.
+10. `dagger module init` writes nothing outside the workspace. A `--path` that climbs out
+    of it is refused, and through a module path that is a symbolic link to a directory
+    outside, initialization leaves that directory empty. A crate that already holds a
+    file where the SDK generates one, such as `src/bin/dagger-module.rs`, is refused with
+    `OWNERSHIP_CONFLICT`, and one whose SDK dependency URL carries a credential with
+    `SDK_DEPENDENCY_CONFLICT`, without printing the credential. Neither refusal writes
+    anything.
+11. A module configured by a legacy `dagger.json`, without `dagger-module.toml` or
+    generated files, loads and answers `dagger -m <path> call`. The runtime generates
+    its code privately, and the workspace is unchanged.
 
 The README's `ci` module is a fuller module check: `test` against PostgreSQL, `build`,
 and `publish` to a registry that only the engine can reach
@@ -155,37 +173,20 @@ tag-only coordinate, default branch, credential-bearing URL, query, fragment, ma
 revision, or unreachable commit fails before Cargo runs.
 
 For Git-backed development, the selected revision must already be reachable from the
-repository and contain byte-identical public SDK build inputs. Confirm the local and
-remote revision, then pass the same repository and revision to every focused engine
-content invocation. The current workspace identity and the generated project's
-dependency identity are separate safety contracts; never substitute a mutable ref to
-make resolution pass.
+repository and contain byte-identical public SDK build inputs, so push a commit before
+installing the runtime from it. The current workspace identity and the generated
+project's dependency identity are separate safety contracts; never substitute a mutable
+ref to make resolution pass.
 
 This immutable dependency mechanism protects generated projects. It does not publish a
 crate, create a tag, or authorize a hosted release.
 
-## Focused engine regressions
+## Unverified engine regression
 
-Run a focused case only when its boundary cannot be represented by the direct harness.
-The cases are the `engine-unit` and `engine-content` entry points of
-`.dagger/modules/rust-client-dev`, which still build the fork engine through an
-`engine-dev` module this repository does not contain. They cannot run here until they
-move onto a stock engine.
-
-The closed case inventory covers built-in resolution; empty and existing project
-initialization; no-generate behavior; library, module, client, and entrypoint
-operations; checked and legacy runtime paths; lock/toolchain rejection; path ownership;
-and credential-safe diagnostics. Multiple requested cases share one content object.
-
-Before a focused run, describe the initial files, each mutation, schema source,
-generation mode, runtime precondition, and expected owned paths. Assert those semantics
-in `internal/enginefree` first. A multi-minute engine build is the final observation,
-not the fixture-design loop.
-
-The previously observed long-running module-query failure—
-`Post "http://dagger/query": unexpected EOF` after roughly 30 seconds—is a separate,
-unverified engine regression. Ordinary external-consumer verification does not exercise
-that duration boundary, and Rust SDK release readiness does not claim it is fixed.
+A long-running module query was once observed to fail with
+`Post "http://dagger/query": unexpected EOF` after roughly 30 seconds. It is a separate,
+unverified engine regression: the acceptance does not exercise that duration, and Rust
+SDK release readiness does not claim it is fixed.
 
 ## Local triage and generated ownership
 
@@ -198,7 +199,3 @@ Operation manifests, not filenames or Go symbols, own generated files. The runti
 manifest is finalized only after the stripped binary exists, so input validation cannot
 fabricate its digest. Inspect the final image for the installed binary and manifest and
 confirm that Cargo homes, caches, source, credentials, and builder state are absent.
-
-When the development module's public API changes, preview and apply only that module's
-generated Go bindings. Repository-wide generation is not part of an ordinary Rust
-engine-integration checkpoint.

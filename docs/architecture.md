@@ -179,8 +179,8 @@ caches, source, credentials, or builder state.
 The private entrypoint proves registration and invocation hooks against the nested
 engine session. Those hooks cannot stand in for arbitrary module dispatch or complete
 standalone-client content, which remain separately scoped work. See
-[engine-integration.md](engine-integration.md) for the reproducible build audit,
-focused case workflow, and exact-target verification rules.
+[engine-integration.md](engine-integration.md) for the reproducible build audit and the
+stock-engine acceptance.
 
 ## Implementation closure and stock-engine verification
 
@@ -189,7 +189,6 @@ Go ABI tests, generated drift/ownership checks, package policy, security, and
 clean-output inspection run without an engine.
 
 Release readiness then installs the runtime from a pushed commit on a stock engine of
-the target release and drives module and client flows against it. Focused engine-backed
-regressions are reserved for boundaries the direct harness cannot represent; they are
-not a second release mechanism. The maintainer procedure is documented in
+the target release and drives module and client flows against it. The maintainer
+procedure is documented in
 [engine-integration.md](engine-integration.md#stock-engine-acceptance).

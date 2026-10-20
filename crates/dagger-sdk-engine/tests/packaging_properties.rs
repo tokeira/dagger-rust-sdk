@@ -331,7 +331,9 @@ fn repository_security_inputs_cover_derived_shipped_graph() {
     const RUNTIME_GO_SUM: &str = include_str!("../../../runtime/go.sum");
     // The runtime policy pins the builder image every shipped operation runs in.
     const RUNTIME_POLICY: &str = include_str!("../../../runtime/assets/runtime-policy.json");
-    const RUST_TOOLCHAIN: &str = include_str!("../../../.dagger/modules/rust-client-dev/main.go");
+    // The ci module audits the distribution: its gates run the tests and cargo-deny, and its
+    // `package` verifies each published crate from its archive.
+    const CI_MODULE: &str = include_str!("../../../.dagger/modules/ci/src/lib.rs");
 
     let manifest = synthetic_manifest(1);
     let graph = derive_shipped_audit_graph(&manifest).unwrap();
@@ -354,9 +356,9 @@ fn repository_security_inputs_cover_derived_shipped_graph() {
                 "rust:1.99.1-bookworm@sha256:e12566d5abc17a0da741628782cdb504b68b8961f5bfcf677936bf3e8b32de29",
             ),
             "distribution:rust-sdk" => {
-                RUST_TOOLCHAIN.contains("func (t *RustClientDev) Test")
-                    && RUST_TOOLCHAIN.contains("func (t *RustClientDev) CargoDeny")
-                    && RUST_TOOLCHAIN.contains("dagger-rust-sdk-check")
+                CI_MODULE.contains("pub async fn gates(")
+                    && CI_MODULE.contains(r#"vec!["cargo", "deny", "check"]"#)
+                    && CI_MODULE.contains("pub async fn package(")
             }
             id if id.starts_with("asset:") => manifest
                 .assets

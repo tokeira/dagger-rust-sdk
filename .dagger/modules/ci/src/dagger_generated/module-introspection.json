@@ -1,5 +1,5 @@
 {
-  "descriptor_digest": "sha256:3dbe9be764e090e8a0aedc7a7cbde38b990968dfde4bcd0d496553c588198eb7",
+  "descriptor_digest": "sha256:ae3e32556cee7ae5839746601b2c13ecd8f3e3dc1afc93e9201690e9a7437cb2",
   "format_version": 1,
   "types": {
     "Ci": {
@@ -20,7 +20,7 @@
               "optional": false,
               "source": {
                 "column": 9,
-                "line": 90,
+                "line": 99,
                 "path": "src/lib.rs"
               },
               "ty": {
@@ -36,7 +36,7 @@
           },
           "constructor": false,
           "deprecation": null,
-          "documentation": "Runs the stock-engine acceptance of docs/engine-integration.md for a pushed commit:\nthe runtime installed from it, a module initialized, regenerated, loaded and called,\na plain client, a refused client scope, and the README module's test and build. It\nneeds an engine of the release the commit targets.",
+          "documentation": "Runs the stock-engine acceptance of docs/engine-integration.md for a pushed commit:\nthe runtime installed from it, a module initialized, regenerated, loaded and called,\nplain clients, a refused client scope, an existing crate adopted, the refusals of\nbroken modules and unsafe initializations, a legacy module, and the README module's\ntest and build. It needs an engine of the release the commit targets.",
           "return_type": {
             "kind": "named",
             "name": "String",
@@ -45,7 +45,7 @@
           "role": "ordinary",
           "source": {
             "column": 18,
-            "line": 86,
+            "line": 95,
             "path": "src/lib.rs"
           },
           "wire_name": "acceptance"
@@ -66,7 +66,7 @@
           "role": "ordinary",
           "source": {
             "column": 18,
-            "line": 70,
+            "line": 78,
             "path": "src/lib.rs"
           },
           "wire_name": "gates"
@@ -83,7 +83,7 @@
               "optional": false,
               "source": {
                 "column": 9,
-                "line": 130,
+                "line": 147,
                 "path": "src/lib.rs"
               },
               "ty": {
@@ -108,7 +108,7 @@
           "role": "ordinary",
           "source": {
             "column": 18,
-            "line": 124,
+            "line": 141,
             "path": "src/lib.rs"
           },
           "wire_name": "package"
@@ -125,7 +125,7 @@
               "optional": false,
               "source": {
                 "column": 89,
-                "line": 149,
+                "line": 166,
                 "path": "src/lib.rs"
               },
               "ty": {
@@ -150,7 +150,7 @@
           "role": "ordinary",
           "source": {
             "column": 18,
-            "line": 146,
+            "line": 163,
             "path": "src/lib.rs"
           },
           "wire_name": "published"
@@ -160,7 +160,7 @@
       "kind": "object",
       "source": {
         "column": 12,
-        "line": 48,
+        "line": 56,
         "path": "src/lib.rs"
       },
       "wire_name": "Ci"
@@ -187,7 +187,7 @@
               "optional": true,
               "source": {
                 "column": 9,
-                "line": 62,
+                "line": 70,
                 "path": "src/lib.rs"
               },
               "ty": {
@@ -212,7 +212,7 @@
           "role": "ordinary",
           "source": {
             "column": 12,
-            "line": 56,
+            "line": 64,
             "path": "src/lib.rs"
           },
           "wire_name": "ci"
@@ -222,7 +222,7 @@
       "kind": "object",
       "source": {
         "column": 12,
-        "line": 56,
+        "line": 64,
         "path": "src/lib.rs"
       },
       "wire_name": "Query"

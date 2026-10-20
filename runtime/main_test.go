@@ -3,8 +3,12 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -270,4 +274,86 @@ func TestAdapterSourceContainsNoRustBehaviouralModel(t *testing.T) {
 			t.Fatalf("Go adapter contains Rust behavioural model token %q", forbidden)
 		}
 	}
+}
+
+func TestRuntimeSemanticDigestExcludesOnlyGeneratedRepresentations(t *testing.T) {
+	source, err := parser.ParseFile(token.NewFileSet(), "main.go", nil, parser.AllErrors)
+	if err != nil {
+		t.Fatalf("parse runtime source: %v", err)
+	}
+	identity := findFunction(t, source, "semanticModuleSourceDigest")
+	for _, generated := range []string{
+		".dagger/rust", ".dagger/rust/**",
+		"src/dagger_generated", "src/dagger_generated/**",
+		"src/bin/dagger-module.rs",
+		".gitattributes", ".gitignore",
+	} {
+		if got := stringLiteralCount(identity, generated); got != 1 {
+			t.Fatalf("semantic module digest must exclude %q exactly once, got %d", generated, got)
+		}
+	}
+	for _, retained := range []string{"dagger-module.toml", "dagger.json"} {
+		if got := stringLiteralCount(identity, retained); got != 0 {
+			t.Fatalf("semantic module digest must retain module config %q", retained)
+		}
+	}
+	if got := identifierCount(identity, "ExcludeMetadata"); got != 1 {
+		t.Fatalf("semantic module digest must exclude unstable file metadata exactly once, got %d", got)
+	}
+	if got := selectorCount(identity, "UpdatedConfigDirectory"); got != 1 {
+		t.Fatalf("semantic module digest must overlay normalized module config exactly once, got %d", got)
+	}
+}
+
+func findFunction(t *testing.T, file *ast.File, name string) *ast.FuncDecl {
+	t.Helper()
+
+	for _, declaration := range file.Decls {
+		function, ok := declaration.(*ast.FuncDecl)
+		if ok && function.Name.Name == name {
+			return function
+		}
+	}
+	t.Fatalf("function %s not found", name)
+	return nil
+}
+
+func stringLiteralCount(node ast.Node, value string) int {
+	count := 0
+	ast.Inspect(node, func(node ast.Node) bool {
+		literal, ok := node.(*ast.BasicLit)
+		if !ok || literal.Kind != token.STRING {
+			return true
+		}
+		decoded, err := strconv.Unquote(literal.Value)
+		if err == nil && decoded == value {
+			count++
+		}
+		return true
+	})
+	return count
+}
+
+func identifierCount(node ast.Node, name string) int {
+	count := 0
+	ast.Inspect(node, func(node ast.Node) bool {
+		identifier, ok := node.(*ast.Ident)
+		if ok && identifier.Name == name {
+			count++
+		}
+		return true
+	})
+	return count
+}
+
+func selectorCount(node ast.Node, name string) int {
+	count := 0
+	ast.Inspect(node, func(node ast.Node) bool {
+		selector, ok := node.(*ast.SelectorExpr)
+		if ok && selector.Sel.Name == name {
+			count++
+		}
+		return true
+	})
+	return count
 }

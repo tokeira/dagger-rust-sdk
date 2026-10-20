@@ -8,3 +8,6 @@ publish = false
 # The acceptance mounts the commit under test at /sdk.
 dagger-sdk = { package = "tokeira-dagger-sdk", path = "/sdk/crates/dagger-sdk" }
 tokio = { version = "1.35.1", features = ["macros", "rt-multi-thread"] }
+# For the conformance binary's stand-in connection.
+async-trait = "0.1"
+serde_json = "1"

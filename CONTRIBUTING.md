@@ -35,12 +35,13 @@ or a better idiomatic Rust design.
   tests are generated. Change the generator or templates, then regenerate them; do not
   edit them directly.
 - `examples` contains executable examples and example applications.
-- `../../.dagger/modules/rust-client-dev` contains the Dagger-based development,
-  generation, test, packaging, and complete-engine assembly tooling for this SDK.
+- `.dagger/modules/ci` is this repository's CI, a Dagger module written with this SDK:
+  the gates, the stock-engine acceptance, and release packaging
+  ([docs/ci.md](docs/ci.md)).
 - `codegen` contains the exact target, schema, and compact generated ownership manifest.
 
 See [docs/architecture.md](docs/architecture.md) for the existing component overview.
-The focused built-in SDK build, case, and verification procedure is in
+The runtime build audit, SDK content, and stock-engine acceptance are in
 [docs/engine-integration.md](docs/engine-integration.md).
 The module authoring contract, direct harness, and completed-engine verification
 boundary are in [docs/module-authoring.md](docs/module-authoring.md).
