@@ -288,7 +288,7 @@ fn target() -> TargetIdentity {
         repository: CanonicalRepositoryUrl::new("https://github.com/dagger/dagger").unwrap(),
         dagger_revision: FullRevision::new(REVISION).unwrap(),
         engine_version: ExactVersion::new("1.0.0-beta.19").unwrap(),
-        rust_sdk_version: ExactVersion::new("0.1.0").unwrap(),
+        rust_sdk_version: ExactVersion::new("0.2.0").unwrap(),
         rust_toolchain: ExactRustToolchain::new("1.99.1").unwrap(),
         core_schema_digest: Sha256Digest::new(CORE_SCHEMA_DIGEST).unwrap(),
     }
@@ -298,7 +298,7 @@ fn dependency() -> PublishedSdkDependency {
     PublishedSdkDependency::Registry {
         registry: CanonicalRegistry::new("crates-io").unwrap(),
         package: SdkPackageName::new("tokeira-dagger-sdk").unwrap(),
-        exact_version: ExactVersion::new("0.1.0").unwrap(),
+        exact_version: ExactVersion::new("0.2.0").unwrap(),
     }
 }
 

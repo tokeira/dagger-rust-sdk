@@ -1,7 +1,0 @@
-kind: Changed
-body: |
-    Modules the runtime initializes depend on the SDK at the runtime's own version. Installed from a release's tag, `vX.Y.Z`, the runtime has them depend on that release from crates.io, as `dagger-sdk = { package = "tokeira-dagger-sdk", version = "=X.Y.Z" }`, and installed from any other reference, on the commit that reference resolves to, through Git. The runtime builds its SDK content from its own commit, so `runtime/assets/sdk-dependency.json`, which pinned that content to another commit, is gone.
-time: 2026-10-19T00:01:00Z
-custom:
-    Author: iw
-    PR: "24"

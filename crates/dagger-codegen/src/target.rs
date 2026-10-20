@@ -25,7 +25,7 @@ const APPROVED_DAGGER_REPOSITORY: &str = "github.com/dagger/dagger";
 const APPROVED_DAGGER_REVISION: &str = "80699ac67a1c72dc38d30c4186105cd9dd3afde6";
 const APPROVED_ENGINE_VERSION: &str = "v1.0.0-beta.19";
 const APPROVED_RUST_EDITION: &str = "2024";
-const APPROVED_RUST_SDK_VERSION: &str = "0.1.0";
+const APPROVED_RUST_SDK_VERSION: &str = "0.2.0";
 const APPROVED_RUST_VERSION: &str = "1.99.1";
 const APPROVED_SCHEMA_DIGEST: &str =
     "sha256:df7839fc7381ed3e899c3e1262a3b7cf384f06c4ac6a72334be3bc543bf1e9be";

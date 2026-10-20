@@ -1,7 +1,0 @@
-kind: Breaking
-body: |
-    The SDK targets stock Dagger `v1.0.0-beta.19` engines and CLIs instead of `v1.0.0-beta.18`. The generated client follows the beta.19 schema. It adds the `Identifier`, `IdentifierWord` and `NamingTerm` types, the `AcronymStyle`, `Casing` and `IdentifierWordKind` enums, `Query.identifier`, `Query.formatIdentifiers`, `Query.namingDictionary`, `Agent.parent`, `Artifact.workspace`, `Expertise.artifact`, `GitCommit.treeSHA`, `LLM.expertise` and an `expertise` option for `LLM.spawn`, and drops `LLM.recompose`, which beta.19 removed.
-time: 2026-10-20T00:01:00Z
-custom:
-    Author: iw
-    PR: "26"
