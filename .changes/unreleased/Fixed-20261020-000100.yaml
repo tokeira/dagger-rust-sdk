@@ -1,0 +1,7 @@
+kind: Fixed
+body: |
+    A module's generated files no longer depend on how its workspace was loaded. The operation manifest hashed the module's resolved pin, which only a workspace loaded from a Git reference sets, so a staleness check from a Git reference, such as `dagger check -W github.com/<owner>/<repo>@<commit>`, reported files generated in a checkout of the same commit as stale.
+time: 2026-10-20T01:00:00Z
+custom:
+    Author: iw
+    PR: "28"

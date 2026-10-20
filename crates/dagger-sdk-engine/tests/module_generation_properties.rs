@@ -140,6 +140,36 @@ async fn regeneration_on_another_platform_changes_nothing() {
     assert_eq!(snapshot(temporary.path()), generated);
 }
 
+// A workspace loaded from a Git reference gives the module its commit as a resolved
+// pin, which a checkout of the same commit does not. The generated files must not
+// depend on how the workspace was loaded, or one of the two sees them as stale.
+#[tokio::test]
+async fn regeneration_from_a_git_reference_changes_nothing() {
+    let temporary = tempfile::tempdir().unwrap();
+    let authored = initialize(temporary.path());
+    let root = OperationRoot::open(temporary.path()).unwrap();
+    let schema = module_visible_schema(0);
+    let from_checkout = request(&schema, authored.as_bytes(), dependency());
+
+    let first = execute(&root, &from_checkout, &schema, &descriptor()).await;
+    assert!(!first.is_empty());
+    let generated = snapshot(temporary.path());
+
+    let mut from_reference = from_checkout.clone();
+    from_reference
+        .module
+        .as_mut()
+        .expect("module generation names its module")
+        .resolved_pin =
+        Some(FullRevision::new("47517faf9d875a31ff042f40e0cc5f8e1d80aa2d").unwrap());
+    let replay = execute(&root, &from_reference, &schema, &descriptor()).await;
+    assert!(
+        replay.is_empty(),
+        "the Git-loaded workspace touched {replay:?}"
+    );
+    assert_eq!(snapshot(temporary.path()), generated);
+}
+
 // A runtime upgrade seals newer SDK content, so the generator changes. Regeneration
 // replaces exactly the files the prior manifest owns, then converges under the new
 // generator; authored source is untouched.

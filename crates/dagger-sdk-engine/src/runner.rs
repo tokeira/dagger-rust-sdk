@@ -392,8 +392,7 @@ pub async fn execute_operation_with_post_work<P: OperationPostWork>(
             GenerationMode::CheckedGenerated
         },
         target: request.target.clone(),
-        input_digest: canonical_digest(DigestDomain::OperationRequest, request)
-            .map_err(|_| generation_failed())?,
+        input_digest: manifest_input_digest(request)?,
         visible_schema_digest: request.visible_schema.digest.clone(),
         module_source_digest: request
             .module
@@ -444,6 +443,29 @@ pub async fn execute_operation_with_post_work<P: OperationPostWork>(
         vcs_ignored,
         client_plan: None,
     })
+}
+
+/// The request digest an operation manifest records. A module's resolved pin names
+/// the commit the engine loaded its source from, so it is set for a workspace loaded
+/// from a Git reference and absent for a checkout of the same commit, while the
+/// module's source digest already binds what generation read. Only client
+/// generation keeps the pin: a standalone client is bound to the remote module
+/// revision it was generated for.
+fn manifest_input_digest(request: &OperationRequest) -> Result<Sha256Digest, EngineDiagnostic> {
+    let pinned = request
+        .module
+        .as_ref()
+        .is_some_and(|module| module.resolved_pin.is_some());
+    let digest = if pinned && request.operation != compiler::OperationKind::GenerateClient {
+        let mut unpinned = request.clone();
+        if let Some(module) = unpinned.module.as_mut() {
+            module.resolved_pin = None;
+        }
+        canonical_digest(DigestDomain::OperationRequest, &unpinned)
+    } else {
+        canonical_digest(DigestDomain::OperationRequest, request)
+    };
+    digest.map_err(|_| generation_failed())
 }
 
 fn client_manifest_record(
