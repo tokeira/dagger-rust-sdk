@@ -118,16 +118,19 @@ memory each.
 
 Each step keeps its engine's state on a Namespace cache volume of its own by setting
 `DAGGER_RUST_SDK_ENGINE_STATE`, so the engine's build cache, Cargo's included, outlives the
-job. Namespace saves a volume only when its job passes, and the step stops the engine before
-the job ends, so the saved state comes from a clean shutdown. A volume must stay larger
-than the engine's 30 GB cache cap: a cache that outgrows its volume starts empty on the next
-job.
+job. The cache saves time but is not guaranteed: a volume's snapshots stay on the Namespace
+machines that ran its jobs, so a job placed on another machine starts from that machine's
+older snapshot, or from an empty volume. Namespace saves a volume only when its job passes,
+and the step stops the engine before the job ends, so the saved state comes from a clean
+shutdown. A volume must stay larger than the engine's 30 GB cache cap: a cache that
+outgrows its volume starts empty on the next job.
 
 Each step posts its own commit status, `buildkite/gates` or `buildkite/acceptance`, and the
 pipeline's own GitHub status is off. `main` requires `buildkite/gates` from Buildkite's
 GitHub app, so a branch passes it before `main` is fast-forwarded to it. `acceptance` runs
-when the commit changes one of its paths since its merge base with `main`, so a build of
-`main` itself skips it: the commit already passed on its branch.
+when the commit changes one of its paths: on a branch, since its merge base with `main`; on
+`main`, since its first parent. A build of `main` therefore runs it again when the last
+commit of a fast-forward touched those paths, and skips it when only earlier commits did.
 
 The agents reach the host's Docker daemon, which starts the engine's privileged container,
 so the agents need no privileges of their own.
