@@ -1,7 +1,0 @@
-kind: Breaking
-body: |
-    The SDK targets stock Dagger `v1.0.0-beta.21` engines and CLIs instead of `v1.0.0-beta.19`. The generated client follows the beta.21 schema. It adds `Workspace.main`, `Workspace.withMain`, `Workspace.withoutMain`, `WorkspaceModule.main` and a `main` option for `Workspace.withInitModule` and `Module.serve`, and deprecates the `entrypoint` names they replace, which remain as aliases.
-time: 2026-10-23T00:01:00Z
-custom:
-    Author: iw
-    PR: "33"

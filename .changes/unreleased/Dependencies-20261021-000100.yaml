@@ -1,7 +1,0 @@
-kind: Dependencies
-body: |
-    The examples and repository builds resolve `rustls-webpki` 0.103.16 and `webpki-roots` 1.0.10, which fix RUSTSEC-2026-0382 and RUSTSEC-2026-0381: both stop trusting certificate paths through distrusted emSign intermediates. Crates that depend on the SDK resolve their own releases of both, and `cargo update -p rustls-webpki -p webpki-roots` moves them to the fixed ones.
-time: 2026-10-21T00:01:00Z
-custom:
-    Author: iw
-    PR: "32"
