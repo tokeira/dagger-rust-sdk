@@ -54,9 +54,9 @@ dagger call ci gates
 ```
 
 The first run downloads the CLI into `~/.cache/dagger-rust-sdk/dagger/`, checks it against
-its pinned SHA-256, and starts the `dagger-rust-sdk-engine-v1.0.0-beta.19` container from
+its pinned SHA-256, and starts the `dagger-rust-sdk-engine-v1.0.0-beta.21` container from
 the image pinned by digest. Later runs reuse the container. The engine keeps its state in
-the `dagger-rust-sdk-engine-v1.0.0-beta.19-state` volume and collects its cache above
+the `dagger-rust-sdk-engine-v1.0.0-beta.21-state` volume and collects its cache above
 30 GB, because the disk it sees, such as a container VM's on a Mac, can be far larger than
 the space really free.
 

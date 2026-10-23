@@ -15,8 +15,8 @@
 # directory's absolute path, and the state is kept there instead.
 set -euo pipefail
 
-version=1.0.0-beta.19
-image=registry.dagger.io/engine:v$version@sha256:76cfc428cc5deb1bc49984d89c3a0824843a681bb20f71a5f23945518fabcfca
+version=1.0.0-beta.21
+image=registry.dagger.io/engine:v$version@sha256:3444c48e871bedaa95f5b1e57b8c41de929d9e061dd75e9ac6f6deb1f0a74bc3
 # The CLI removes other releases' `dagger-engine-*` containers, so this name avoids the prefix.
 container=dagger-rust-sdk-engine-v$version
 state=${DAGGER_RUST_SDK_ENGINE_STATE:-$container-state}
@@ -35,9 +35,9 @@ case $state in
 esac
 
 case "$(uname -s)/$(uname -m)" in
-Darwin/arm64) platform=darwin_arm64 sha256=57d3fe6fa9107759427ea651921a279462ffec194b48140fd50ce555d13b0605 ;;
-Linux/x86_64) platform=linux_amd64 sha256=fecc67355fb3baff9da548d8f05c468a9c404aeb8d9498801f199fbea78038a0 ;;
-Linux/aarch64) platform=linux_arm64 sha256=89be820ea938ad13373d943ac6bac036478d51cc2eb36dfdea36e625859907d8 ;;
+Darwin/arm64) platform=darwin_arm64 sha256=781f4862c022a19b9a4c498b59e1d9cfda1ee3cdc8ce210e4545bd8842a7416d ;;
+Linux/x86_64) platform=linux_amd64 sha256=c5ac777a5c99089869660943381136e22177b59a46412e310c2fef594760a041 ;;
+Linux/aarch64) platform=linux_arm64 sha256=ba9d55638636918a3404313511bceba5cc0af22f487c1c1b6a5ba60ce70a61bb ;;
 *)
 	echo "engine.sh: no pinned Dagger CLI for $(uname -s)/$(uname -m)" >&2
 	exit 1

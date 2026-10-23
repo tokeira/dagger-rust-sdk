@@ -30,7 +30,7 @@ const GATES_PASSED: &str = "cargo fmt, check, clippy, doc, test (all and no defa
 /// The repository the acceptance installs the runtime from and builds the client against.
 const REPOSITORY: &str = "github.com/tokeira/dagger-rust-sdk";
 /// The release of the CLI the acceptance drives the engine with: the one the SDK targets.
-const DAGGER_VERSION: &str = "1.0.0-beta.19";
+const DAGGER_VERSION: &str = "1.0.0-beta.21";
 /// Introduces the README's module block, which the acceptance runs as written.
 const README_MARKER: &str = "<!-- The ci module's acceptance runs the module below as written. -->";
 /// The manifest of the application that asks for a Rust client scope.
@@ -368,11 +368,11 @@ async fn dagger_cli(dag: &Query) -> Result<Container, ModuleError> {
     let (platform, sha256) = match dag.default_platform().await?.as_str() {
         "linux/amd64" => (
             "linux_amd64",
-            "fecc67355fb3baff9da548d8f05c468a9c404aeb8d9498801f199fbea78038a0",
+            "c5ac777a5c99089869660943381136e22177b59a46412e310c2fef594760a041",
         ),
         "linux/arm64" => (
             "linux_arm64",
-            "89be820ea938ad13373d943ac6bac036478d51cc2eb36dfdea36e625859907d8",
+            "ba9d55638636918a3404313511bceba5cc0af22f487c1c1b6a5ba60ce70a61bb",
         ),
         other => {
             return Err(ModuleError::new(format!(
@@ -1330,7 +1330,7 @@ fn release_sums(sums: &str) -> Result<ReleaseSums, ModuleError> {
 }
 
 /// A Git repository at `path` that commits whatever the container already holds there, as
-/// beta.19's workspaces require. The engine caches the directories a session syncs by path
+/// beta.21's workspaces require. The engine caches the directories a session syncs by path
 /// and by the client ID that the first `dagger` command stores in the container, so
 /// sessions that run at once and sync different contents each need a repository of their
 /// own.
