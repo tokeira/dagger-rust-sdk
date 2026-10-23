@@ -54,14 +54,14 @@ renderer work:
 
    ```console
    UPSTREAM="$(mktemp -d)/dagger"
-   git clone --depth 1 --branch v1.0.0-beta.19 https://github.com/dagger/dagger "$UPSTREAM"
+   git clone --depth 1 --branch v1.0.0-beta.21 https://github.com/dagger/dagger "$UPSTREAM"
    docker run --rm -v "$UPSTREAM:/src:ro" -w /src -e CGO_ENABLED=0 golang:1.26.6 \
      go run ./cmd/introspect introspect --version v1.0.0 > codegen/schema.json
    ```
 
    `__schemaVersion` inside the captured document must state the view; an empty value
    means the capture ran without `--version` and is not the claimed artifact. For
-   `v1.0.0-beta.19` this capture reproduces the committed schema byte for byte.
+   `v1.0.0-beta.21` this capture reproduces the committed schema byte for byte.
 2. Update `codegen/target.json` with the exact Dagger version, full revision, schema
    digest (the SHA-256 of the captured bytes), Rust SDK version, and Rust toolchain —
    and the matching `APPROVED_*` constants in `crates/dagger-codegen/src/target.rs`,

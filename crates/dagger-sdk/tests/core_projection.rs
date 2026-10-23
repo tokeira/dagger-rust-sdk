@@ -1,5 +1,5 @@
 //! Structured field and argument inventory for exhaustive query verification.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:df7839fc7381ed3e899c3e1262a3b7cf384f06c4ac6a72334be3bc543bf1e9be","target_revision":"80699ac67a1c72dc38d30c4186105cd9dd3afde6"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:fa63be22540138c2888c5779db388e117bf8b168d9f7f59b2cb2a77dc4cc9f4d","target_revision":"a7a2e64e853be92728f05aad9dc07bebe63c7448"}
 #![cfg(feature = "gen")]
 const FIELDS: &[(&str, &str, &str, &str, &str)] = &[
     (
@@ -3789,6 +3789,7 @@ const FIELDS: &[(&str, &str, &str, &str, &str)] = &[
     ("Workspace.git", "Workspace", "git", "lazy", "WorkspaceGit"),
     ("Workspace.glob", "Workspace", "glob", "execute", ""),
     ("Workspace.id", "Workspace", "id", "execute", ""),
+    ("Workspace.main", "Workspace", "main", "execute", ""),
     (
         "Workspace.migrate",
         "Workspace",
@@ -3945,6 +3946,13 @@ const FIELDS: &[(&str, &str, &str, &str, &str)] = &[
         "Workspace",
     ),
     (
+        "Workspace.withMain",
+        "Workspace",
+        "withMain",
+        "lazy",
+        "Workspace",
+    ),
+    (
         "Workspace.withModule",
         "Workspace",
         "withModule",
@@ -4081,6 +4089,13 @@ const FIELDS: &[(&str, &str, &str, &str, &str)] = &[
         "Workspace.withoutFiles",
         "Workspace",
         "withoutFiles",
+        "lazy",
+        "Workspace",
+    ),
+    (
+        "Workspace.withoutMain",
+        "Workspace",
+        "withoutMain",
         "lazy",
         "Workspace",
     ),
@@ -4247,6 +4262,13 @@ const FIELDS: &[(&str, &str, &str, &str, &str)] = &[
         "",
     ),
     ("WorkspaceModule.id", "WorkspaceModule", "id", "execute", ""),
+    (
+        "WorkspaceModule.main",
+        "WorkspaceModule",
+        "main",
+        "execute",
+        "",
+    ),
     (
         "WorkspaceModule.name",
         "WorkspaceModule",
@@ -5788,6 +5810,7 @@ const ARGUMENTS: &[(&str, &str, bool, bool)] = &[
         false,
         false,
     ),
+    ("Module.serve(main:)", "main", false, false),
     (
         "Module.withDescription(description:)",
         "description",
@@ -6265,6 +6288,7 @@ const ARGUMENTS: &[(&str, &str, bool, bool)] = &[
         false,
         false,
     ),
+    ("Workspace.withInitModule(main:)", "main", false, false),
     ("Workspace.withInitModule(name:)", "name", false, false),
     ("Workspace.withInitModule(path:)", "path", false, false),
     ("Workspace.withInitModule(sdk:)", "sdk", true, false),
@@ -6274,6 +6298,7 @@ const ARGUMENTS: &[(&str, &str, bool, bool)] = &[
         false,
         false,
     ),
+    ("Workspace.withMain(name:)", "name", true, false),
     ("Workspace.withModule(here:)", "here", false, false),
     ("Workspace.withModule(name:)", "name", false, false),
     ("Workspace.withModule(ref:)", "ref", true, false),
@@ -6374,8 +6399,8 @@ impl RecordingExecutor {
 }
 #[test]
 fn generated_query_projection_inventory_is_exhaustive() {
-    assert_eq!(FIELDS.len(), 920usize);
-    assert_eq!(ARGUMENTS.len(), 791usize);
+    assert_eq!(FIELDS.len(), 924usize);
+    assert_eq!(ARGUMENTS.len(), 794usize);
     assert!(FIELDS.windows(2).all(|pair| pair[0].0 < pair[1].0));
     assert!(ARGUMENTS.windows(2).all(|pair| pair[0].0 < pair[1].0));
     for field in FIELDS {

@@ -1,5 +1,5 @@
 //! Generated bindings owned by the GraphQL `Module` type.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:df7839fc7381ed3e899c3e1262a3b7cf384f06c4ac6a72334be3bc543bf1e9be","target_revision":"80699ac67a1c72dc38d30c4186105cd9dd3afde6"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:fa63be22540138c2888c5779db388e117bf8b168d9f7f59b2cb2a77dc4cc9f4d","target_revision":"a7a2e64e853be92728f05aad9dc07bebe63c7448"}
 #[doc = "A Dagger module."]
 #[derive(Clone)]
 pub struct Module {
@@ -10,10 +10,12 @@ pub struct Module {
 #[derive(Clone, Debug, Default)]
 #[non_exhaustive]
 pub struct ModuleServeOpts {
-    #[doc = "Install the module as the entrypoint, promoting its main-object methods onto the Query root\n\n`None` omits GraphQL field `entrypoint`."]
+    #[doc = "Compatibility alias for main.\n\n`None` omits GraphQL field `entrypoint`.\n\n**Deprecated:** Use main."]
     pub entrypoint: Option<bool>,
     #[doc = "Expose the dependencies of this module to the client\n\n`None` omits GraphQL field `includeDependencies`."]
     pub include_dependencies: Option<bool>,
+    #[doc = "Install the module as the workspace main, promoting its main-object methods onto the Query root\n\n`None` omits GraphQL field `main`."]
+    pub main: Option<bool>,
 }
 impl ModuleServeOpts {
     #[doc = "Sets GraphQL argument `entrypoint` to a concrete value instead of omitting it."]
@@ -26,6 +28,12 @@ impl ModuleServeOpts {
     #[must_use]
     pub fn with_include_dependencies(mut self, value: bool) -> Self {
         self.include_dependencies = Some(value);
+        self
+    }
+    #[doc = "Sets GraphQL argument `main` to a concrete value instead of omitting it."]
+    #[must_use]
+    pub fn with_main(mut self, value: bool) -> Self {
+        self.main = Some(value);
         self
     }
 }
@@ -172,6 +180,11 @@ impl Module {
         };
         let query = if let Some(value) = &opts.include_dependencies {
             query.arg("includeDependencies", value)
+        } else {
+            query
+        };
+        let query = if let Some(value) = &opts.main {
+            query.arg("main", value)
         } else {
             query
         };

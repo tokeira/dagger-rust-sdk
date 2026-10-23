@@ -1,5 +1,5 @@
 //! Generated bindings owned by the GraphQL `Query` type.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:df7839fc7381ed3e899c3e1262a3b7cf384f06c4ac6a72334be3bc543bf1e9be","target_revision":"80699ac67a1c72dc38d30c4186105cd9dd3afde6"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:fa63be22540138c2888c5779db388e117bf8b168d9f7f59b2cb2a77dc4cc9f4d","target_revision":"a7a2e64e853be92728f05aad9dc07bebe63c7448"}
 #[doc = "The root of the DAG."]
 #[derive(Clone)]
 pub struct Query {
@@ -71,7 +71,7 @@ impl QueryContainerOpts {
 #[derive(Clone, Debug, Default)]
 #[non_exhaustive]
 pub struct QueryCurrentTypeDefsOpts {
-    #[doc = "Strip core API functions from the Query type, leaving only module-sourced functions (constructors, entrypoint proxies, etc.).\n\nCore types (Container, Directory, etc.) are kept so return types and method chaining still work.\n\n`None` omits GraphQL field `hideCore`."]
+    #[doc = "Strip core API functions from the Query type, leaving only module-sourced functions (constructors, workspace main proxies, etc.).\n\nCore types (Container, Directory, etc.) are kept so return types and method chaining still work.\n\n`None` omits GraphQL field `hideCore`."]
     pub hide_core: Option<bool>,
     #[doc = "Return the full referenced typedef closure instead of only top-level served typedefs.\n\n`None` omits GraphQL field `returnAllTypes` and preserves engine default `Boolean(false)`."]
     pub return_all_types: Option<bool>,

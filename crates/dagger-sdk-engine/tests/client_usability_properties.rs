@@ -25,9 +25,9 @@ use dagger_sdk_engine::{
 use proptest::prelude::*;
 use sha2::{Digest as _, Sha256};
 
-const REVISION: &str = "80699ac67a1c72dc38d30c4186105cd9dd3afde6";
+const REVISION: &str = "a7a2e64e853be92728f05aad9dc07bebe63c7448";
 const CORE_SCHEMA_DIGEST: &str =
-    "sha256:df7839fc7381ed3e899c3e1262a3b7cf384f06c4ac6a72334be3bc543bf1e9be";
+    "sha256:fa63be22540138c2888c5779db388e117bf8b168d9f7f59b2cb2a77dc4cc9f4d";
 
 #[derive(Clone, Copy, Debug)]
 struct HostRustfmt;
@@ -382,7 +382,7 @@ fn target() -> TargetIdentity {
         format_version: FormatVersion,
         repository: CanonicalRepositoryUrl::new("https://github.com/dagger/dagger").unwrap(),
         dagger_revision: FullRevision::new(REVISION).unwrap(),
-        engine_version: ExactVersion::new("1.0.0-beta.19").unwrap(),
+        engine_version: ExactVersion::new("1.0.0-beta.21").unwrap(),
         rust_sdk_version: ExactVersion::new("0.2.0").unwrap(),
         rust_toolchain: ExactRustToolchain::new("1.99.1").unwrap(),
         core_schema_digest: Sha256Digest::new(CORE_SCHEMA_DIGEST).unwrap(),

@@ -1,5 +1,5 @@
 //! Generated bindings owned by the GraphQL `Workspace` type.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:df7839fc7381ed3e899c3e1262a3b7cf384f06c4ac6a72334be3bc543bf1e9be","target_revision":"80699ac67a1c72dc38d30c4186105cd9dd3afde6"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:fa63be22540138c2888c5779db388e117bf8b168d9f7f59b2cb2a77dc4cc9f4d","target_revision":"a7a2e64e853be92728f05aad9dc07bebe63c7448"}
 #[doc = "A Dagger workspace detected from the current working directory or constructed from a Directory."]
 #[derive(Clone)]
 pub struct Workspace {
@@ -425,10 +425,12 @@ impl WorkspaceWithFileOpts {
 #[derive(Clone, Debug, Default)]
 #[non_exhaustive]
 pub struct WorkspaceWithInitModuleOpts {
-    #[doc = "Select this module as the entrypoint and install it. False prevents automatic selection. When omitted, select only if both path and name are omitted and the module is installed.\n\n`None` omits GraphQL field `entrypoint`."]
+    #[doc = "Compatibility alias for main.\n\n`None` omits GraphQL field `entrypoint`.\n\n**Deprecated:** Use main."]
     pub entrypoint: Option<bool>,
     #[doc = "Install the module. When omitted, install only if path is omitted.\n\n`None` omits GraphQL field `install`."]
     pub install: Option<bool>,
+    #[doc = "Select this module as the workspace main and install it. False prevents automatic selection. When omitted, select only if both path and name are omitted and the module is installed.\n\n`None` omits GraphQL field `main`."]
+    pub main: Option<bool>,
     #[doc = "Module name. The engine infers it from path, the active config file, or the workspace root when omitted.\n\n`None` omits GraphQL field `name` and preserves engine default `String(\"\")`."]
     pub name: Option<String>,
     #[doc = "Module path relative to the workspace cwd, or an absolute workspace path. Defaults to .dagger/modules/&lt;name&gt; beside the active workspace config.\n\n`None` omits GraphQL field `path` and preserves engine default `String(\"\")`."]
@@ -447,6 +449,12 @@ impl WorkspaceWithInitModuleOpts {
     #[must_use]
     pub fn with_install(mut self, value: bool) -> Self {
         self.install = Some(value);
+        self
+    }
+    #[doc = "Sets GraphQL argument `main` to a concrete value instead of omitting it."]
+    #[must_use]
+    pub fn with_main(mut self, value: bool) -> Self {
+        self.main = Some(value);
         self
     }
     #[doc = "Sets GraphQL argument `name` to a concrete value instead of omitting it."]
@@ -755,7 +763,7 @@ impl Workspace {
         let query = self.selection.select("address");
         query.execute(&self.session).await
     }
-    #[doc = "Discover static object artifacts from workspace modules without evaluating their values.\n\nSelects GraphQL field `artifacts` on `Workspace`."]
+    #[doc = "Discover static object artifacts from workspace modules without evaluating their values.\n\nOmits the paths that the workspace's check.skip, generate.skip, and up.skip settings skip.\n\nSelects GraphQL field `artifacts` on `Workspace`."]
     #[must_use]
     pub fn artifacts(&self) -> super::Artifacts {
         let query = self.selection.select("artifacts");
@@ -920,7 +928,8 @@ impl Workspace {
             selection: query,
         }
     }
-    #[doc = "Installed name of the module selected as the workspace entrypoint, or an empty string when none is selected.\n\nReflects the selected env's effective view. Fails if several modules are selected.\n\nSelects GraphQL field `entrypoint` on `Workspace`."]
+    #[doc = "Compatibility alias for main.\n\nSelects GraphQL field `entrypoint` on `Workspace`.\n\n**Deprecated:** Use main."]
+    #[deprecated(note = "Use main.")]
     pub async fn entrypoint(&self) -> Result<String, crate::QueryError> {
         let query = self.selection.select("entrypoint");
         query.execute(&self.session).await
@@ -1033,6 +1042,11 @@ impl Workspace {
     #[doc = "A unique identifier for this Workspace.\n\nSelects GraphQL field `id` on `Workspace`."]
     pub async fn id(&self) -> Result<crate::Id, crate::QueryError> {
         let query = self.selection.select("id");
+        query.execute(&self.session).await
+    }
+    #[doc = "Installed name of the module selected as the workspace main, or an empty string when none is selected.\n\nReflects the selected env's effective view. Fails if several modules are selected.\n\nSelects GraphQL field `main` on `Workspace`."]
+    pub async fn main(&self) -> Result<String, crate::QueryError> {
+        let query = self.selection.select("main");
         query.execute(&self.session).await
     }
     #[doc = "Plan the explicit migration needed for the current workspace.\n\nInclude installed local modules and their local dependencies. Other module candidates remain unchanged unless selected.\n\nThe returned plan has an empty changeset and no steps when no migration is needed.\n\nSelects GraphQL field `migrate` on `Workspace`."]
@@ -1471,7 +1485,8 @@ impl Workspace {
             selection: query,
         }
     }
-    #[doc = "Return this workspace with an installed module selected as its entrypoint.\n\nEvery other entrypoint selection is cleared. Entrypoints live in the base workspace config.\n\nSelects GraphQL field `withEntrypoint` on `Workspace`."]
+    #[doc = "Compatibility alias for withMain.\n\nSelects GraphQL field `withEntrypoint` on `Workspace`.\n\n**Deprecated:** Use withMain."]
+    #[deprecated(note = "Use withMain.")]
     #[must_use]
     pub fn with_entrypoint(&self, name: impl Into<String>) -> super::Workspace {
         let query = self.selection.select("withEntrypoint");
@@ -1545,6 +1560,11 @@ impl Workspace {
         } else {
             query
         };
+        let query = if let Some(value) = &opts.main {
+            query.arg("main", value)
+        } else {
+            query
+        };
         let query = if let Some(value) = &opts.name {
             query.arg("name", value)
         } else {
@@ -1570,6 +1590,16 @@ impl Workspace {
     #[must_use]
     pub fn with_initialized(&self) -> super::Workspace {
         let query = self.selection.select("withInitialized");
+        super::Workspace {
+            session: self.session.clone(),
+            selection: query,
+        }
+    }
+    #[doc = "Return this workspace with an installed module selected as its main.\n\nEvery other main selection is cleared. The main module lives in the base workspace config.\n\nSelects GraphQL field `withMain` on `Workspace`."]
+    #[must_use]
+    pub fn with_main(&self, name: impl Into<String>) -> super::Workspace {
+        let query = self.selection.select("withMain");
+        let query = query.arg("name", name.into());
         super::Workspace {
             session: self.session.clone(),
             selection: query,
@@ -2001,7 +2031,8 @@ impl Workspace {
             selection: query,
         }
     }
-    #[doc = "Return this workspace with no module selected as its entrypoint.\n\nSelects GraphQL field `withoutEntrypoint` on `Workspace`."]
+    #[doc = "Compatibility alias for withoutMain.\n\nSelects GraphQL field `withoutEntrypoint` on `Workspace`.\n\n**Deprecated:** Use withoutMain."]
+    #[deprecated(note = "Use withoutMain.")]
     #[must_use]
     pub fn without_entrypoint(&self) -> super::Workspace {
         let query = self.selection.select("withoutEntrypoint");
@@ -2026,6 +2057,15 @@ impl Workspace {
         let query = self.selection.select("withoutFiles");
         let paths = paths.into_iter().map(Into::into).collect::<Vec<String>>();
         let query = query.arg("paths", paths);
+        super::Workspace {
+            session: self.session.clone(),
+            selection: query,
+        }
+    }
+    #[doc = "Return this workspace with no module selected as its main.\n\nSelects GraphQL field `withoutMain` on `Workspace`."]
+    #[must_use]
+    pub fn without_main(&self) -> super::Workspace {
+        let query = self.selection.select("withoutMain");
         super::Workspace {
             session: self.session.clone(),
             selection: query,

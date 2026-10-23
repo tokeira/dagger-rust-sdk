@@ -37,11 +37,11 @@ fn exact_target_has_one_total_field_strategy() {
         *strategies.entry(name).or_default() += 1;
     }
 
-    assert_eq!(plan.fields().len(), 920);
-    assert_eq!(strategies["lazy"], 376);
+    assert_eq!(plan.fields().len(), 924);
+    assert_eq!(strategies["lazy"], 378);
     assert_eq!(strategies["nullable"], 37);
     assert_eq!(strategies["reenter"], 63);
-    assert_eq!(strategies["execute"], 424);
+    assert_eq!(strategies["execute"], 426);
     assert_eq!(strategies["self"], 20);
     // The claimed surface no longer holds excluded-type references, so the
     // target-private strategy class is empty (schema refresh at v1.0.0-beta.11).
@@ -112,7 +112,7 @@ fn directive_projection_accounts_for_active_aliases_and_inactive_definitions() {
 
     assert_eq!(plan.directives().records().len(), 18);
     assert_eq!(expected_types, 123);
-    assert_eq!(deprecations, 26);
+    assert_eq!(deprecations, 32);
     assert_eq!(experimental, 42);
     assert_eq!(aliases, 23);
     assert_eq!(source_maps, 0);
@@ -158,7 +158,7 @@ fn catalog_has_only_exact_semantic_keys() {
         *kinds.entry(key.binding_kind).or_default() += 1;
     }
 
-    assert_eq!(plan.catalog().bindings().len(), 2_140);
+    assert_eq!(plan.catalog().bindings().len(), 2_147);
     assert_eq!(kinds[&BindingKind::QueryRoot], 1);
     assert_eq!(kinds[&BindingKind::Scalar], 9);
     assert_eq!(kinds[&BindingKind::ObjectHandle], 93);
@@ -170,10 +170,10 @@ fn catalog_has_only_exact_semantic_keys() {
     assert_eq!(kinds[&BindingKind::EnumAlias], 23);
     assert_eq!(kinds[&BindingKind::InputObject], 5);
     assert_eq!(kinds[&BindingKind::InputField], 22);
-    assert_eq!(kinds[&BindingKind::FieldOperation], 920);
+    assert_eq!(kinds[&BindingKind::FieldOperation], 924);
     assert!(!kinds.contains_key(&BindingKind::TargetPrivateType));
     assert!(!kinds.contains_key(&BindingKind::TargetPrivateField));
-    assert_eq!(kinds[&BindingKind::Argument], 791);
+    assert_eq!(kinds[&BindingKind::Argument], 794);
     assert_eq!(kinds[&BindingKind::DirectivePolicy], 18);
     assert_eq!(kinds[&BindingKind::DirectiveArgument], 15);
 }

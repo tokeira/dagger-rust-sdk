@@ -5,7 +5,7 @@
 [![docs.rs](https://img.shields.io/docsrs/tokeira-dagger-sdk)](https://docs.rs/tokeira-dagger-sdk)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![MSRV 1.99.1](https://img.shields.io/badge/MSRV-1.99.1-orange?logo=rust)](Cargo.toml)
-[![Dagger v1.0.0-beta.19](https://img.shields.io/badge/Dagger-v1.0.0--beta.19-informational)](https://github.com/dagger/dagger/tree/v1.0.0-beta.19)
+[![Dagger v1.0.0-beta.21](https://img.shields.io/badge/Dagger-v1.0.0--beta.21-informational)](https://github.com/dagger/dagger/tree/v1.0.0-beta.21)
 [![Built with Codex & Claude](https://img.shields.io/badge/built%20with-Codex%20%26%20Claude-blueviolet)](#built-with-claude)
 
 Rust SDK for [Dagger](https://dagger.io), maintained by Tokeira. Not affiliated with
@@ -13,7 +13,7 @@ Dagger, Inc.
 
 This workspace contains the SDK, its code generator, module-authoring runtime,
 standalone-client generator, and engine integration. The current SDK version is `0.2.0`
-and targets the Dagger `v1.0.0-beta.19` engine contract.
+and targets the Dagger `v1.0.0-beta.21` engine contract.
 
 Application users normally depend on [`tokeira-dagger-sdk`](crates/dagger-sdk). The client is
 owned and asynchronous: it supports generated and raw GraphQL operations,

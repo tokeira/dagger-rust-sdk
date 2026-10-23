@@ -1,5 +1,5 @@
 //! Generated bindings owned by the GraphQL `WorkspaceModule` type.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:df7839fc7381ed3e899c3e1262a3b7cf384f06c4ac6a72334be3bc543bf1e9be","target_revision":"80699ac67a1c72dc38d30c4186105cd9dd3afde6"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:fa63be22540138c2888c5779db388e117bf8b168d9f7f59b2cb2a77dc4cc9f4d","target_revision":"a7a2e64e853be92728f05aad9dc07bebe63c7448"}
 #[doc = "A module entry in the workspace configuration."]
 #[derive(Clone)]
 pub struct WorkspaceModule {
@@ -37,7 +37,8 @@ impl From<WorkspaceModule> for crate::IdInput<super::NodeClient> {
     }
 }
 impl WorkspaceModule {
-    #[doc = "Whether the module is the workspace entrypoint (functions aliased to Query root).\n\nSelects GraphQL field `entrypoint` on `WorkspaceModule`."]
+    #[doc = "Compatibility alias for main.\n\nSelects GraphQL field `entrypoint` on `WorkspaceModule`.\n\n**Deprecated:** Use main."]
+    #[deprecated(note = "Use main.")]
     pub async fn entrypoint(&self) -> Result<bool, crate::QueryError> {
         let query = self.selection.select("entrypoint");
         query.execute(&self.session).await
@@ -50,6 +51,11 @@ impl WorkspaceModule {
     #[doc = "A unique identifier for this WorkspaceModule.\n\nSelects GraphQL field `id` on `WorkspaceModule`."]
     pub async fn id(&self) -> Result<crate::Id, crate::QueryError> {
         let query = self.selection.select("id");
+        query.execute(&self.session).await
+    }
+    #[doc = "Whether the module is the workspace main (functions aliased to Query root).\n\nSelects GraphQL field `main` on `WorkspaceModule`."]
+    pub async fn main(&self) -> Result<bool, crate::QueryError> {
+        let query = self.selection.select("main");
         query.execute(&self.session).await
     }
     #[doc = "The module name.\n\nSelects GraphQL field `name` on `WorkspaceModule`."]

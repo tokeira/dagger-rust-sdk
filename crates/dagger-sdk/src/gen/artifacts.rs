@@ -1,5 +1,5 @@
 //! Generated bindings owned by the GraphQL `Artifacts` type.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:df7839fc7381ed3e899c3e1262a3b7cf384f06c4ac6a72334be3bc543bf1e9be","target_revision":"80699ac67a1c72dc38d30c4186105cd9dd3afde6"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:fa63be22540138c2888c5779db388e117bf8b168d9f7f59b2cb2a77dc4cc9f4d","target_revision":"a7a2e64e853be92728f05aad9dc07bebe63c7448"}
 #[doc = "An immutable selection of workspace artifacts. Listed types, dimensions, and keys use OR; chained filters use AND. Empty alternatives match nothing; unknown names match nothing but module load failures. Filters never change addresses or dimension identifiers. Module keys match a module's configured or kebab-case name. A module that failed to load has no schema, so its load failure stands in for whatever it would hold: a filter keeps it when the module could hold something the filter selects, and an exclusion drops it only by its own address, such as &lt;module&gt;/** or ?module=&lt;module&gt;."]
 #[derive(Clone)]
 pub struct Artifacts {
@@ -384,7 +384,7 @@ impl Artifacts {
             selection: query,
         }
     }
-    #[doc = "Keep paths that match a glob pattern. A literal path matches exactly. Both module-qualified and entrypoint paths match.\n\nSelects GraphQL field `filterPathPattern` on `Artifacts`."]
+    #[doc = "Keep paths that match a glob pattern. A literal path matches exactly. Both module-qualified and workspace main paths match.\n\nSelects GraphQL field `filterPathPattern` on `Artifacts`."]
     #[must_use]
     pub fn filter_path_pattern(&self, pattern: impl Into<String>) -> super::Artifacts {
         let query = self.selection.select("filterPathPattern");

@@ -1,5 +1,5 @@
 //! Compile-only reachability proof for every generated public Rust symbol.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:df7839fc7381ed3e899c3e1262a3b7cf384f06c4ac6a72334be3bc543bf1e9be","target_revision":"80699ac67a1c72dc38d30c4186105cd9dd3afde6"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:fa63be22540138c2888c5779db388e117bf8b168d9f7f59b2cb2a77dc4cc9f4d","target_revision":"a7a2e64e853be92728f05aad9dc07bebe63c7448"}
 #![cfg(feature = "gen")]
 use dagger_sdk::*;
 fn generated_value<T>() -> T {
@@ -1964,6 +1964,8 @@ fn reach_module(value: &Module) {
     drop(ModuleServeOpts::default().with_entrypoint(generated_value::<bool>()));
     let _ = &opts.include_dependencies;
     drop(ModuleServeOpts::default().with_include_dependencies(generated_value::<bool>()));
+    let _ = &opts.main;
+    drop(ModuleServeOpts::default().with_main(generated_value::<bool>()));
     drop(value.source());
     drop(value.sync());
     drop(value.user_defaults());
@@ -2528,6 +2530,7 @@ fn reach_workspace(value: &Workspace) {
     drop(value.git());
     drop(value.glob(String::new()));
     drop(value.id());
+    drop(value.main());
     drop(value.migrate());
     let opts = WorkspaceMigrateOpts::default();
     drop(value.migrate_opts(&opts));
@@ -2625,6 +2628,8 @@ fn reach_workspace(value: &Workspace) {
     drop(WorkspaceWithInitModuleOpts::default().with_entrypoint(generated_value::<bool>()));
     let _ = &opts.install;
     drop(WorkspaceWithInitModuleOpts::default().with_install(generated_value::<bool>()));
+    let _ = &opts.main;
+    drop(WorkspaceWithInitModuleOpts::default().with_main(generated_value::<bool>()));
     let _ = &opts.name;
     drop(WorkspaceWithInitModuleOpts::default().with_name(String::new()));
     let _ = &opts.path;
@@ -2634,6 +2639,7 @@ fn reach_workspace(value: &Workspace) {
         WorkspaceWithInitModuleOpts::default().with_settings(generated_value::<dagger_sdk::Json>()),
     );
     drop(value.with_initialized());
+    drop(value.with_main(String::new()));
     drop(value.with_module(String::new()));
     let opts = WorkspaceWithModuleOpts::default();
     drop(value.with_module_opts(String::new(), &opts));
@@ -2714,6 +2720,7 @@ fn reach_workspace(value: &Workspace) {
     drop(value.without_entrypoint());
     drop(value.without_file(String::new()));
     drop(value.without_files(generated_value::<Vec<String>>()));
+    drop(value.without_main());
     drop(value.without_module(String::new()));
     let opts = WorkspaceWithoutModuleOpts::default();
     drop(value.without_module_opts(String::new(), &opts));
@@ -2762,6 +2769,7 @@ fn reach_workspacemodule(value: &WorkspaceModule) {
     drop(value.entrypoint());
     drop(value.functions());
     drop(value.id());
+    drop(value.main());
     drop(value.name());
     drop(value.settings());
     drop(value.source());
