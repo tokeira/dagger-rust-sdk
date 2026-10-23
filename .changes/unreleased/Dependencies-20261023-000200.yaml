@@ -1,0 +1,7 @@
+kind: Dependencies
+body: |
+    The examples and repository builds resolve `tokio` 1.53.3, which fixes RUSTSEC-2026-0386: `AsyncFd`'s safe constructors could violate I/O safety. Crates that depend on the SDK resolve their own `tokio` release, and `cargo update -p tokio` moves them to a fixed one.
+time: 2026-10-23T00:02:00Z
+custom:
+    Author: iw
+    PR: "33"
