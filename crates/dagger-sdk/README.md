@@ -17,7 +17,7 @@ Add the SDK and an async runtime to `Cargo.toml`:
 
 ```toml
 [dependencies]
-tokeira-dagger-sdk = "0.3.0"
+tokeira-dagger-sdk = "0.3.1"
 tokio = { version = "1.35.1", features = ["macros", "rt-multi-thread"] }
 ```
 

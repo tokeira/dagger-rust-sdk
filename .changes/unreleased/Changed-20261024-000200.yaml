@@ -1,7 +1,0 @@
-kind: Changed
-body: |
-    When a module function returns a query that failed in transport with `?`, its error ends with the I/O failure at the root of the transport error, such as `the engine transport failed: timed out (os error 110)`. Only the failure's kind and operating system code appear; the transport library's own message, which can carry credentials, still does not.
-time: 2026-10-24T00:02:00Z
-custom:
-    Author: iw
-    PR: "35"
