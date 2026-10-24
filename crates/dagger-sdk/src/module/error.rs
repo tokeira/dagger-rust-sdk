@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 use std::error::Error;
-use std::fmt;
+use std::{fmt, io};
 
 use serde::Serialize;
 use serde_json::{Map, Value};
@@ -247,9 +247,10 @@ fn query_cause(error: &QueryError) -> Option<&QueryError> {
     None
 }
 
-/// The display of `error` and of each SDK error below it. The chain stops at the first
-/// error from another crate, such as a transport library's: only the SDK's own
-/// renderings are guaranteed free of credentials and response bodies.
+/// The display of `error` and of each SDK error below it, then the I/O failure at the
+/// root of the chain, if any. The chain stops at the first error from another crate, such
+/// as a transport library's: only the SDK's own renderings are guaranteed free of
+/// credentials and response bodies.
 fn sdk_causes(error: &QueryError) -> String {
     let mut message = error.to_string();
     let mut cause = Error::source(error);
@@ -267,12 +268,45 @@ fn sdk_causes(error: &QueryError) -> String {
         message.push_str(&current.to_string());
         cause = current.source();
     }
+    if let Some(failure) = cause.and_then(io_failure) {
+        message.push_str(": ");
+        message.push_str(&failure);
+    }
     message
+}
+
+/// The kind of the deepest I/O error in `error`'s chain, with its operating system code if
+/// it has one, such as "timed out (os error 110)". Both come from fixed tables, unlike the
+/// errors' own renderings, which can carry a URL, a header or a response. An error of kind
+/// `Other` without a code says nothing a reader can act on, so it gives `None`.
+fn io_failure(error: &(dyn Error + 'static)) -> Option<String> {
+    let mut deepest = None;
+    let mut cause = Some(error);
+    while let Some(current) = cause {
+        cause = match current.downcast_ref::<io::Error>() {
+            Some(failure) => {
+                deepest = Some(failure);
+                // An I/O error's `source` skips the error it wraps, which may be another
+                // I/O error.
+                failure
+                    .get_ref()
+                    .map(|inner| inner as &(dyn Error + 'static))
+            }
+            None => current.source(),
+        };
+    }
+    let failure = deepest?;
+    match (failure.kind(), failure.raw_os_error()) {
+        (io::ErrorKind::Other, None) => None,
+        (kind, None) => Some(kind.to_string()),
+        (kind, Some(code)) => Some(format!("{kind} (os error {code})")),
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::io;
+    use std::error::Error;
+    use std::{fmt, io};
 
     use serde_json::{Map, json};
 
@@ -395,6 +429,53 @@ mod tests {
         assert_eq!(
             error.message(),
             "the GraphQL query request failed: the engine connection failed: the engine transport failed"
+        );
+    }
+
+    /// A transport library's error, whose rendering names the URL it failed to reach.
+    #[derive(Debug)]
+    struct LibraryError(io::Error);
+
+    impl fmt::Display for LibraryError {
+        fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            formatter.write_str("error sending request for url (http://user:secret@127.0.0.1/)")
+        }
+    }
+
+    impl Error for LibraryError {
+        fn source(&self) -> Option<&(dyn Error + 'static)> {
+            Some(&self.0)
+        }
+    }
+
+    fn transport_failure(source: impl Error + Send + Sync + 'static) -> QueryError {
+        QueryError::Request(RequestError::Connection(
+            EngineConnectionError::with_source(EngineConnectionErrorKind::Transport, source),
+        ))
+    }
+
+    #[test]
+    fn a_request_failure_names_the_kind_of_the_io_failure_below_the_library() {
+        let wrapped = io::Error::other(io::Error::from(io::ErrorKind::TimedOut));
+        let error = ModuleError::from(transport_failure(LibraryError(wrapped)));
+
+        assert_eq!(
+            error.message(),
+            "the GraphQL query request failed: the engine connection failed: the engine transport failed: timed out"
+        );
+    }
+
+    #[test]
+    fn a_request_failure_names_the_operating_system_code() {
+        let failure = io::Error::from_raw_os_error(110);
+        let kind = failure.kind();
+        let error = ModuleError::from(transport_failure(LibraryError(failure)));
+
+        assert_eq!(
+            error.message(),
+            format!(
+                "the GraphQL query request failed: the engine connection failed: the engine transport failed: {kind} (os error 110)"
+            )
         );
     }
 }
