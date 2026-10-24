@@ -157,6 +157,11 @@ needs a Git workspace:
 11. A module configured by a legacy `dagger.json`, without `dagger-module.toml` or
     generated files, loads and answers `dagger -m <path> call`. The runtime generates
     its code privately, and the workspace is unchanged.
+12. A plain client's query outlasts a lost reply to a TCP keepalive probe. The client
+    runs under `dagger run` with insecure root capabilities and waits 45 s on an exec.
+    Meanwhile it drops the session's acknowledgements to it with iptables for 20 s,
+    spanning its first probe. It also fails if no probe went unanswered, because then the
+    step proved nothing.
 
 The README's `ci` module is a fuller module check: `test` against PostgreSQL, `build`,
 and `publish` to a registry that only the engine can reach
@@ -180,13 +185,6 @@ ref to make resolution pass.
 
 This immutable dependency mechanism protects generated projects. It does not publish a
 crate, create a tag, or authorize a hosted release.
-
-## Unverified engine regression
-
-A long-running module query was once observed to fail with
-`Post "http://dagger/query": unexpected EOF` after roughly 30 seconds. It is a separate,
-unverified engine regression: the acceptance does not exercise that duration, and Rust
-SDK release readiness does not claim it is fixed.
 
 ## Local triage and generated ownership
 

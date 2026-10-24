@@ -89,8 +89,9 @@ impl Ci {
     /// Runs the stock-engine acceptance of docs/engine-integration.md for a pushed commit:
     /// the runtime installed from it, a module initialized, regenerated, loaded and called,
     /// plain clients, a refused client scope, an existing crate adopted, the refusals of
-    /// broken modules and unsafe initializations, a legacy module, and the README module's
-    /// test and build. It needs an engine of the release the commit targets.
+    /// broken modules and unsafe initializations, a legacy module, the README module's test
+    /// and build, and a plain client's query through a lost keepalive reply. It needs an
+    /// engine of the release the commit targets.
     #[dagger(function)]
     pub async fn acceptance(
         &self,
@@ -127,8 +128,9 @@ impl Ci {
              existing crate was adopted and one without a root object refused; modules with \
              missing or stale generated files or too old a toolchain failed to load; \
              initialization wrote nothing outside the workspace and refused to overwrite a file \
-             or print a credential; a legacy module answered a call; and the README module's \
-             test and build passed"
+             or print a credential; a legacy module answered a call; the README module's test \
+             and build passed; and a plain client's query outlasted a lost reply to a \
+             keepalive probe"
         ))
     }
 
@@ -501,9 +503,10 @@ async fn client_scope_refused(workspace: &Container) -> Result<(), ModuleError> 
     Ok(())
 }
 
-/// Step 6: plain clients, built from the commit, run under `dagger run`. One makes Void calls
-/// and exports an image; the other makes each kind of generated Core call and meets each kind
-/// of failure the client reports.
+/// Steps 6 and 12: plain clients, built from the commit, run under `dagger run`. One makes
+/// Void calls and exports an image; another makes each kind of generated Core call and meets
+/// each kind of failure the client reports; the third keeps a query through a lost reply to
+/// a keepalive probe.
 async fn plain_clients(
     dag: &Query,
     cli: &Container,
@@ -512,6 +515,16 @@ async fn plain_clients(
     engine: &str,
 ) -> Result<(), ModuleError> {
     let client = cli
+        // For the keepalive client, which drops packets with iptables.
+        .with_exec(vec!["apt-get", "update", "--quiet"])
+        .with_exec(vec![
+            "apt-get",
+            "install",
+            "--quiet",
+            "--yes",
+            "--no-install-recommends",
+            "iptables",
+        ])
         .with_mounted_cache(
             dag.cache_volume("cargo-registry"),
             "/usr/local/cargo/registry",
@@ -524,7 +537,13 @@ async fn plain_clients(
         .with_exec(vec!["cargo", "build", "--quiet", "--locked"]);
     let canary = async {
         let expected = format!("ACCEPTANCE-CLIENT-OK {engine}");
-        let run = client_run(&client, "acceptance-client", &expected).await?;
+        let run = client_run(
+            &client,
+            "acceptance-client",
+            ContainerWithExecOpts::default(),
+            &expected,
+        )
+        .await?;
         let image = run
             .with_exec(vec!["tar", "-tf", "canary.tar"])
             .stdout()
@@ -539,20 +558,40 @@ async fn plain_clients(
             ))
         }
     };
-    let expected = format!("ACCEPTANCE-CONFORMANCE-OK {engine}");
-    tokio::try_join!(canary, client_run(&client, "conformance", &expected))?;
+    let conformance = format!("ACCEPTANCE-CONFORMANCE-OK {engine}");
+    let keepalive = format!("ACCEPTANCE-KEEPALIVE-OK {engine}");
+    tokio::try_join!(
+        canary,
+        client_run(
+            &client,
+            "conformance",
+            ContainerWithExecOpts::default(),
+            &conformance
+        ),
+        // iptables needs the network administration capability.
+        client_run(
+            &client,
+            "keepalive",
+            ContainerWithExecOpts::default().with_insecure_root_capabilities(true),
+            &keepalive
+        ),
+    )?;
     Ok(())
 }
 
-/// Runs the client binary `bin` under `dagger run`, which must print the line `expected`,
-/// and returns the container as the run left it.
+/// Runs the client binary `bin` under `dagger run`, in an exec with `opts`, which must print
+/// the line `expected`, and returns the container as the run left it.
 async fn client_run(
     client: &Container,
     bin: &str,
+    opts: ContainerWithExecOpts,
     expected: &str,
 ) -> Result<Container, ModuleError> {
     let args = ["run", "cargo", "run", "--quiet", "--locked", "--bin", bin];
-    let run = dagger(client, &args);
+    let run = client.with_exec_opts(
+        dagger_command(&args),
+        &opts.with_dagger_in_dagger_new_session(true),
+    );
     let output = run.stdout().await.map_err(step_failure)?;
     if output.lines().any(|line| line == expected) {
         Ok(run)

@@ -1,5 +1,5 @@
 {
-  "descriptor_digest": "sha256:2075fc24e4fb55c8344dee5b2343a2aac08b80440db85749e7b0d4698c8fcafd",
+  "descriptor_digest": "sha256:e731e21aea31b0be575accac2e63e39ae18d0124566c440c66ebeeccb3feb5af",
   "format_version": 1,
   "types": {
     "Ci": {
@@ -20,7 +20,7 @@
               "optional": false,
               "source": {
                 "column": 9,
-                "line": 99,
+                "line": 100,
                 "path": "src/lib.rs"
               },
               "ty": {
@@ -36,7 +36,7 @@
           },
           "constructor": false,
           "deprecation": null,
-          "documentation": "Runs the stock-engine acceptance of docs/engine-integration.md for a pushed commit:\nthe runtime installed from it, a module initialized, regenerated, loaded and called,\nplain clients, a refused client scope, an existing crate adopted, the refusals of\nbroken modules and unsafe initializations, a legacy module, and the README module's\ntest and build. It needs an engine of the release the commit targets.",
+          "documentation": "Runs the stock-engine acceptance of docs/engine-integration.md for a pushed commit:\nthe runtime installed from it, a module initialized, regenerated, loaded and called,\nplain clients, a refused client scope, an existing crate adopted, the refusals of\nbroken modules and unsafe initializations, a legacy module, the README module's test\nand build, and a plain client's query through a lost keepalive reply. It needs an\nengine of the release the commit targets.",
           "return_type": {
             "kind": "named",
             "name": "String",
@@ -45,7 +45,7 @@
           "role": "ordinary",
           "source": {
             "column": 18,
-            "line": 95,
+            "line": 96,
             "path": "src/lib.rs"
           },
           "wire_name": "acceptance"
@@ -83,7 +83,7 @@
               "optional": false,
               "source": {
                 "column": 9,
-                "line": 147,
+                "line": 149,
                 "path": "src/lib.rs"
               },
               "ty": {
@@ -108,7 +108,7 @@
           "role": "ordinary",
           "source": {
             "column": 18,
-            "line": 141,
+            "line": 143,
             "path": "src/lib.rs"
           },
           "wire_name": "package"
@@ -125,7 +125,7 @@
               "optional": false,
               "source": {
                 "column": 89,
-                "line": 166,
+                "line": 168,
                 "path": "src/lib.rs"
               },
               "ty": {
@@ -150,7 +150,7 @@
           "role": "ordinary",
           "source": {
             "column": 18,
-            "line": 163,
+            "line": 165,
             "path": "src/lib.rs"
           },
           "wire_name": "published"
