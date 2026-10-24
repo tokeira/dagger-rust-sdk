@@ -52,6 +52,10 @@ proptest.workspace = true
 rand.workspace = true
 trybuild.workspace = true
 
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+# Reads the loopback transport's socket options back from the kernel.
+rustix = { workspace = true, features = ["net"] }
+
 [features]
 default = ["gen"]
 gen = []

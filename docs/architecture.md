@@ -121,8 +121,11 @@ protocol work or child reaping.
 Implicit transport constructs its endpoint internally from a validated non-zero port.
 It dials `127.0.0.1`, sends the session token as the Basic-auth username with an empty
 password, ignores proxies, rejects redirects, and transmits each GraphQL operation at
-most once. Request encoding, HTTP status, response decoding, GraphQL, and engine-domain
-failures retain separate typed boundaries.
+most once. A query can wait minutes for the engine without a byte crossing its
+connection, so the connection keeps TCP keepalive as the Go SDK's does, a probe after 15 s
+of silence and then every 15 s until 9 go unanswered, and sets no TCP user timeout, which
+on Linux would end it after one unanswered probe. Request encoding, HTTP status, response
+decoding, GraphQL, and engine-domain failures retain separate typed boundaries.
 
 Each client owns stateless W3C trace-context and baggage propagators. A valid context
 from the active `tracing` span takes precedence over the environment captured at

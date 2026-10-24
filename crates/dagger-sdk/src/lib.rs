@@ -335,5 +335,8 @@ mod test_support;
 #[cfg(test)]
 mod transport_foundation_tests;
 
+#[cfg(all(test, target_os = "linux"))]
+mod transport_keepalive_tests;
+
 #[cfg(all(test, feature = "gen"))]
 mod runtime_connector_tests;

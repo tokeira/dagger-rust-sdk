@@ -1,0 +1,7 @@
+kind: Fixed
+body: |
+    A query no longer fails when one reply to a TCP keepalive probe goes missing while the engine works on it. On Linux, the SDK's connection to the engine kept Reqwest's default `TCP_USER_TIMEOUT` of 30 s, so the kernel reset it after a single unanswered probe, and the query failed with "the engine transport failed". The connection now keeps alive like the Go SDK's: a probe after 15 s of silence, then one every 15 s, and it gives up only after 9 unanswered probes.
+time: 2026-10-24T00:01:00Z
+custom:
+    Author: iw
+    PR: "35"

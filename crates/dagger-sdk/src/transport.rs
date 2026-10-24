@@ -3,6 +3,10 @@
 //! The endpoint authority and path are constructed internally, proxy use and redirects
 //! are disabled, and an execution builds exactly one Reqwest request. Connection
 //! establishment policy therefore cannot turn an ambiguous body delivery into replay.
+//!
+//! A request waits silently for as long as the engine works on it, often for minutes, so
+//! TCP keepalive alone decides when the connection is dead. Its settings are explicit,
+//! never Reqwest's defaults, and must tolerate at least as much silence as the Go SDK.
 
 use std::fmt;
 use std::time::Duration;
@@ -14,6 +18,15 @@ use crate::graphql::{RawRequest, RawResponse};
 use crate::preflight::PropagationEnvironment;
 use crate::propagation::W3cPropagation;
 use crate::session::{ExistingSessionResource, SecretString};
+
+// The Go SDK dials the session with `net.Dial` (`defaultHTTPClient` in
+// sdk/go/engineconn/engineconn.go), so its connection keeps Go's defaults
+// (`defaultTCPKeepAliveIdle`, `defaultTCPKeepAliveInterval` and `defaultTCPKeepAliveCount` in
+// Go's net/dial.go): the first probe after 15 s of silence, then one every 15 s, and the
+// connection is dead after 9 unanswered probes, about two and a half minutes of silence.
+const KEEPALIVE_IDLE: Duration = Duration::from_secs(15);
+const KEEPALIVE_INTERVAL: Duration = Duration::from_secs(15);
+const KEEPALIVE_PROBES: u32 = 9;
 
 /// Compile-time factory boundary for the concrete connector and transport fixtures.
 pub(crate) trait LoopbackTransportFactory: Send + Sync {
@@ -69,14 +82,23 @@ impl ReqwestLoopbackConnection {
             reqwest::Url::parse(&format!("http://127.0.0.1:{port}/query")).map_err(|error| {
                 EngineConnectionError::with_source(EngineConnectionErrorKind::Protocol, error)
             })?;
-        let client = reqwest::Client::builder()
+        let builder = reqwest::Client::builder()
             .no_proxy()
             .redirect(reqwest::redirect::Policy::none())
             .connect_timeout(connect_timeout)
-            .build()
-            .map_err(|error| {
-                EngineConnectionError::with_source(EngineConnectionErrorKind::Transport, error)
-            })?;
+            .tcp_keepalive(KEEPALIVE_IDLE)
+            .tcp_keepalive_interval(KEEPALIVE_INTERVAL)
+            .tcp_keepalive_retries(KEEPALIVE_PROBES);
+        // Reqwest sets TCP_USER_TIMEOUT to 30 s by default. With it, Linux resets a
+        // connection once 30 s pass without an acknowledgement while a keepalive probe is
+        // outstanding, whatever the probe count, so one lost reply to a probe ended a
+        // request the engine was still working on. Go leaves the option unset, and so does
+        // this connection.
+        #[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
+        let builder = builder.tcp_user_timeout(None);
+        let client = builder.build().map_err(|error| {
+            EngineConnectionError::with_source(EngineConnectionErrorKind::Transport, error)
+        })?;
         Ok(Self {
             client,
             endpoint,

@@ -1852,6 +1852,7 @@ dependencies = [
  "proptest",
  "rand 0.8.7",
  "reqwest",
+ "rustix",
  "semver",
  "serde",
  "serde_graphql_input",
