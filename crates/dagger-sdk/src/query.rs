@@ -56,6 +56,8 @@ pub(crate) struct Selection {
     // BTreeMap makes authored documents reproducible regardless of hash seeding.
     args: BTreeMap<String, LazyResolve>,
     inline_fragment: Option<String>,
+    // Set only on a re-entry's inline fragment: the ID that its `node(id:)` loads.
+    loaded_id: Option<Id>,
     prev: Option<Arc<Selection>>,
 }
 
@@ -151,6 +153,18 @@ impl Selection {
     where
         D: DeserializeOwned,
     {
+        if let Some(id) = self.loaded_id() {
+            // The object a loaded ID names has that ID, so the engine would
+            // only send it back.
+            return serde_json::from_value(Value::String(id.as_str().to_owned())).map_err(
+                |error| {
+                    QueryError::Decode(ResponseDecodingError::with_source(
+                        ResponseDecodingErrorKind::InvalidShape,
+                        error,
+                    ))
+                },
+            );
+        }
         let document = self.build().await.map_err(QueryError::Build)?;
         // The document inlines every argument literal, including secret
         // plaintexts, so it must never reach telemetry; observability stops at
@@ -222,6 +236,17 @@ impl Selection {
         })
     }
 
+    /// The ID a plain `id` selection reads directly on a handle re-entered from it.
+    ///
+    /// An alias or argument makes it a different selection, which still asks the
+    /// engine.
+    fn loaded_id(&self) -> Option<&Id> {
+        if self.name.as_deref() != Some("id") || self.alias.is_some() || !self.args.is_empty() {
+            return None;
+        }
+        self.prev.as_deref()?.loaded_id.as_ref()
+    }
+
     fn path(&self) -> Vec<Self> {
         let mut selections = Vec::new();
         let mut current = self;
@@ -286,11 +311,22 @@ pub(crate) fn reenter<T>(session: &SessionHandle, id: Id, concrete_type: &str) -
 where
     T: loadable::private::Sealed,
 {
-    let selection = query()
+    T::from_query(session.clone(), reentry(id, concrete_type))
+}
+
+/// Selects `node(id:)` as `concrete_type` and keeps `id`, so a handle built on the
+/// selection returns its ID without a request.
+///
+/// Only an ID that this client's query returned for the object is kept: `id` on the
+/// node it loads returns that same ID. Any other ID goes through [`reenter_lazy`],
+/// whose handles still ask the engine.
+fn reentry(id: Id, concrete_type: &str) -> Selection {
+    let mut selection = query()
         .select("node")
-        .arg("id", id)
+        .arg("id", &id)
         .inline_fragment(concrete_type);
-    T::from_query(session.clone(), selection)
+    selection.loaded_id = Some(id);
+    selection
 }
 
 #[cfg_attr(not(feature = "gen"), allow(dead_code))]
@@ -400,6 +436,10 @@ impl QueryBuilder {
     /// `concrete_type` may be more specific than `T` for an interface value. Keeping
     /// that inline-fragment identity prevents interface decoding from manufacturing an
     /// untyped substitute while still returning the checked Rust interface client.
+    ///
+    /// The handle does not keep `id`. The engine passes a function's arguments and
+    /// state as IDs that need not be in the form the `id` field returns, so the
+    /// handle asks the engine for its ID, as Dagger's Go SDK does for arguments.
     #[cfg(feature = "gen")]
     #[doc(hidden)]
     #[must_use]
@@ -407,7 +447,7 @@ impl QueryBuilder {
     where
         T: crate::Loadable + 'static,
     {
-        reenter(&self.session, id, concrete_type)
+        reenter_lazy(&self.session, IdInput::new(id), concrete_type)
     }
 
     /// Constructs a Core SDK handle from this builder's current selection.
@@ -429,16 +469,14 @@ impl QueryBuilder {
     /// Standalone bindings use the returned public builder to construct their own
     /// private handle types. Resetting the selection while cloning the same session is
     /// what makes identifier re-entry independent of the field which produced it,
-    /// without reconnecting or allowing a cross-session splice.
+    /// without reconnecting or allowing a cross-session splice. The builder keeps `id`,
+    /// so selecting `id` on it returns that ID without a request.
     #[doc(hidden)]
     #[must_use]
     pub fn generated_reentry_builder(&self, id: Id, concrete_type: &'static str) -> Self {
         Self {
             session: self.session.clone(),
-            selection: query()
-                .select("node")
-                .arg("id", id)
-                .inline_fragment(concrete_type),
+            selection: reentry(id, concrete_type),
         }
     }
 

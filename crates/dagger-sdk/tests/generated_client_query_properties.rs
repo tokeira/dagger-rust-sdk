@@ -258,16 +258,22 @@ async fn property_09_wrappers_omission_wire_names_id_reentry_faithful() {
             );
             if let Some(item) = items.into_iter().flatten().next() {
                 let expected = ids.into_iter().flatten().next().expect("an ID exists");
-                connection.respond_with(json!({"node": {"id": expected}}));
+                let admitted = connection.execute_calls();
                 assert_eq!(
                     item.id()
                         .await
-                        .expect("re-entered handle executes")
+                        .expect("re-entered handle keeps its ID")
                         .as_str(),
                     expected
                 );
+                assert_eq!(connection.execute_calls(), admitted);
+                connection.respond_with(json!({"node": {"state": "READY"}}));
+                assert_eq!(
+                    item.state().await.expect("re-entered handle executes"),
+                    dagger_client::minimal::State::Ready
+                );
                 let expected_query =
-                    format!("query{{node(id:\"{expected}\"){{... on MinimalItem{{id}}}}}}");
+                    format!("query{{node(id:\"{expected}\"){{... on MinimalItem{{state}}}}}}");
                 assert_eq!(
                     connection.requests().last().map(String::as_str),
                     Some(expected_query.as_str())
@@ -281,16 +287,15 @@ async fn property_09_wrappers_omission_wire_names_id_reentry_faithful() {
                 .await
                 .expect("nullable identifier decodes")
                 .expect("fixture returns one item");
-            connection.respond_with(json!({"node": {"id": lazy_id.as_str()}}));
             connection.respond_with(json!({"minimal": {"useItem": "used"}}));
+            let admitted = connection.execute_calls();
             assert_eq!(root.use_item(item).await.expect("lazy ID resolves"), "used");
-            let requests = connection.requests();
-            let expected_lookup =
-                format!("query{{node(id:\"{lazy_id}\"){{... on MinimalItem{{id}}}}}}");
+            // The item keeps the ID it was loaded from, so using it asks for no lookup.
+            assert_eq!(connection.execute_calls(), admitted + 1);
             let expected_use = format!("query{{minimal{{useItem(item:\"{lazy_id}\")}}}}");
             assert_eq!(
-                &requests[requests.len() - 2..],
-                [expected_lookup, expected_use]
+                connection.requests().last().map(String::as_str),
+                Some(expected_use.as_str())
             );
         }
     }
@@ -354,14 +359,28 @@ async fn exact_version_bridge_covers_direct_ids_core_reentry_and_explicit_null()
         .await
         .expect("Core ID probe succeeds")
         .expect("fixture returns a Core handle");
-    connection.respond_with(json!({"node": {"id": "ctr-reentry"}}));
+    let admitted = connection.execute_calls();
     assert_eq!(
         container
             .id()
             .await
-            .expect("Core re-entry executes")
+            .expect("Core re-entry keeps its ID")
             .as_str(),
         "ctr-reentry"
+    );
+    assert_eq!(connection.execute_calls(), admitted);
+    connection.respond_with(json!({"node": {"platform": "linux/arm64"}}));
+    assert_eq!(
+        container
+            .platform()
+            .await
+            .expect("Core re-entry executes")
+            .as_str(),
+        "linux/arm64"
+    );
+    assert_eq!(
+        connection.requests().last().map(String::as_str),
+        Some("query{node(id:\"ctr-reentry\"){... on Container{platform}}}")
     );
 
     connection.respond_with(json!({"minimal": {"search": "null"}}));

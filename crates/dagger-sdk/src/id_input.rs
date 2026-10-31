@@ -41,6 +41,11 @@ enum IdInputValue {
 /// Raw [`Id`] values convert to any target without an engine lookup. Generated code
 /// supplies conversions from compatible handles; no blanket handle conversion exists,
 /// so an identifier for an unrelated schema type is rejected at compile time.
+///
+/// A handle made from an ID that a query returned for it, such as the result of `sync`
+/// or an element of a list of objects, keeps that ID and also converts without a
+/// lookup. Any other handle, including one a module function receives, asks the engine
+/// for its ID while the request that uses it is built.
 pub struct IdInput<T> {
     value: IdInputValue,
     target: PhantomData<fn() -> T>,

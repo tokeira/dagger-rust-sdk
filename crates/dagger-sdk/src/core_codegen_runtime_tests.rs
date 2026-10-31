@@ -16,7 +16,7 @@ use crate::errors::{QueryBuildErrorKind, QueryError, RequestError};
 use crate::graphql::{GraphQlError, RawRequest, RawResponse, ResponseData};
 use crate::lifecycle::SessionHandle;
 use crate::loadable::private::Sealed;
-use crate::query::{QueryBuilder, Selection, query, reenter};
+use crate::query::{QueryBuilder, Selection, query, reenter, reenter_lazy};
 use crate::test_support::{io_proptest_config, proptest_config};
 use crate::{Id, IdInput, IntoID, Json, Platform};
 
@@ -575,4 +575,140 @@ async fn invalid_nullable_identifier_response_returns_no_partial_handle() {
         .await;
     assert!(matches!(result, Err(QueryError::Decode(_))));
     assert_eq!(probe.request_count(), 1);
+}
+
+fn responses<const N: usize>(values: [Value; N]) -> [ProbeOutcome; N] {
+    values.map(|value| ProbeOutcome::Response(RawResponse::new(ResponseData::Value(value))))
+}
+
+#[tokio::test]
+async fn reentered_handles_keep_the_id_they_were_loaded_from() {
+    let probe = RuntimeProbe::new(responses([
+        json!({"candidate": {"sync": "loaded"}}),
+        json!({"consume": true}),
+    ]));
+    let session = session(probe.clone(), None);
+    let handle = query()
+        .select("candidate")
+        .select("sync")
+        .execute_reentry::<TestHandle, Id>(&session, "TestObject")
+        .await
+        .expect("an ID-returning field re-enters");
+
+    let id = handle
+        .clone()
+        .into_id()
+        .await
+        .expect("the loaded ID is kept");
+    assert_eq!(id.as_str(), "loaded");
+    assert_eq!(probe.request_count(), 1);
+
+    // Passing the handle on costs only the request that uses it.
+    let consumed = query()
+        .select("consume")
+        .arg_id_input("item", IdInput::<TestHandle>::lazy(handle))
+        .execute::<bool>(&session)
+        .await
+        .expect("the kept ID is the argument");
+    assert!(consumed);
+    assert_eq!(
+        probe.requests(),
+        ["query{candidate{sync}}", "query{consume(item:\"loaded\")}"]
+    );
+}
+
+#[tokio::test]
+async fn standalone_reentry_builders_keep_the_loaded_id() {
+    let probe = RuntimeProbe::new([]);
+    let builder = QueryBuilder::new(session(probe.clone(), None))
+        .generated_reentry_builder(Id::new("standalone"), "TestObject");
+
+    let id: Id = builder
+        .select("id")
+        .execute()
+        .await
+        .expect("the loaded ID is kept");
+    assert_eq!(id.as_str(), "standalone");
+    assert_eq!(probe.request_count(), 0);
+}
+
+#[tokio::test]
+async fn loaded_handles_keep_the_id_the_engine_returned() {
+    let probe = RuntimeProbe::new(responses([json!({"node": {"id": "returned"}})]));
+    let root = QueryBuilder::new(session(probe.clone(), None)).generated_query_root();
+    let container: crate::Container = root
+        .load(Id::new("supplied"))
+        .await
+        .expect("the engine checks the ID");
+
+    let id = container.id().await.expect("the returned ID is kept");
+    assert_eq!(id.as_str(), "returned");
+    assert_eq!(
+        probe.requests(),
+        ["query{node(id:\"supplied\"){... on Container{id}}}"]
+    );
+}
+
+#[tokio::test]
+async fn other_selections_on_a_reentered_handle_still_ask_the_engine() {
+    let probe = RuntimeProbe::new(responses([
+        json!({"node": {"name": "child"}}),
+        json!({"node": {"other": "aliased"}}),
+        json!({"node": {"id": "with-argument"}}),
+        json!({"node": {"parent": {"id": "nested"}}}),
+        json!({"node": {"id": "supplied"}}),
+    ]));
+    let session = session(probe.clone(), None);
+    let handle: TestHandle = reenter(&session, Id::new("loaded"), "TestObject");
+
+    let name: String = handle
+        .select("name")
+        .selection
+        .execute(&session)
+        .await
+        .expect("a child field asks the engine");
+    assert_eq!(name, "child");
+    let aliased: Id = handle
+        .selection
+        .select_with_alias("other", "id")
+        .execute(&session)
+        .await
+        .expect("an aliased ID asks the engine");
+    assert_eq!(aliased.as_str(), "aliased");
+    let with_argument: Id = handle
+        .selection
+        .select("id")
+        .arg("fresh", true)
+        .execute(&session)
+        .await
+        .expect("an ID with an argument asks the engine");
+    assert_eq!(with_argument.as_str(), "with-argument");
+    let nested: Id = handle
+        .select("parent")
+        .selection
+        .select("id")
+        .execute(&session)
+        .await
+        .expect("another object's ID asks the engine");
+    assert_eq!(nested.as_str(), "nested");
+
+    // A caller-supplied ID may name nothing, so its handle still asks.
+    let supplied: TestHandle =
+        reenter_lazy(&session, IdInput::new(Id::new("supplied")), "TestObject");
+    let id = supplied
+        .into_id()
+        .await
+        .expect("a supplied ID is looked up");
+    assert_eq!(id.as_str(), "supplied");
+
+    assert_eq!(
+        probe.requests(),
+        [
+            "query{node(id:\"loaded\"){... on TestObject{name}}}",
+            "query{node(id:\"loaded\"){... on TestObject{other:id}}}",
+            "query{node(id:\"loaded\"){... on TestObject{id(fresh:true)}}}",
+            "query{node(id:\"loaded\"){... on TestObject{parent{id}}}}",
+            "query{node(id:\"supplied\"){... on TestObject{id}}}",
+        ]
+    );
 }
