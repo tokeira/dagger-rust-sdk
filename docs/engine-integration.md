@@ -131,7 +131,8 @@ needs a Git workspace:
    regeneration fails with a diagnostic that names `dagger generate`.
 4. `dagger generate` regenerates. A second run changes nothing, and the module's
    `.gitattributes` stays scoped to the module.
-5. `dagger call gate <function>` loads the module and calls each export.
+5. `dagger call gate <function>` loads the module and calls each export, and the engine
+   describes the module with its crate documentation.
 6. Plain clients built against the commit's crates run under `dagger run`. One makes
    Void calls and exports an image; the other makes each kind of generated Core call and
    meets each kind of failure the client reports.

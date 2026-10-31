@@ -31,6 +31,10 @@ const GATES_PASSED: &str = "cargo fmt, check, clippy, doc, test (all and no defa
 const REPOSITORY: &str = "github.com/tokeira/dagger-rust-sdk";
 /// The release of the CLI the acceptance drives the engine with: the one the SDK targets.
 const DAGGER_VERSION: &str = "1.0.0-beta.23";
+/// The description of the acceptance's gate module: the crate documentation of
+/// `acceptance/gate.rs`.
+const GATE_DESCRIPTION: &str = "Release-gate module authored after initialization.\n\n\
+    Its crate documentation describes the module, which the acceptance reads back.";
 /// Introduces the README's module block, which the acceptance runs as written.
 const README_MARKER: &str = "<!-- The ci module's acceptance runs the module below as written. -->";
 /// The manifest of the application that asks for a Rust client scope.
@@ -464,6 +468,7 @@ async fn module_flows(
             &["call", "gate", "count", "--source", "gate-input"],
             "1"
         ),
+        described(&workspace, ".dagger/modules/gate", GATE_DESCRIPTION),
     )?;
     client_scope_refused(&workspace).await
 }
@@ -1489,6 +1494,29 @@ async fn prints(
             &format!("dagger {}", args.join(" ")),
             format!("printed {output:?}, not {expected:?}"),
         ))
+    }
+}
+
+/// Checks the description that the engine gives the module at `path`.
+async fn described(container: &Container, path: &str, expected: &str) -> Result<(), ModuleError> {
+    let query = format!("{{ moduleSource(refString: {path:?}) {{ asModule {{ description }} }} }}");
+    let output = dagger(
+        &container.with_new_file(query, "/description.graphql"),
+        &["api", "query", "--doc", "/description.graphql"],
+    )
+    .stdout()
+    .await
+    .map_err(step_failure)?;
+    let check = format!("the description of {path}");
+    let response: Value = serde_json::from_str(&output)
+        .map_err(|error| check_failed(&check, format!("the query printed no JSON: {error}")))?;
+    match response["moduleSource"]["asModule"]["description"].as_str() {
+        Some(description) if description == expected => Ok(()),
+        Some(description) => Err(check_failed(
+            &check,
+            format!("is {description:?}, not {expected:?}"),
+        )),
+        None => Err(check_failed(&check, format!("is missing from {output:?}"))),
     }
 }
 
