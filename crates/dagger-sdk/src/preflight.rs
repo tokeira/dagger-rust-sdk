@@ -18,7 +18,7 @@ use crate::diagnostic::{DiagnosticDispatcher, DiagnosticSink};
 use crate::discovery::NativeDiscoveryInputs;
 use crate::errors::{ConfigError, ConfigOption, ConnectError};
 use crate::session::ExistingSessionInput;
-use crate::target::{ArchiveDescriptor, exact_target};
+use crate::target::{ArchiveDescriptor, ExactTarget, exact_target};
 
 const SESSION_PORT_KEY: &str = "DAGGER_SESSION_PORT";
 const SESSION_TOKEN_KEY: &str = "DAGGER_SESSION_TOKEN";
@@ -306,22 +306,26 @@ impl ValidatedConfig {
             });
         }
 
+        let target = exact_target()?;
         let source = match explicit_cli {
             Some(configured) => CliSourcePlan::ExplicitLocal {
                 configured,
                 discovery,
             },
             None => CliSourcePlan::CompiledRelease {
-                descriptor: ArchiveDescriptor::for_native_target(exact_target()?)?,
+                descriptor: ArchiveDescriptor::for_native_target(target)?,
                 discovery,
             },
         };
         Ok(ConnectionPlan::NewCli {
             source: Box::new(source),
-            request: self.into_cli_launch_request(CliAmbientInputs {
-                runner,
-                propagation,
-            }),
+            request: self.into_cli_launch_request(
+                target,
+                CliAmbientInputs {
+                    runner,
+                    propagation,
+                },
+            ),
         })
     }
 
@@ -371,7 +375,11 @@ impl ValidatedConfig {
         }
     }
 
-    fn into_cli_launch_request(self, ambient: CliAmbientInputs) -> CliLaunchRequest {
+    fn into_cli_launch_request(
+        self,
+        target: &ExactTarget,
+        ambient: CliAmbientInputs,
+    ) -> CliLaunchRequest {
         let mut arguments = vec![OsString::from("session")];
         if let Some(workdir) = self.workdir {
             arguments.push(OsString::from("--workdir"));
@@ -384,10 +392,15 @@ impl ValidatedConfig {
         if self.load_workspace_modules {
             arguments.push(OsString::from("--load-workspace-modules"));
         }
-        if let Some(version) = self.version {
-            arguments.push(OsString::from("--version"));
-            arguments.push(OsString::from(version));
-        }
+        // Since v1.0.0-beta.22 the engine serves a client the API view of the release it
+        // announces. Announcing the target release keeps the view the generated client was
+        // built for when the session runs a CLI of another release, as an explicit CLI or
+        // the PATH fallback may be; the caller's version still wins.
+        arguments.push(OsString::from("--version"));
+        arguments.push(match self.version {
+            Some(version) => OsString::from(version),
+            None => OsString::from(target.cli_version().to_string()),
+        });
         if self.verbosity > 0 {
             // One combined flag mirrors the definitive Go projection while preserving
             // the entire validated u8 level; casting or truncating would silently

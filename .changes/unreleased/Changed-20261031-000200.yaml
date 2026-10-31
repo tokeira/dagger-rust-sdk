@@ -1,0 +1,7 @@
+kind: Changed
+body: |
+    A new CLI session announces the SDK's target release with `dagger session --version`, as Dagger's Go SDK does from `v1.0.0-beta.22`, so the engine serves the API view the generated client was built for even when the session runs a CLI of another release, such as the `dagger` on `PATH` that the SDK falls back to. `ClientConfigBuilder::version` still overrides it.
+time: 2026-10-31T00:02:00Z
+custom:
+    Author: iw
+    PR: "38"

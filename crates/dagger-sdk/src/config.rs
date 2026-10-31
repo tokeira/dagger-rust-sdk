@@ -348,7 +348,8 @@ impl ClientConfigBuilder {
         self
     }
 
-    /// Sets an advanced semantic engine schema version override.
+    /// Overrides the release a newly started CLI session announces, which selects the API
+    /// view the engine serves. Sessions announce the SDK's target release by default.
     #[must_use]
     pub fn version(mut self, version: impl Into<String>) -> Self {
         self.version = Some(version.into());

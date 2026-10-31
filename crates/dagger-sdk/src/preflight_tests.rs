@@ -20,6 +20,7 @@ use crate::graphql::{RawRequest, RawResponse, ResponseData};
 use crate::preflight::{
     ConnectionPlan, PreflightContext, ProcessInputs, preflight, preflight_with,
 };
+use crate::target_generated::TARGET_CLI_VERSION;
 use crate::test_support::proptest_config;
 
 #[derive(Default)]
@@ -252,10 +253,11 @@ fn reference_launch(case: &LaunchCase) -> (Vec<OsString>, Vec<(OsString, OsStrin
     if case.load_modules {
         arguments.push(OsString::from("--load-workspace-modules"));
     }
-    if let Some(version) = &case.version {
-        arguments.push(OsString::from("--version"));
-        arguments.push(OsString::from(version));
-    }
+    // The session announces the target release unless the case overrides it.
+    arguments.push(OsString::from("--version"));
+    arguments.push(OsString::from(
+        case.version.as_deref().unwrap_or(TARGET_CLI_VERSION),
+    ));
     if case.verbosity > 0 {
         arguments.push(OsString::from(format!(
             "-{}",
