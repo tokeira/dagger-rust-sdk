@@ -148,12 +148,12 @@ needs a Git workspace:
    SDK's minimum fails to load with `TOOLCHAIN_UNSUPPORTED`, even after
    `dagger generate`.
 10. `dagger module init` writes nothing outside the workspace. A `--path` that climbs out
-    of it is refused, and through a module path that is a symbolic link to a directory
-    outside, initialization leaves that directory empty. A crate that already holds a
-    file where the SDK generates one, such as `src/bin/dagger-module.rs`, is refused with
-    `OWNERSHIP_CONFLICT`, and one whose SDK dependency URL carries a credential with
-    `SDK_DEPENDENCY_CONFLICT`, without printing the credential. Neither refusal writes
-    anything.
+    of it is refused, and so is a module path that is a symbolic link to a directory
+    outside, with `OUTPUT_SYMLINK_ESCAPE`, which leaves that directory empty. A crate that
+    already holds a file where the SDK generates one, such as `src/bin/dagger-module.rs`,
+    is refused with `OWNERSHIP_CONFLICT`, and one whose SDK dependency URL carries a
+    credential with `SDK_DEPENDENCY_CONFLICT`, without printing the credential. None of
+    these refusals writes anything.
 11. A module configured by a legacy `dagger.json`, without `dagger-module.toml` or
     generated files, loads and answers `dagger -m <path> call`. The runtime generates
     its code privately, and the workspace is unchanged.

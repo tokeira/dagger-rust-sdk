@@ -30,7 +30,7 @@ const GATES_PASSED: &str = "cargo fmt, check, clippy, doc, test (all and no defa
 /// The repository the acceptance installs the runtime from and builds the client against.
 const REPOSITORY: &str = "github.com/tokeira/dagger-rust-sdk";
 /// The release of the CLI the acceptance drives the engine with: the one the SDK targets.
-const DAGGER_VERSION: &str = "1.0.0-beta.21";
+const DAGGER_VERSION: &str = "1.0.0-beta.23";
 /// Introduces the README's module block, which the acceptance runs as written.
 const README_MARKER: &str = "<!-- The ci module's acceptance runs the module below as written. -->";
 /// The manifest of the application that asks for a Rust client scope.
@@ -370,11 +370,11 @@ async fn dagger_cli(dag: &Query) -> Result<Container, ModuleError> {
     let (platform, sha256) = match dag.default_platform().await?.as_str() {
         "linux/amd64" => (
             "linux_amd64",
-            "c5ac777a5c99089869660943381136e22177b59a46412e310c2fef594760a041",
+            "ba2588c2e0444c723e19fd43812cd6dbd868c58fc6cfa1c346e86708b1643d51",
         ),
         "linux/arm64" => (
             "linux_arm64",
-            "ba9d55638636918a3404313511bceba5cc0af22f487c1c1b6a5ba60ce70a61bb",
+            "9ecf4217ca607d686f56cf71aeb6a21248fa987b679df11abfaa4b2f1d776cd1",
         ),
         other => {
             return Err(ModuleError::new(format!(
@@ -724,9 +724,10 @@ async fn load_refusals(cli: &Container, runtime: &str) -> Result<(), ModuleError
     Ok(())
 }
 
-/// Step 10: `dagger module init` writes nothing outside the workspace, whether a path climbs
-/// out of it or a symbolic link leads out, and it refuses to overwrite a file it does not own
-/// or to depend on a URL that carries a credential, which it does not print.
+/// Step 10: `dagger module init` writes nothing outside the workspace: it refuses a path that
+/// climbs out of it and a module path that is a symbolic link leading out. It also refuses to
+/// overwrite a file it does not own or to depend on a URL that carries a credential, which it
+/// does not print.
 async fn init_refusals(
     cli: &Container,
     fixtures: &Directory,
@@ -763,6 +764,8 @@ async fn init_refusals(
         Ok(())
     };
 
+    // The engine hands the runtime the link itself, which the runtime refuses to write
+    // through.
     let symlink = async {
         let linked = commit_all(
             &installed(cli, "/symlink", runtime)
@@ -770,7 +773,7 @@ async fn init_refusals(
                 .with_exec(vec!["ln", "-s", "/outside", ".dagger/modules/symlink"]),
             "module path that links outside the workspace",
         );
-        let initialized = dagger(
+        let refusal = refused(
             &linked,
             &[
                 "-y",
@@ -782,8 +785,11 @@ async fn init_refusals(
                 "--path",
                 ".dagger/modules/symlink",
             ],
-        );
-        let outside = initialized
+            "OUTPUT_SYMLINK_ESCAPE",
+        )
+        .await?;
+        unchanged(&refusal, "the refused link outside the workspace").await?;
+        let outside = refusal
             .directory("/outside")
             .entries()
             .await
@@ -1369,7 +1375,7 @@ fn release_sums(sums: &str) -> Result<ReleaseSums, ModuleError> {
 }
 
 /// A Git repository at `path` that commits whatever the container already holds there, as
-/// beta.21's workspaces require. The engine caches the directories a session syncs by path
+/// beta.23's workspaces require. The engine caches the directories a session syncs by path
 /// and by the client ID that the first `dagger` command stores in the container, so
 /// sessions that run at once and sync different contents each need a repository of their
 /// own.

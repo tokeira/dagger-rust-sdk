@@ -1412,8 +1412,8 @@ checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
 
 [[package]]
 name = "tokeira-dagger-sdk"
-version = "0.3.0"
-source = "git+https://github.com/tokeira/dagger-rust-sdk?rev=2597f2c05e523bad793a8c7df5db2779f37a997a#2597f2c05e523bad793a8c7df5db2779f37a997a"
+version = "0.3.1"
+source = "git+https://github.com/tokeira/dagger-rust-sdk?rev=1748fad08e077952217ae060183082736fa3eb62#1748fad08e077952217ae060183082736fa3eb62"
 dependencies = [
  "async-trait",
  "base64 0.21.7",
@@ -1442,8 +1442,8 @@ dependencies = [
 
 [[package]]
 name = "tokeira-dagger-sdk-macros"
-version = "0.3.0"
-source = "git+https://github.com/tokeira/dagger-rust-sdk?rev=2597f2c05e523bad793a8c7df5db2779f37a997a#2597f2c05e523bad793a8c7df5db2779f37a997a"
+version = "0.3.1"
+source = "git+https://github.com/tokeira/dagger-rust-sdk?rev=1748fad08e077952217ae060183082736fa3eb62#1748fad08e077952217ae060183082736fa3eb62"
 dependencies = [
  "proc-macro2",
  "quote",
