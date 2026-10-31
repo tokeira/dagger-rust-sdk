@@ -1,7 +1,0 @@
-kind: Changed
-body: |
-    A module whose `engineVersion` selects another API view than the SDK's target is refused with a message that names the view the engine served and the `engineVersion` to declare, and the module authoring guide describes how to move a module to a new SDK release.
-time: 2026-10-31T00:03:00Z
-custom:
-    Author: iw
-    PR: "38"

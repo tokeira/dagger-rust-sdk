@@ -1,7 +1,0 @@
-kind: Added
-body: |
-    A module is described by its crate root's `//!` documentation, as a Go module is by its package documentation: the first line is the module's short description and the rest its long description. The `src/lib.rs` that `dagger module init` writes starts with a placeholder description to replace.
-time: 2026-10-31T00:05:00Z
-custom:
-    Author: iw
-    PR: "39"

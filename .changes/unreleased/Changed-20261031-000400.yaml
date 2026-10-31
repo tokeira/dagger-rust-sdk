@@ -1,7 +1,0 @@
-kind: Changed
-body: |
-    A handle made from an ID that a query returned, such as the result of `sync` or an element of a list of objects, keeps that ID, so passing it as an argument no longer asks the engine for its ID first, as Dagger's Go SDK does from `v1.0.0-beta.22`. A handle that a module function receives still asks, as in the Go SDK.
-time: 2026-10-31T00:04:00Z
-custom:
-    Author: iw
-    PR: "39"

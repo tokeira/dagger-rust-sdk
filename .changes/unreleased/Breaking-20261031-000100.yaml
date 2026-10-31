@@ -1,7 +1,0 @@
-kind: Breaking
-body: |
-    The SDK targets stock Dagger `v1.0.0-beta.23` engines and CLIs instead of `v1.0.0-beta.21`. From `v1.0.0-beta.22` each Dagger release serves an API view of its own, and the SDK requires beta.23's, so a module must declare `engineVersion = "v1.0.0-beta.23"` in its `dagger-module.toml`. The generated client follows the beta.23 schema. It adds `File.extract`, `Container.withMountedFiles`, a `sourceDateEpoch` option for `Container.publish`, `Container.export`, `Container.exportImage` and `Container.asTarball`, and a `followSymlinks` option for `Query.sshfsVolume`. It removes `ArtifactResult`, `Artifacts.values`, `Artifacts.withArtifacts` and `CollectionTypeDef.batchType`, which beta.23 drops without deprecation.
-time: 2026-10-31T00:01:00Z
-custom:
-    Author: iw
-    PR: "38"

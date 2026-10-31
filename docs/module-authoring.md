@@ -13,7 +13,7 @@ dagger install github.com/tokeira/dagger-rust-sdk/runtime@<ref>
 dagger module init rust --name my-module
 ```
 
-`<ref>` is a release tag such as `v0.3.1`, or a full commit of this repository.
+`<ref>` is a release tag such as `v0.4.0`, or a full commit of this repository.
 Initialization writes the module's `Cargo.toml`, `dagger-module.toml`, and a starter
 `src/lib.rs` whose root object is named after the module and whose crate documentation
 is a placeholder for the module's description. The `Cargo.toml` depends on the
