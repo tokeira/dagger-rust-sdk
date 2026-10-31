@@ -126,7 +126,8 @@ impl Ci {
              regenerated, loaded and answered calls; plain clients made each kind of Core call, \
              met each kind of failure and exported an image; a Rust client scope was refused; an \
              existing crate was adopted and one without a root object refused; modules with \
-             missing or stale generated files or too old a toolchain failed to load; \
+             missing or stale generated files or too old a toolchain failed to load, and one \
+             that declares an earlier release's engineVersion failed to regenerate; \
              initialization wrote nothing outside the workspace and refused to overwrite a file \
              or print a credential; a legacy module answered a call; the README module's test \
              and build passed; and a plain client's query outlasted a lost reply to a \
@@ -679,7 +680,8 @@ async fn adoption(
 
 /// Step 9: a module whose generated files are missing, or which changed after its last
 /// generation, fails to load; so does one whose toolchain is older than the SDK's minimum,
-/// even once regenerated.
+/// even once regenerated. One that declares an earlier release as its engineVersion fails
+/// to regenerate, with a message that names the engineVersion to declare.
 async fn load_refusals(cli: &Container, runtime: &str) -> Result<(), ModuleError> {
     let ungenerated = async {
         let module = initialized(cli, "ungenerated", runtime).with_exec(vec![
@@ -720,7 +722,35 @@ async fn load_refusals(cli: &Container, runtime: &str) -> Result<(), ModuleError
         .await
     };
 
-    tokio::try_join!(ungenerated, stale, toolchain)?;
+    // A module made for an earlier release keeps that release's engineVersion, so the
+    // engine serves it that release's API view, which generation refuses.
+    let earlier = async {
+        let module = initialized(cli, "earlier", runtime);
+        let path = "/earlier/.dagger/modules/earlier/dagger-module.toml";
+        let manifest = module.file(path).contents().await.map_err(step_failure)?;
+        let declared = format!("engineVersion = \"v{DAGGER_VERSION}\"\n");
+        if !manifest.contains(&declared) {
+            return Err(check_failed(
+                "dagger module init rust --name earlier",
+                format!("dagger-module.toml does not declare {declared:?}"),
+            ));
+        }
+        let module = module.with_new_file(
+            manifest.replacen(&declared, "engineVersion = \"v1.0.0-beta.21\"\n", 1),
+            path,
+        );
+        refused(
+            &module,
+            &["generate", "-y"],
+            &format!(
+                "this SDK requires the v{DAGGER_VERSION} view; a module selects its view with \
+                 engineVersion"
+            ),
+        )
+        .await
+    };
+
+    tokio::try_join!(ungenerated, stale, toolchain, earlier)?;
     Ok(())
 }
 

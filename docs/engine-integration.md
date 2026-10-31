@@ -146,7 +146,9 @@ needs a Git workspace:
    and one changed since its last generation, such as by a new dependency, with
    `GENERATED_STALE`. One whose `rust-toolchain.toml` names a release older than the
    SDK's minimum fails to load with `TOOLCHAIN_UNSUPPORTED`, even after
-   `dagger generate`.
+   `dagger generate`. One whose `dagger-module.toml` declares an earlier release as its
+   `engineVersion` fails `dagger generate` with `TARGET_IDENTITY_INVALID`, and the message
+   names the `engineVersion` to declare.
 10. `dagger module init` writes nothing outside the workspace. A `--path` that climbs out
     of it is refused, and so is a module path that is a symbolic link to a directory
     outside, with `OUTPUT_SYMLINK_ESCAPE`, which leaves that directory empty. A crate that
