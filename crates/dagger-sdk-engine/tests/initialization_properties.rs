@@ -199,6 +199,14 @@ fn starter_compiles(
             .functions
             .iter()
             .any(|function| function.wire_name == WireName::new(constructor_name).unwrap())
+        && compilation
+            .descriptor
+            .documentation
+            .is_some_and(|description| {
+                description.starts_with(&format!(
+                    "A generated module for {object_name} functions.\n"
+                ))
+            })
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]

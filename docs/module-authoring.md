@@ -15,7 +15,8 @@ dagger module init rust --name my-module
 
 `<ref>` is a release tag such as `v0.3.1`, or a full commit of this repository.
 Initialization writes the module's `Cargo.toml`, `dagger-module.toml`, and a starter
-`src/lib.rs` whose root object is named after the module. The `Cargo.toml` depends on the
+`src/lib.rs` whose root object is named after the module and whose crate documentation
+is a placeholder for the module's description. The `Cargo.toml` depends on the
 SDK that `<ref>` names, as [engine-integration.md](engine-integration.md#sdk-content)
 describes. After changing exported items, run `dagger generate`, then call a function
 with `dagger call my-module <function>`.
@@ -77,6 +78,12 @@ impl Greeter {
 `function`, `context`, defaults, target metadata, documentation, deprecation, and
 renames are interpreted once by the shared authoring grammar. Unsupported shapes fail
 at authored coordinates rather than degrading to untyped JSON.
+
+Rustdoc comments become descriptions. The `///` comment of an exported type, field, or
+function describes it, and the crate root's `//!` comment describes the module: its first
+line is the module's short description, and the rest is its long description. Only
+comments and `doc` attributes whose value is a string literal are read, so a crate root
+documented with `#![doc = include_str!(...)]` gives the module no description.
 
 Persistent state is owned data reconstructed for the selected object. A public field
 appears in the TypeDef; a private persistent field participates only in state encoding;

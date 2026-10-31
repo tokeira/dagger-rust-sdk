@@ -608,6 +608,8 @@ pub struct ModuleDescriptor {
     pub package: ModulePackage,
     /// Exact module wire identity.
     pub module: WireName,
+    /// Module description, from the crate root's documentation.
+    pub documentation: Option<String>,
     /// Root object symbol.
     pub root: RustSymbol,
     /// Types in canonical wire-name order.
@@ -752,6 +754,8 @@ pub struct RegistrationProjection {
     pub format_version: FormatVersion,
     /// Source descriptor identity.
     pub descriptor_digest: Sha256Digest,
+    /// Module description.
+    pub documentation: Option<String>,
     /// Type definitions by wire name.
     pub types: BTreeMap<WireName, ProjectedTypeDef>,
 }
@@ -764,6 +768,8 @@ pub struct ModuleIntrospection {
     pub format_version: FormatVersion,
     /// Source descriptor identity.
     pub descriptor_digest: Sha256Digest,
+    /// Module description.
+    pub documentation: Option<String>,
     /// Introspection types by wire name.
     pub types: BTreeMap<WireName, ProjectedTypeDef>,
 }

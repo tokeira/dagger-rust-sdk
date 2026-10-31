@@ -16,7 +16,7 @@ use syn::{Attribute, Item, Meta, Type, UseTree};
 
 use super::authoring::{
     AuthoringDeclaration, AuthoringDeclarationKind, AuthoringFieldPolicy, AuthoringFunction,
-    AuthoringParser,
+    AuthoringParser, rustdoc,
 };
 use super::canonical::{DigestDomain, canonical_digest};
 use super::diagnostic::{ModuleDiagnostic, ModuleDiagnosticCode, ModuleDiagnosticSet};
@@ -132,6 +132,8 @@ pub struct ModuleDiscovery {
     pub visited_documents: BTreeSet<ModuleSourcePath>,
     /// Identity of the immutable source snapshot consumed by discovery.
     pub source_digest: Sha256Digest,
+    /// The crate root's documentation, which describes the module.
+    pub documentation: Option<String>,
 }
 
 /// Pure compiler phase for Rust module and transitive type discovery.
@@ -164,6 +166,7 @@ impl SourceDiscovery {
         let mut detached_functions = Vec::new();
         let mut pending_implementations = Vec::new();
         let mut scopes = BTreeMap::new();
+        let mut documentation = None;
         for unit in &units {
             match AuthoringParser::parse_in_module_configured(
                 &unit.path,
@@ -198,6 +201,9 @@ impl SourceDiscovery {
             if let Ok(file) =
                 AuthoringParser::configured_file(&unit.path, &unit.contents, &snapshot.cfg)
             {
+                if unit.path == snapshot.package.crate_root {
+                    documentation = rustdoc(&file.attrs);
+                }
                 collect_scopes(
                     &unit.path,
                     &file.items,
@@ -304,6 +310,7 @@ impl SourceDiscovery {
             generated_types: resolved_generated,
             visited_documents: visited,
             source_digest: snapshot.digest.clone(),
+            documentation,
         })
     }
 }

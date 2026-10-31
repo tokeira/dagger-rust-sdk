@@ -1275,6 +1275,7 @@ mod tests {
                 generated_types: BTreeMap::new(),
                 visited_documents: BTreeSet::from([ModuleSourcePath::new("src/lib.rs").unwrap()]),
                 source_digest: Sha256Digest::hash_bytes(b"metadata fixture"),
+                documentation: None,
             },
             function,
         )

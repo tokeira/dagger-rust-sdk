@@ -1803,6 +1803,7 @@ mod tests {
             generated_types: BTreeMap::new(),
             visited_documents: BTreeSet::from([path]),
             source_digest: super::super::model::Sha256Digest::hash_bytes(b"arity fixture"),
+            documentation: None,
         };
         TypeCatalog::compile(&discovery)
             .expect_err("a Result interface return without type arguments is rejected");
@@ -1861,6 +1862,7 @@ mod tests {
             generated_types: BTreeMap::new(),
             visited_documents: BTreeSet::from([path]),
             source_digest: super::super::model::Sha256Digest::hash_bytes(b"catalog fixture"),
+            documentation: None,
         };
         let catalog = TypeCatalog::compile(&discovery).unwrap();
         let root = &catalog.objects[&symbol("crate::Root")];

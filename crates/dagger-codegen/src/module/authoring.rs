@@ -1098,7 +1098,7 @@ fn validate_export_signature(
     Ok(())
 }
 
-fn rustdoc(attributes: &[Attribute]) -> Option<String> {
+pub(super) fn rustdoc(attributes: &[Attribute]) -> Option<String> {
     let lines = attributes
         .iter()
         .filter(|attribute| attribute.path().is_ident("doc"))

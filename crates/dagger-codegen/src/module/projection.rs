@@ -91,14 +91,18 @@ impl ProjectionCompiler {
         let registration = RegistrationProjection {
             format_version: descriptor.format_version,
             descriptor_digest: descriptor.digest.clone(),
+            documentation: descriptor.documentation.clone(),
             types: types.clone(),
         };
         let introspection = ModuleIntrospection {
             format_version: descriptor.format_version,
             descriptor_digest: descriptor.digest.clone(),
+            documentation: descriptor.documentation.clone(),
             types,
         };
-        if registration.types != introspection.types {
+        if registration.types != introspection.types
+            || registration.documentation != introspection.documentation
+        {
             return Err(singleton(diag(
                 ModuleDiagnosticCode::ProjectionMismatch,
                 None,

@@ -62,6 +62,8 @@ impl ModuleRenderer {
         validate_alias(request.sdk_dependency_alias)?;
         if request.registration.descriptor_digest != request.descriptor.digest
             || request.introspection.descriptor_digest != request.descriptor.digest
+            || request.registration.documentation != request.descriptor.documentation
+            || request.introspection.documentation != request.descriptor.documentation
             || request.registration.types != request.introspection.types
         {
             return Err(singleton(diag(
@@ -428,6 +430,11 @@ fn render_registration(
         registration.descriptor_digest.as_str(),
         json
     );
+    if let Some(documentation) = &registration.documentation {
+        output.push_str(&format!(
+            "            module = module.with_description({documentation:?});\n"
+        ));
+    }
 
     let root_wire_name = descriptor
         .types

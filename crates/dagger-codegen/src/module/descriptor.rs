@@ -175,6 +175,7 @@ impl DescriptorBuilder {
             target: input.target.clone(),
             package: input.source.package.clone(),
             module,
+            documentation: input.discovery.documentation.clone(),
             root,
             types,
             functions,

@@ -457,6 +457,89 @@ fn representative_generated_module_executes_directly_offline() {
     );
 }
 
+#[test]
+fn crate_root_documentation_is_the_module_description() {
+    let target = target(digest("checked-schema"));
+    let generator = digest("checked-generator");
+    // The root object's documentation describes the object, not the module.
+    let documented_root = |snapshot: ModuleSourceSnapshot| {
+        with_contents(snapshot, "src/lib.rs", |contents| {
+            contents.replace(
+                "#[renamed_sdk::object(root",
+                "/// The root object.\n#[renamed_sdk::object(root",
+            )
+        })
+    };
+    let undocumented = compile(
+        &documented_root(source_snapshot(3, false, false)),
+        &target,
+        &generator,
+        BTreeSet::new(),
+    )
+    .expect("a module without crate documentation compiles");
+    assert_eq!(undocumented.descriptor.documentation, None);
+    assert_eq!(undocumented.registration.documentation, None);
+    assert!(!registration_source(&undocumented).contains("module = module.with_description("));
+
+    // Only the crate root's inner documentation counts; a child module's describes
+    // that module.
+    let documented = with_contents(
+        with_contents(
+            documented_root(source_snapshot(3, false, false)),
+            "src/lib.rs",
+            |contents| format!("//! Greets a \"child\".\n//!\n//! Longer \\ text.\n{contents}"),
+        ),
+        "src/child.rs",
+        |contents| format!("//! The child module.\n{contents}"),
+    );
+    let compiled = compile(&documented, &target, &generator, BTreeSet::new())
+        .expect("a module with crate documentation compiles");
+    let expected = "Greets a \"child\".\n\nLonger \\ text.";
+    assert_eq!(compiled.descriptor.documentation.as_deref(), Some(expected));
+    assert_eq!(
+        compiled.registration.documentation.as_deref(),
+        Some(expected)
+    );
+    assert_eq!(
+        compiled.introspection.documentation.as_deref(),
+        Some(expected)
+    );
+    let root = compiled
+        .registration
+        .types
+        .values()
+        .find(|ty| ty.wire_name.as_str() == "FixtureRoot")
+        .expect("the root object is registered");
+    assert_eq!(root.documentation.as_deref(), Some("The root object."));
+    assert!(
+        registration_source(&compiled)
+            .contains(&format!("module = module.with_description({expected:?});"))
+    );
+    assert_ne!(compiled.descriptor.digest, undocumented.descriptor.digest);
+}
+
+fn registration_source(compilation: &ModuleCompilation) -> String {
+    let path = GeneratedAssetPath::new("src/dagger_generated/module_registration.rs")
+        .expect("the registration path is valid");
+    String::from_utf8(compilation.assets.files[&path].clone()).expect("generated Rust is UTF-8")
+}
+
+fn with_contents(
+    mut snapshot: ModuleSourceSnapshot,
+    path: &str,
+    change: impl FnOnce(&str) -> String,
+) -> ModuleSourceSnapshot {
+    let path = ModuleSourcePath::new(path).expect("fixture path is valid");
+    let document = snapshot
+        .documents
+        .get_mut(&path)
+        .expect("fixture document exists");
+    document.contents = change(&document.contents);
+    document.digest = Sha256Digest::hash_bytes(document.contents.as_bytes());
+    snapshot.digest = source_snapshot_digest(&snapshot).expect("fixture snapshot must hash");
+    snapshot
+}
+
 fn direct_harness_source() -> &'static str {
     r#"
 use std::sync::{Arc, Mutex};
@@ -746,8 +829,8 @@ pub(crate) struct Child {
 }
 
 // The representative crate is authored the way an initialized module is: its root
-// declares the generated module, and its exports include a direct `ModuleError`
-// result and Core handles whose Rust and target names differ.
+// describes the module and declares the generated module, and its exports include a
+// direct `ModuleError` result and Core handles whose Rust and target names differ.
 fn representative_source() -> ModuleSourceSnapshot {
     let mut snapshot = source_snapshot(7, false, false);
     let root_path = ModuleSourcePath::new("src/lib.rs").expect("fixture root path is valid");
@@ -756,7 +839,7 @@ fn representative_source() -> ModuleSourceSnapshot {
         .get_mut(&root_path)
         .expect("fixture root exists");
     document.contents = format!(
-        "pub mod dagger_generated;\n{}{}",
+        "//! A representative module.\n\npub mod dagger_generated;\n{}{}",
         document.contents,
         r#"
 #[renamed_sdk::methods]
