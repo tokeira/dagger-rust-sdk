@@ -128,7 +128,11 @@ fn validate_response_mode(
         diagnostics.push(Diagnostic::new(
             DiagnosticCode::TargetIdentityInvalid,
             Some(DiagnosticCoordinate::new("schema.__schemaVersion")),
-            "schema version does not match the reviewed target",
+            schema_version_mismatch(
+                container.schema_version.as_deref(),
+                &expected_schema_version,
+                compatibility.is_some(),
+            ),
         ));
     }
     let Some(schema) = container.schema.as_ref() else {
@@ -176,6 +180,36 @@ fn validate_response_mode(
         directives,
         inventory,
     ))
+}
+
+/// Names the API view a schema states and the one the target requires. From
+/// v1.0.0-beta.22 each release serves an API view of its own, and the engine gives a
+/// module the view of the release its `engineVersion` declares, so a module made for an
+/// earlier release reaches this check until it declares the target release.
+fn schema_version_mismatch(stated: Option<&str>, required: &str, engine_visible: bool) -> String {
+    let stated = match stated {
+        Some(view) if is_view_name(view) => format!("states the {view} API view"),
+        Some(_) => "states an API view that names no release".to_owned(),
+        None => "does not state its API view".to_owned(),
+    };
+    if engine_visible {
+        format!(
+            "the engine's schema {stated}, and this SDK requires the {required} view; a module \
+             selects its view with engineVersion, so set engineVersion = \"{required}\" in its \
+             dagger-module.toml"
+        )
+    } else {
+        format!("the schema {stated}, and the reviewed target requires the {required} view")
+    }
+}
+
+/// Whether an engine-reported view looks like a release, so it can be echoed safely.
+fn is_view_name(view: &str) -> bool {
+    view.len() <= 64
+        && view.starts_with('v')
+        && view
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'+'))
 }
 
 fn collect_types<'a>(schema: &'a raw::Schema, diagnostics: &mut Vec<Diagnostic>) -> TypeIndex<'a> {
@@ -1900,6 +1934,50 @@ mod tests {
                         .as_ref()
                         .is_some_and(|coordinate| coordinate.as_str().contains(&expected.1))
             }));
+        }
+    }
+
+    #[test]
+    fn another_api_view_names_both_views() {
+        let required = format!("v{}", TARGET.schema_version());
+        for (stated, expected) in [
+            (
+                Some("v1.0.0-beta.21"),
+                format!(
+                    "the schema states the v1.0.0-beta.21 API view, and the reviewed target \
+                     requires the {required} view"
+                ),
+            ),
+            (
+                Some("1.0.0-beta.21\u{1b}"),
+                format!(
+                    "the schema states an API view that names no release, and the reviewed \
+                     target requires the {required} view"
+                ),
+            ),
+            (
+                None,
+                format!(
+                    "the schema does not state its API view, and the reviewed target requires \
+                     the {required} view"
+                ),
+            ),
+        ] {
+            let mut response = RESPONSE.clone();
+            let container = match &mut response {
+                IntrospectionResponse::FullResponse(response) => &mut response.data,
+                IntrospectionResponse::Schema(container) => container,
+            };
+            container.schema_version = stated.map(str::to_owned);
+            let diagnostics = validate_response(&TARGET, &response)
+                .expect_err("another API view must be refused");
+            assert!(
+                diagnostics.diagnostics().iter().any(|diagnostic| {
+                    diagnostic.code == DiagnosticCode::TargetIdentityInvalid
+                        && diagnostic.message == expected
+                }),
+                "{diagnostics:?}"
+            );
         }
     }
 

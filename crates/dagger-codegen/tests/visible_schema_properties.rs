@@ -92,3 +92,31 @@ proptest! {
         }
     }
 }
+
+// A module receives the API view of the release its engineVersion declares, so a module made
+// for an earlier release is refused with the engineVersion that selects the target's view.
+#[test]
+fn another_api_view_names_the_engine_version_to_declare() {
+    let target = CodegenTarget::decode_exact(TARGET_BYTES).expect("checked target must decode");
+    let required = format!("v{}", target.schema_version());
+    let mut document: serde_json::Value =
+        serde_json::from_slice(&visible_schema(VisibleSchemaCase::EngineModuleExtension, 0))
+            .expect("visible schema fixture must decode");
+    document["__schemaVersion"] = serde_json::Value::from("v1.0.0-beta.21");
+    let bytes = serde_json::to_vec(&document).expect("visible schema fixture must encode");
+
+    let diagnostics = project(&bytes).expect_err("another API view must be refused");
+    assert!(
+        diagnostics.diagnostics().iter().any(|diagnostic| {
+            diagnostic.code == DiagnosticCode::TargetIdentityInvalid
+                && diagnostic.message
+                    == format!(
+                        "the engine's schema states the v1.0.0-beta.21 API view, and this SDK \
+                         requires the {required} view; a module selects its view with \
+                         engineVersion, so set engineVersion = \"{required}\" in its \
+                         dagger-module.toml"
+                    )
+        }),
+        "{diagnostics:?}"
+    );
+}

@@ -20,6 +20,25 @@ SDK that `<ref>` names, as [engine-integration.md](engine-integration.md#sdk-con
 describes. After changing exported items, run `dagger generate`, then call a function
 with `dagger call my-module <function>`.
 
+## Upgrade a module
+
+Each SDK release targets one Dagger release, and from `v1.0.0-beta.22` each Dagger release
+serves an API view of its own. The engine gives a module the view of the release that its
+`dagger-module.toml` declares as `engineVersion`, which initialization sets to the engine's
+release, and generation refuses a module whose view is not the SDK's target. To move a
+module to a new SDK release:
+
+1. `dagger module update rust-sdk --version <ref>` moves the workspace's `dagger.toml` to
+   the new runtime.
+2. In the module's `dagger-module.toml`, set `[runtime] source` to the same reference by
+   hand, because `dagger module update` leaves it unchanged, and set `engineVersion` to
+   the new SDK's target release, such as `"v1.0.0-beta.23"`.
+3. Change the module's `Cargo.toml` dependency to the SDK that `<ref>` names, as
+   [engine-integration.md](engine-integration.md#sdk-content) describes, then run
+   `cargo update -p tokeira-dagger-sdk` in the module.
+4. Run `dagger generate`, then build the module and adapt it to the API changes that the
+   [changelog](../CHANGELOG.md) lists.
+
 ## Authoring surface
 
 Exports are explicit. Rust visibility still determines whether generated sibling code
