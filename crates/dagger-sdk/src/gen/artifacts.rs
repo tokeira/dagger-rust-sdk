@@ -1,6 +1,6 @@
 //! Generated bindings owned by the GraphQL `Artifacts` type.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:fa63be22540138c2888c5779db388e117bf8b168d9f7f59b2cb2a77dc4cc9f4d","target_revision":"a7a2e64e853be92728f05aad9dc07bebe63c7448"}
-#[doc = "An immutable selection of workspace artifacts. Listed types, dimensions, and keys use OR; chained filters use AND. Empty alternatives match nothing; unknown names match nothing but module load failures. Filters never change addresses or dimension identifiers. Module keys match a module's configured or kebab-case name. A module that failed to load has no schema, so its load failure stands in for whatever it would hold: a filter keeps it when the module could hold something the filter selects, and an exclusion drops it only by its own address, such as &lt;module&gt;/** or ?module=&lt;module&gt;."]
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:d606e02207a4265f6c76adc93f73153a694ceaf51c12d36b2a3b8baf131ff252","target_revision":"f0a3d728cf7012e0954f772b5dc5c8471648afaa"}
+#[doc = "A selection of workspace artifacts and their immutable collection view. Collection key filters replace collection references with subsets. Static filters change only membership. Listed types, dimensions, and keys use OR; chained filters use AND. Empty alternatives match nothing; unknown names match nothing but module load failures. Filters never change addresses or dimension identifiers. Module keys match a module's configured or kebab-case name. A module that failed to load has no schema, so its load failure stands in for whatever it would hold: a filter keeps it when the module could hold something the filter selects, and an exclusion drops it only by its own address, such as &lt;module&gt;/** or ?module=&lt;module&gt;."]
 #[derive(Clone)]
 pub struct Artifacts {
     pub(crate) session: crate::lifecycle::SessionHandle,
@@ -94,37 +94,6 @@ impl ArtifactsPathDefinitionsOpts {
     #[must_use]
     pub fn with_type_assertion(mut self, value: bool) -> Self {
         self.type_assertion = Some(value);
-        self
-    }
-}
-#[doc = "Owned optional arguments for GraphQL operation `Artifacts.values`; reuse does not mutate caller state."]
-#[derive(Clone, Debug, Default)]
-#[non_exhaustive]
-pub struct ArtifactsValuesOpts {
-    #[doc = "Field arguments applied to each artifact, as a JSON object.\n\n`None` omits GraphQL field `arguments` and preserves engine default `String(\"{}\")`."]
-    pub arguments: Option<crate::Json>,
-    #[doc = "Cancel remaining work after the first failure.\n\n`None` omits GraphQL field `failFast` and preserves engine default `Boolean(false)`."]
-    pub fail_fast: Option<bool>,
-    #[doc = "Evaluate at most this many artifacts at once on this engine; the rest wait. Checks that scale out to cloud engines are not counted. 0 means no limit.\n\n`None` omits GraphQL field `maxConcurrency` and preserves engine default `Int(0)`."]
-    pub max_concurrency: Option<i64>,
-}
-impl ArtifactsValuesOpts {
-    #[doc = "Sets GraphQL argument `arguments` to a concrete value instead of omitting it."]
-    #[must_use]
-    pub fn with_arguments(mut self, value: crate::Json) -> Self {
-        self.arguments = Some(value);
-        self
-    }
-    #[doc = "Sets GraphQL argument `failFast` to a concrete value instead of omitting it."]
-    #[must_use]
-    pub fn with_fail_fast(mut self, value: bool) -> Self {
-        self.fail_fast = Some(value);
-        self
-    }
-    #[doc = "Sets GraphQL argument `maxConcurrency` to a concrete value instead of omitting it."]
-    #[must_use]
-    pub fn with_max_concurrency(mut self, value: i64) -> Self {
-        self.max_concurrency = Some(value);
         self
     }
 }
@@ -238,7 +207,7 @@ impl Artifacts {
         let query = self.selection.select("dimensions");
         query.execute(&self.session).await
     }
-    #[doc = "Keep artifacts with any listed key in this dimension.\n\nSelects GraphQL field `filterDimensionKeys` on `Artifacts`."]
+    #[doc = "Keep artifacts with any listed key in this dimension. Replace collection references with matching subsets. Skip absent keys and leave the source view unchanged.\n\nSelects GraphQL field `filterDimensionKeys` on `Artifacts`."]
     #[must_use]
     pub fn filter_dimension_keys(
         &self,
@@ -440,7 +409,7 @@ impl Artifacts {
         let query = self.selection.select("id");
         query.execute(&self.session).await
     }
-    #[doc = "Enumerate complete artifacts without evaluating their values.\n\nSelects GraphQL field `items` on `Artifacts`."]
+    #[doc = "List artifact descriptions with their collection view. Discover collection keys without evaluating leaf values.\n\nSelects GraphQL field `items` on `Artifacts`."]
     pub async fn items(&self) -> Result<Vec<super::Artifact>, crate::QueryError> {
         let query = self.selection.select("items");
         let query = query.select("id");
@@ -512,60 +481,7 @@ impl Artifacts {
         let query = self.selection.select("uri");
         query.execute(&self.session).await
     }
-    #[doc = "Evaluate the selection in parallel, retaining each result and error.\n\nSelects GraphQL field `values` on `Artifacts`."]
-    pub async fn values(&self) -> Result<Vec<super::ArtifactResult>, crate::QueryError> {
-        let query = self.selection.select("values");
-        let query = query.select("id");
-        query
-            .execute_reentry::<super::ArtifactResult, Vec<crate::Id>>(
-                &self.session,
-                "ArtifactResult",
-            )
-            .await
-    }
-    #[doc = "Executes GraphQL operation `values` with a borrowed, reusable `ArtifactsValuesOpts` value."]
-    pub async fn values_opts(
-        &self,
-        opts: &ArtifactsValuesOpts,
-    ) -> Result<Vec<super::ArtifactResult>, crate::QueryError> {
-        let query = self.selection.select("values");
-        let query = if let Some(value) = &opts.arguments {
-            query.arg("arguments", value)
-        } else {
-            query
-        };
-        let query = if let Some(value) = &opts.fail_fast {
-            query.arg("failFast", value)
-        } else {
-            query
-        };
-        let query = if let Some(value) = &opts.max_concurrency {
-            query.arg("maxConcurrency", value)
-        } else {
-            query
-        };
-        let query = query.select("id");
-        query
-            .execute_reentry::<super::ArtifactResult, Vec<crate::Id>>(
-                &self.session,
-                "ArtifactResult",
-            )
-            .await
-    }
-    #[doc = "Combine two selections, keeping each workspace address once. Different addresses remain distinct even if they return the same object.\n\nSelects GraphQL field `withArtifacts` on `Artifacts`."]
-    #[must_use]
-    pub fn with_artifacts(
-        &self,
-        artifacts: impl Into<crate::IdInput<super::Artifacts>>,
-    ) -> super::Artifacts {
-        let query = self.selection.select("withArtifacts");
-        let query = query.arg_id_input("artifacts", artifacts.into());
-        super::Artifacts {
-            session: self.session.clone(),
-            selection: query,
-        }
-    }
-    #[doc = "Remove artifacts selected by a DAG address.\n\nSelects GraphQL field `withoutUri` on `Artifacts`."]
+    #[doc = "Remove artifacts selected by a DAG address. Retain the collection view.\n\nSelects GraphQL field `withoutUri` on `Artifacts`."]
     #[must_use]
     pub fn without_uri(&self, uri: impl Into<String>) -> super::Artifacts {
         let query = self.selection.select("withoutUri");

@@ -48,24 +48,27 @@ renderer work:
 
 1. Capture the exact target engine schema as `codegen/schema.json` — do not substitute
    a nearby engine or hand-reserialize it. The document is the client-view schema at
-   view `v1.0.0`, produced in-process, with no engine, from an upstream `dagger/dagger`
-   checkout at the target tag. From this repository's root, using the Go image that the
+   the target release's own API view, produced in-process, with no engine, from an
+   upstream `dagger/dagger` checkout at the target tag. Since `v1.0.0-beta.22` every
+   release has a view of its own: the engine serves it to a module that declares that
+   release as its `engineVersion` and to a client that announces it, and states it in
+   `__schemaVersion`. From this repository's root, using the Go image that the
    checkout's `go.mod` requires:
 
    ```console
    UPSTREAM="$(mktemp -d)/dagger"
-   git clone --depth 1 --branch v1.0.0-beta.21 https://github.com/dagger/dagger "$UPSTREAM"
+   git clone --depth 1 --branch v1.0.0-beta.23 https://github.com/dagger/dagger "$UPSTREAM"
    docker run --rm -v "$UPSTREAM:/src:ro" -w /src -e CGO_ENABLED=0 golang:1.26.6 \
-     go run ./cmd/introspect introspect --version v1.0.0 > codegen/schema.json
+     go run ./cmd/introspect introspect --version v1.0.0-beta.23 > codegen/schema.json
    ```
 
    `__schemaVersion` inside the captured document must state the view; an empty value
    means the capture ran without `--version` and is not the claimed artifact. For
-   `v1.0.0-beta.21` this capture reproduces the committed schema byte for byte.
+   `v1.0.0-beta.23` this capture reproduces the committed schema byte for byte.
 2. Update `codegen/target.json` with the exact Dagger version, full revision, schema
-   digest (the SHA-256 of the captured bytes), Rust SDK version, and Rust toolchain —
-   and the matching `APPROVED_*` constants in `crates/dagger-codegen/src/target.rs`,
-   which are the reviewed second pin.
+   digest (the SHA-256 of the captured bytes), schema version (the captured view), Rust
+   SDK version, and Rust toolchain — and the matching `APPROVED_*` constants in
+   `crates/dagger-codegen/src/target.rs`, which are the reviewed second pin.
 3. Hand-carry `crates/dagger-sdk/src/target_generated.rs` to the same identity. It is
    generated *from* the target descriptor but sits outside the bootstrap generator's
    owned artifact set, so the direct update never rewrites it; the pairing test

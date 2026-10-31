@@ -165,9 +165,9 @@ func TestRuntimeConstructorTakesNoWorkspaceDefaultPath(t *testing.T) {
 }
 
 func TestNewModuleManifestQuotesEveryValue(t *testing.T) {
-	got := moduleManifest("gate", "v1.0.0-beta.21+a7a2e64e", `github.com/acme/sdk/"rust"\runtime@`+strings.Repeat("a", 40)+"\x01")
+	got := moduleManifest("gate", "v1.0.0-beta.23+f0a3d728", `github.com/acme/sdk/"rust"\runtime@`+strings.Repeat("a", 40)+"\x01")
 	want := "name = \"gate\"\n" +
-		"engineVersion = \"v1.0.0-beta.21\"\n\n" +
+		"engineVersion = \"v1.0.0-beta.23\"\n\n" +
 		"[runtime]\n" +
 		"  source = \"github.com/acme/sdk/\\\"rust\\\"\\\\runtime@" + strings.Repeat("a", 40) + "\\u0001\"\n"
 	if got != want {
@@ -183,6 +183,8 @@ func TestInstalledRuntimeSourceMustBeRemote(t *testing.T) {
 		{"github.com/tokeira/dagger-rust-sdk/runtime@" + strings.Repeat("a", 40), true},
 		{"https://github.com/tokeira/dagger-rust-sdk/runtime", true},
 		{"git@github.com:tokeira/dagger-rust-sdk.git/runtime", true},
+		{"entire://us.entire.io/gh/tokeira/dagger-rust-sdk/runtime", true},
+		{"entire://forge/gh/tokeira/dagger-rust-sdk/runtime", true},
 		{"runtime", false},
 		{"./runtime", false},
 		{"../runtime", false},

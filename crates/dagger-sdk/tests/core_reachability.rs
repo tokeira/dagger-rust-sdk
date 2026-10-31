@@ -1,5 +1,5 @@
 //! Compile-only reachability proof for every generated public Rust symbol.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:fa63be22540138c2888c5779db388e117bf8b168d9f7f59b2cb2a77dc4cc9f4d","target_revision":"a7a2e64e853be92728f05aad9dc07bebe63c7448"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:d606e02207a4265f6c76adc93f73153a694ceaf51c12d36b2a3b8baf131ff252","target_revision":"f0a3d728cf7012e0954f772b5dc5c8471648afaa"}
 #![cfg(feature = "gen")]
 use dagger_sdk::*;
 fn generated_value<T>() -> T {
@@ -150,13 +150,6 @@ fn reach_artifactpath(value: &ArtifactPath) {
     drop(value.uri());
 }
 #[allow(deprecated)]
-fn reach_artifactresult(value: &ArtifactResult) {
-    drop(value.artifact());
-    drop(value.error());
-    drop(value.id());
-    drop(value.value());
-}
-#[allow(deprecated)]
 fn reach_artifacts(value: &Artifacts) {
     drop(value.as_changesets());
     drop(value.as_checks());
@@ -207,16 +200,6 @@ fn reach_artifacts(value: &Artifacts) {
     drop(ArtifactsPathDefinitionsOpts::default().with_type_assertion(generated_value::<bool>()));
     drop(value.types());
     drop(value.uri());
-    drop(value.values());
-    let opts = ArtifactsValuesOpts::default();
-    drop(value.values_opts(&opts));
-    let _ = &opts.arguments;
-    drop(ArtifactsValuesOpts::default().with_arguments(generated_value::<dagger_sdk::Json>()));
-    let _ = &opts.fail_fast;
-    drop(ArtifactsValuesOpts::default().with_fail_fast(generated_value::<bool>()));
-    let _ = &opts.max_concurrency;
-    drop(ArtifactsValuesOpts::default().with_max_concurrency(generated_value::<i64>()));
-    drop(value.with_artifacts(Id::from("generated-id")));
     drop(value.without_uri(String::new()));
 }
 #[allow(deprecated)]
@@ -296,7 +279,6 @@ fn reach_collectiondelta(value: &CollectionDelta) {
 }
 #[allow(deprecated)]
 fn reach_collectiontypedef(value: &CollectionTypeDef) {
-    drop(value.batch_type());
     drop(value.id());
     drop(value.key_type());
     drop(value.value_type());
@@ -357,6 +339,8 @@ fn reach_container(value: &Container) {
         ContainerAsTarballOpts::default()
             .with_platform_variants(generated_value::<Vec<dagger_sdk::IdInput<Container>>>()),
     );
+    let _ = &opts.source_date_epoch;
+    drop(ContainerAsTarballOpts::default().with_source_date_epoch(generated_value::<i64>()));
     drop(value.combined_output());
     drop(value.default_args());
     drop(value.directory(String::new()));
@@ -397,6 +381,8 @@ fn reach_container(value: &Container) {
         ContainerExportOpts::default()
             .with_platform_variants(generated_value::<Vec<dagger_sdk::IdInput<Container>>>()),
     );
+    let _ = &opts.source_date_epoch;
+    drop(ContainerExportOpts::default().with_source_date_epoch(generated_value::<i64>()));
     drop(value.export_image(String::new()));
     let opts = ContainerExportImageOpts::default();
     drop(value.export_image_opts(String::new(), &opts));
@@ -414,6 +400,8 @@ fn reach_container(value: &Container) {
         ContainerExportImageOpts::default()
             .with_platform_variants(generated_value::<Vec<dagger_sdk::IdInput<Container>>>()),
     );
+    let _ = &opts.source_date_epoch;
+    drop(ContainerExportImageOpts::default().with_source_date_epoch(generated_value::<i64>()));
     drop(value.exposed_ports());
     drop(value.file(String::new()));
     let opts = ContainerFileOpts::default();
@@ -485,6 +473,8 @@ fn reach_container(value: &Container) {
     drop(ContainerPublishOpts::default().with_protocol(generated_value::<RegistryProtocol>()));
     let _ = &opts.registry_service;
     drop(ContainerPublishOpts::default().with_registry_service(Id::from("generated-id").into()));
+    let _ = &opts.source_date_epoch;
+    drop(ContainerPublishOpts::default().with_source_date_epoch(generated_value::<i64>()));
     drop(value.rootfs());
     drop(value.shell());
     let opts = ContainerShellOpts::default();
@@ -725,6 +715,18 @@ fn reach_container(value: &Container) {
     drop(ContainerWithMountedFileOpts::default().with_owner(String::new()));
     let _ = &opts.read_only;
     drop(ContainerWithMountedFileOpts::default().with_read_only(generated_value::<bool>()));
+    drop(value.with_mounted_files(
+        String::new(),
+        generated_value::<Vec<dagger_sdk::IdInput<File>>>(),
+    ));
+    let opts = ContainerWithMountedFilesOpts::default();
+    drop(value.with_mounted_files_opts(
+        String::new(),
+        generated_value::<Vec<dagger_sdk::IdInput<File>>>(),
+        &opts,
+    ));
+    let _ = &opts.expand;
+    drop(ContainerWithMountedFilesOpts::default().with_expand(generated_value::<bool>()));
     drop(value.with_mounted_secret(String::new(), Id::from("generated-id")));
     let opts = ContainerWithMountedSecretOpts::default();
     drop(value.with_mounted_secret_opts(String::new(), Id::from("generated-id"), &opts));
@@ -1256,6 +1258,11 @@ fn reach_file(value: &File) {
     drop(value.export_opts(String::new(), &opts));
     let _ = &opts.allow_parent_dir_path;
     drop(FileExportOpts::default().with_allow_parent_dir_path(generated_value::<bool>()));
+    drop(value.extract());
+    let opts = FileExtractOpts::default();
+    drop(value.extract_opts(&opts));
+    let _ = &opts.strip_components;
+    drop(FileExtractOpts::default().with_strip_components(generated_value::<i64>()));
     drop(value.id());
     drop(value.name());
     drop(value.search(String::new()));
@@ -2253,6 +2260,8 @@ fn reach_query(value: &Query) {
         QuerySshfsVolumeOpts::default()
             .with_experimental_service_host(Id::from("generated-id").into()),
     );
+    let _ = &opts.follow_symlinks;
+    drop(QuerySshfsVolumeOpts::default().with_follow_symlinks(generated_value::<bool>()));
     let _ = &opts.insecure_skip_host_key_check;
     drop(
         QuerySshfsVolumeOpts::default()
@@ -2842,8 +2851,6 @@ fn generated_public_reachability() {
     let _ = ArtifactDimensionKind::Type;
     let _ = core::mem::size_of::<ArtifactPath>();
     let _ = reach_artifactpath as fn(&ArtifactPath);
-    let _ = core::mem::size_of::<ArtifactResult>();
-    let _ = reach_artifactresult as fn(&ArtifactResult);
     let _ = core::mem::size_of::<Artifacts>();
     let _ = reach_artifacts as fn(&Artifacts);
     let _ = core::mem::size_of::<BuildArg>();

@@ -1,5 +1,5 @@
 //! Generated bindings owned by the GraphQL `Query` type.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:fa63be22540138c2888c5779db388e117bf8b168d9f7f59b2cb2a77dc4cc9f4d","target_revision":"a7a2e64e853be92728f05aad9dc07bebe63c7448"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:d606e02207a4265f6c76adc93f73153a694ceaf51c12d36b2a3b8baf131ff252","target_revision":"f0a3d728cf7012e0954f772b5dc5c8471648afaa"}
 #[doc = "The root of the DAG."]
 #[derive(Clone)]
 pub struct Query {
@@ -376,6 +376,8 @@ pub struct QuerySshfsVolumeOpts {
     pub cache_key: Option<String>,
     #[doc = "Service to use as the SSHFS network endpoint while verifying the original host key.\n\n`None` omits GraphQL field `experimentalServiceHost`."]
     pub experimental_service_host: Option<crate::IdInput<super::Service>>,
+    #[doc = "Resolve symlinks on the remote host, so they appear as the files and directories they point to. Without it, absolute symlinks and symlinks containing \"..\" can't be read. With it, creating a symlink in the volume fails.\n\n`None` omits GraphQL field `followSymlinks` and preserves engine default `Boolean(false)`."]
+    pub follow_symlinks: Option<bool>,
     #[doc = "Disable SSH host key verification. This is insecure and must be explicitly opted into.\n\n`None` omits GraphQL field `insecureSkipHostKeyCheck` and preserves engine default `Boolean(false)`."]
     pub insecure_skip_host_key_check: Option<bool>,
     #[doc = "known_hosts material used to verify the remote host key. Required unless insecureSkipHostKeyCheck is true.\n\n`None` omits GraphQL field `knownHosts`."]
@@ -392,6 +394,12 @@ impl QuerySshfsVolumeOpts {
     #[must_use]
     pub fn with_experimental_service_host(mut self, value: crate::IdInput<super::Service>) -> Self {
         self.experimental_service_host = Some(value);
+        self
+    }
+    #[doc = "Sets GraphQL argument `followSymlinks` to a concrete value instead of omitting it."]
+    #[must_use]
+    pub fn with_follow_symlinks(mut self, value: bool) -> Self {
+        self.follow_symlinks = Some(value);
         self
     }
     #[doc = "Sets GraphQL argument `insecureSkipHostKeyCheck` to a concrete value instead of omitting it."]
@@ -1187,6 +1195,11 @@ impl Query {
         let query = query.arg("endpoint", endpoint.into());
         let query = if let Some(value) = &opts.experimental_service_host {
             query.arg_id_input("experimentalServiceHost", value.clone())
+        } else {
+            query
+        };
+        let query = if let Some(value) = &opts.follow_symlinks {
+            query.arg("followSymlinks", value)
         } else {
             query
         };

@@ -1,5 +1,5 @@
 //! Structured field and argument inventory for exhaustive query verification.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:fa63be22540138c2888c5779db388e117bf8b168d9f7f59b2cb2a77dc4cc9f4d","target_revision":"a7a2e64e853be92728f05aad9dc07bebe63c7448"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:d606e02207a4265f6c76adc93f73153a694ceaf51c12d36b2a3b8baf131ff252","target_revision":"f0a3d728cf7012e0954f772b5dc5c8471648afaa"}
 #![cfg(feature = "gen")]
 const FIELDS: &[(&str, &str, &str, &str, &str)] = &[
     (
@@ -232,28 +232,6 @@ const FIELDS: &[(&str, &str, &str, &str, &str)] = &[
     ),
     ("ArtifactPath.uri", "ArtifactPath", "uri", "execute", ""),
     (
-        "ArtifactResult.artifact",
-        "ArtifactResult",
-        "artifact",
-        "lazy",
-        "Artifact",
-    ),
-    (
-        "ArtifactResult.error",
-        "ArtifactResult",
-        "error",
-        "probe",
-        "Error",
-    ),
-    ("ArtifactResult.id", "ArtifactResult", "id", "execute", ""),
-    (
-        "ArtifactResult.value",
-        "ArtifactResult",
-        "value",
-        "probe",
-        "Node",
-    ),
-    (
         "Artifacts.asChangesets",
         "Artifacts",
         "asChangesets",
@@ -411,20 +389,6 @@ const FIELDS: &[(&str, &str, &str, &str, &str)] = &[
     ),
     ("Artifacts.uri", "Artifacts", "uri", "execute", ""),
     (
-        "Artifacts.values",
-        "Artifacts",
-        "values",
-        "reenter",
-        "ArtifactResult",
-    ),
-    (
-        "Artifacts.withArtifacts",
-        "Artifacts",
-        "withArtifacts",
-        "lazy",
-        "Artifacts",
-    ),
-    (
         "Artifacts.withoutUri",
         "Artifacts",
         "withoutUri",
@@ -530,13 +494,6 @@ const FIELDS: &[(&str, &str, &str, &str, &str)] = &[
         "removedKeys",
         "execute",
         "",
-    ),
-    (
-        "CollectionTypeDef.batchType",
-        "CollectionTypeDef",
-        "batchType",
-        "probe",
-        "TypeDef",
     ),
     (
         "CollectionTypeDef.id",
@@ -851,6 +808,13 @@ const FIELDS: &[(&str, &str, &str, &str, &str)] = &[
         "Container.withMountedFile",
         "Container",
         "withMountedFile",
+        "lazy",
+        "Container",
+    ),
+    (
+        "Container.withMountedFiles",
+        "Container",
+        "withMountedFiles",
         "lazy",
         "Container",
     ),
@@ -1663,6 +1627,7 @@ const FIELDS: &[(&str, &str, &str, &str, &str)] = &[
     ("File.contents", "File", "contents", "execute", ""),
     ("File.digest", "File", "digest", "execute", ""),
     ("File.export", "File", "export", "execute", ""),
+    ("File.extract", "File", "extract", "lazy", "Directory"),
     ("File.id", "File", "id", "execute", ""),
     ("File.name", "File", "name", "execute", ""),
     ("File.search", "File", "search", "reenter", "SearchResult"),
@@ -4491,20 +4456,6 @@ const ARGUMENTS: &[(&str, &str, bool, bool)] = &[
         false,
         false,
     ),
-    ("Artifacts.values(arguments:)", "arguments", false, false),
-    ("Artifacts.values(failFast:)", "failFast", false, false),
-    (
-        "Artifacts.values(maxConcurrency:)",
-        "maxConcurrency",
-        false,
-        false,
-    ),
-    (
-        "Artifacts.withArtifacts(artifacts:)",
-        "artifacts",
-        true,
-        true,
-    ),
     ("Artifacts.withoutUri(uri:)", "uri", true, false),
     ("Changeset.export(path:)", "path", true, false),
     ("Changeset.filter(exclude:)", "exclude", false, false),
@@ -4574,6 +4525,12 @@ const ARGUMENTS: &[(&str, &str, bool, bool)] = &[
         false,
         true,
     ),
+    (
+        "Container.asTarball(sourceDateEpoch:)",
+        "sourceDateEpoch",
+        false,
+        false,
+    ),
     ("Container.directory(expand:)", "expand", false, false),
     ("Container.directory(path:)", "path", true, false),
     ("Container.envVariable(name:)", "name", true, false),
@@ -4613,6 +4570,12 @@ const ARGUMENTS: &[(&str, &str, bool, bool)] = &[
         true,
     ),
     (
+        "Container.export(sourceDateEpoch:)",
+        "sourceDateEpoch",
+        false,
+        false,
+    ),
+    (
         "Container.exportImage(forcedCompression:)",
         "forcedCompression",
         false,
@@ -4630,6 +4593,12 @@ const ARGUMENTS: &[(&str, &str, bool, bool)] = &[
         "platformVariants",
         false,
         true,
+    ),
+    (
+        "Container.exportImage(sourceDateEpoch:)",
+        "sourceDateEpoch",
+        false,
+        false,
     ),
     ("Container.file(expand:)", "expand", false, false),
     ("Container.file(path:)", "path", true, false),
@@ -4698,6 +4667,12 @@ const ARGUMENTS: &[(&str, &str, bool, bool)] = &[
         "registryService",
         false,
         true,
+    ),
+    (
+        "Container.publish(sourceDateEpoch:)",
+        "sourceDateEpoch",
+        false,
+        false,
     ),
     ("Container.shell(batch:)", "batch", false, false),
     (
@@ -5046,6 +5021,19 @@ const ARGUMENTS: &[(&str, &str, bool, bool)] = &[
         false,
     ),
     ("Container.withMountedFile(source:)", "source", true, true),
+    (
+        "Container.withMountedFiles(expand:)",
+        "expand",
+        false,
+        false,
+    ),
+    ("Container.withMountedFiles(path:)", "path", true, false),
+    (
+        "Container.withMountedFiles(sources:)",
+        "sources",
+        true,
+        true,
+    ),
     (
         "Container.withMountedSecret(expand:)",
         "expand",
@@ -5508,6 +5496,12 @@ const ARGUMENTS: &[(&str, &str, bool, bool)] = &[
         false,
     ),
     ("File.export(path:)", "path", true, false),
+    (
+        "File.extract(stripComponents:)",
+        "stripComponents",
+        false,
+        false,
+    ),
     ("File.search(dotall:)", "dotall", false, false),
     ("File.search(filesOnly:)", "filesOnly", false, false),
     ("File.search(globs:)", "globs", false, false),
@@ -6019,6 +6013,12 @@ const ARGUMENTS: &[(&str, &str, bool, bool)] = &[
         true,
     ),
     (
+        "Query.sshfsVolume(followSymlinks:)",
+        "followSymlinks",
+        false,
+        false,
+    ),
+    (
         "Query.sshfsVolume(insecureSkipHostKeyCheck:)",
         "insecureSkipHostKeyCheck",
         false,
@@ -6399,8 +6399,8 @@ impl RecordingExecutor {
 }
 #[test]
 fn generated_query_projection_inventory_is_exhaustive() {
-    assert_eq!(FIELDS.len(), 924usize);
-    assert_eq!(ARGUMENTS.len(), 794usize);
+    assert_eq!(FIELDS.len(), 919usize);
+    assert_eq!(ARGUMENTS.len(), 799usize);
     assert!(FIELDS.windows(2).all(|pair| pair[0].0 < pair[1].0));
     assert!(ARGUMENTS.windows(2).all(|pair| pair[0].0 < pair[1].0));
     for field in FIELDS {

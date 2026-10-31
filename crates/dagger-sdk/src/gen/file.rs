@@ -1,5 +1,5 @@
 //! Generated bindings owned by the GraphQL `File` type.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:fa63be22540138c2888c5779db388e117bf8b168d9f7f59b2cb2a77dc4cc9f4d","target_revision":"a7a2e64e853be92728f05aad9dc07bebe63c7448"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:d606e02207a4265f6c76adc93f73153a694ceaf51c12d36b2a3b8baf131ff252","target_revision":"f0a3d728cf7012e0954f772b5dc5c8471648afaa"}
 #[doc = "A file."]
 #[derive(Clone)]
 pub struct File {
@@ -71,6 +71,21 @@ impl FileExportOpts {
     #[must_use]
     pub fn with_allow_parent_dir_path(mut self, value: bool) -> Self {
         self.allow_parent_dir_path = Some(value);
+        self
+    }
+}
+#[doc = "Owned optional arguments for GraphQL operation `File.extract`; reuse does not mutate caller state."]
+#[derive(Clone, Debug, Default)]
+#[non_exhaustive]
+pub struct FileExtractOpts {
+    #[doc = "Remove this many leading elements from each entry's path, as tar --strip-components does.\n\nEntries with no more elements than this are skipped.\n\n`None` omits GraphQL field `stripComponents` and preserves engine default `Int(0)`."]
+    pub strip_components: Option<i64>,
+}
+impl FileExtractOpts {
+    #[doc = "Sets GraphQL argument `stripComponents` to a concrete value instead of omitting it."]
+    #[must_use]
+    pub fn with_strip_components(mut self, value: i64) -> Self {
+        self.strip_components = Some(value);
         self
     }
 }
@@ -334,6 +349,29 @@ impl File {
         };
         let query = query.arg("path", path.into());
         query.execute(&self.session).await
+    }
+    #[doc = "Extracts this archive file into a directory.\n\nThe format is detected from the file's contents: zip, or tar, either uncompressed or compressed with gzip, bzip2, xz or zstd.\n\nAn entry whose path would leave the directory is an error.\n\nSelects GraphQL field `extract` on `File`."]
+    #[must_use]
+    pub fn extract(&self) -> super::Directory {
+        let query = self.selection.select("extract");
+        super::Directory {
+            session: self.session.clone(),
+            selection: query,
+        }
+    }
+    #[doc = "Executes GraphQL operation `extract` with a borrowed, reusable `FileExtractOpts` value."]
+    #[must_use]
+    pub fn extract_opts(&self, opts: &FileExtractOpts) -> super::Directory {
+        let query = self.selection.select("extract");
+        let query = if let Some(value) = &opts.strip_components {
+            query.arg("stripComponents", value)
+        } else {
+            query
+        };
+        super::Directory {
+            session: self.session.clone(),
+            selection: query,
+        }
     }
     #[doc = "A unique identifier for this File.\n\nSelects GraphQL field `id` on `File`."]
     pub async fn id(&self) -> Result<crate::Id, crate::QueryError> {

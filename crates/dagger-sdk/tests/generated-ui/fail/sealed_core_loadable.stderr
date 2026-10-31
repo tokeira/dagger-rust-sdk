@@ -16,8 +16,8 @@ help: the trait `dagger_sdk::loadable::private::Sealed` is not implemented for `
             ArtifactDimension
             ArtifactDimensionKey
             ArtifactPath
-            ArtifactResult
             Artifacts
+            CacheVolume
           and $N others
 note: required by a bound in `Loadable`
  --> src/lib.rs
@@ -33,5 +33,5 @@ note: required by a bound in `Loadable`
             dagger_sdk::ArtifactDimension
             dagger_sdk::ArtifactDimensionKey
             dagger_sdk::ArtifactPath
-            dagger_sdk::ArtifactResult
+            dagger_sdk::Artifacts
           and $N others

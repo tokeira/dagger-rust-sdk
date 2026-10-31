@@ -1,5 +1,5 @@
 //! Generated bindings owned by the GraphQL `Container` type.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:fa63be22540138c2888c5779db388e117bf8b168d9f7f59b2cb2a77dc4cc9f4d","target_revision":"a7a2e64e853be92728f05aad9dc07bebe63c7448"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:d606e02207a4265f6c76adc93f73153a694ceaf51c12d36b2a3b8baf131ff252","target_revision":"f0a3d728cf7012e0954f772b5dc5c8471648afaa"}
 #[doc = "An OCI-compatible container, also known as a Docker container."]
 #[derive(Clone)]
 pub struct Container {
@@ -87,6 +87,8 @@ pub struct ContainerAsTarballOpts {
     pub media_types: Option<super::ImageMediaTypes>,
     #[doc = "Identifiers for other platform specific containers.\n\nUsed for multi-platform images.\n\n`None` omits GraphQL field `platformVariants` and preserves engine default `List(\\[\\])`."]
     pub platform_variants: Option<Vec<crate::IdInput<super::Container>>>,
+    #[doc = "Clamp the image's timestamps to this time, so that rebuilding unchanged files produces identical layers.\n\nFormatted in seconds following Unix epoch (e.g., 1672531199). File timestamps in every layer and the image's creation times that are later than this are set to it, as with BuildKit's rewrite-timestamp and SOURCE_DATE_EPOCH. Every layer is rewritten, so this costs time on each export.\n\n`None` omits GraphQL field `sourceDateEpoch`."]
+    pub source_date_epoch: Option<i64>,
 }
 impl ContainerAsTarballOpts {
     #[doc = "Sets GraphQL argument `forcedCompression` to a concrete value instead of omitting it."]
@@ -105,6 +107,12 @@ impl ContainerAsTarballOpts {
     #[must_use]
     pub fn with_platform_variants(mut self, value: Vec<crate::IdInput<super::Container>>) -> Self {
         self.platform_variants = Some(value);
+        self
+    }
+    #[doc = "Sets GraphQL argument `sourceDateEpoch` to a concrete value instead of omitting it."]
+    #[must_use]
+    pub fn with_source_date_epoch(mut self, value: i64) -> Self {
+        self.source_date_epoch = Some(value);
         self
     }
 }
@@ -166,6 +174,8 @@ pub struct ContainerExportOpts {
     pub media_types: Option<super::ImageMediaTypes>,
     #[doc = "Identifiers for other platform specific containers.\n\nUsed for multi-platform image.\n\n`None` omits GraphQL field `platformVariants` and preserves engine default `List(\\[\\])`."]
     pub platform_variants: Option<Vec<crate::IdInput<super::Container>>>,
+    #[doc = "Clamp the image's timestamps to this time, so that rebuilding unchanged files produces identical layers.\n\nFormatted in seconds following Unix epoch (e.g., 1672531199). File timestamps in every layer and the image's creation times that are later than this are set to it, as with BuildKit's rewrite-timestamp and SOURCE_DATE_EPOCH. Every layer is rewritten, so this costs time on each export.\n\n`None` omits GraphQL field `sourceDateEpoch`."]
+    pub source_date_epoch: Option<i64>,
 }
 impl ContainerExportOpts {
     #[doc = "Sets GraphQL argument `expand` to a concrete value instead of omitting it."]
@@ -192,6 +202,12 @@ impl ContainerExportOpts {
         self.platform_variants = Some(value);
         self
     }
+    #[doc = "Sets GraphQL argument `sourceDateEpoch` to a concrete value instead of omitting it."]
+    #[must_use]
+    pub fn with_source_date_epoch(mut self, value: i64) -> Self {
+        self.source_date_epoch = Some(value);
+        self
+    }
 }
 #[doc = "Owned optional arguments for GraphQL operation `Container.exportImage`; reuse does not mutate caller state."]
 #[derive(Clone, Debug, Default)]
@@ -203,6 +219,8 @@ pub struct ContainerExportImageOpts {
     pub media_types: Option<super::ImageMediaTypes>,
     #[doc = "Identifiers for other platform specific containers.\n\nUsed for multi-platform image.\n\n`None` omits GraphQL field `platformVariants` and preserves engine default `List(\\[\\])`."]
     pub platform_variants: Option<Vec<crate::IdInput<super::Container>>>,
+    #[doc = "Clamp the image's timestamps to this time, so that rebuilding unchanged files produces identical layers.\n\nFormatted in seconds following Unix epoch (e.g., 1672531199). File timestamps in every layer and the image's creation times that are later than this are set to it, as with BuildKit's rewrite-timestamp and SOURCE_DATE_EPOCH. Every layer is rewritten, so this costs time on each export.\n\n`None` omits GraphQL field `sourceDateEpoch`."]
+    pub source_date_epoch: Option<i64>,
 }
 impl ContainerExportImageOpts {
     #[doc = "Sets GraphQL argument `forcedCompression` to a concrete value instead of omitting it."]
@@ -221,6 +239,12 @@ impl ContainerExportImageOpts {
     #[must_use]
     pub fn with_platform_variants(mut self, value: Vec<crate::IdInput<super::Container>>) -> Self {
         self.platform_variants = Some(value);
+        self
+    }
+    #[doc = "Sets GraphQL argument `sourceDateEpoch` to a concrete value instead of omitting it."]
+    #[must_use]
+    pub fn with_source_date_epoch(mut self, value: i64) -> Self {
+        self.source_date_epoch = Some(value);
         self
     }
 }
@@ -363,6 +387,8 @@ pub struct ContainerPublishOpts {
     pub protocol: Option<super::RegistryProtocol>,
     #[doc = "Service to use as the registry endpoint for the image address.\n\nThe service will be started only for this push.\n\n`None` omits GraphQL field `registryService`."]
     pub registry_service: Option<crate::IdInput<super::Service>>,
+    #[doc = "Clamp the image's timestamps to this time, so that rebuilding unchanged files produces identical layers.\n\nFormatted in seconds following Unix epoch (e.g., 1672531199). File timestamps in every layer and the image's creation times that are later than this are set to it, as with BuildKit's rewrite-timestamp and SOURCE_DATE_EPOCH. Every layer is rewritten, so this costs time on each export.\n\n`None` omits GraphQL field `sourceDateEpoch`."]
+    pub source_date_epoch: Option<i64>,
 }
 impl ContainerPublishOpts {
     #[doc = "Sets GraphQL argument `forcedCompression` to a concrete value instead of omitting it."]
@@ -399,6 +425,12 @@ impl ContainerPublishOpts {
     #[must_use]
     pub fn with_registry_service(mut self, value: crate::IdInput<super::Service>) -> Self {
         self.registry_service = Some(value);
+        self
+    }
+    #[doc = "Sets GraphQL argument `sourceDateEpoch` to a concrete value instead of omitting it."]
+    #[must_use]
+    pub fn with_source_date_epoch(mut self, value: i64) -> Self {
+        self.source_date_epoch = Some(value);
         self
     }
 }
@@ -1074,6 +1106,21 @@ impl ContainerWithMountedFileOpts {
         self
     }
 }
+#[doc = "Owned optional arguments for GraphQL operation `Container.withMountedFiles`; reuse does not mutate caller state."]
+#[derive(Clone, Debug, Default)]
+#[non_exhaustive]
+pub struct ContainerWithMountedFilesOpts {
+    #[doc = "Replace \"${VAR}\" or \"$VAR\" in the value of path according to the current environment variables defined in the container (e.g. \"/$VAR/lib\").\n\n`None` omits GraphQL field `expand` and preserves engine default `Boolean(false)`."]
+    pub expand: Option<bool>,
+}
+impl ContainerWithMountedFilesOpts {
+    #[doc = "Sets GraphQL argument `expand` to a concrete value instead of omitting it."]
+    #[must_use]
+    pub fn with_expand(mut self, value: bool) -> Self {
+        self.expand = Some(value);
+        self
+    }
+}
 #[doc = "Owned optional arguments for GraphQL operation `Container.withMountedSecret`; reuse does not mutate caller state."]
 #[derive(Clone, Debug, Default)]
 #[non_exhaustive]
@@ -1569,6 +1616,11 @@ impl Container {
         } else {
             query
         };
+        let query = if let Some(value) = &opts.source_date_epoch {
+            query.arg("sourceDateEpoch", value)
+        } else {
+            query
+        };
         super::File {
             session: self.session.clone(),
             selection: query,
@@ -1740,6 +1792,11 @@ impl Container {
         } else {
             query
         };
+        let query = if let Some(value) = &opts.source_date_epoch {
+            query.arg("sourceDateEpoch", value)
+        } else {
+            query
+        };
         query.execute(&self.session).await
     }
     #[doc = "Exports the container as an image to the host's container image store.\n\nSelects GraphQL field `exportImage` on `Container`."]
@@ -1768,6 +1825,11 @@ impl Container {
         let query = query.arg("name", name.into());
         let query = if let Some(value) = &opts.platform_variants {
             query.arg_id_input("platformVariants", value.clone())
+        } else {
+            query
+        };
+        let query = if let Some(value) = &opts.source_date_epoch {
+            query.arg("sourceDateEpoch", value)
         } else {
             query
         };
@@ -2020,6 +2082,11 @@ impl Container {
         };
         let query = if let Some(value) = &opts.registry_service {
             query.arg_id_input("registryService", value.clone())
+        } else {
+            query
+        };
+        let query = if let Some(value) = &opts.source_date_epoch {
+            query.arg("sourceDateEpoch", value)
         } else {
             query
         };
@@ -2895,6 +2962,42 @@ impl Container {
             query
         };
         let query = query.arg_id_input("source", source.into());
+        super::Container {
+            session: self.session.clone(),
+            selection: query,
+        }
+    }
+    #[doc = "Retrieves this container plus the given files mounted read-only in a directory at the given path.\n\nEach file appears under the base name of its path. The directory holds nothing else, and nothing can be written to it.\n\nSelects GraphQL field `withMountedFiles` on `Container`."]
+    #[must_use]
+    pub fn with_mounted_files(
+        &self,
+        path: impl Into<String>,
+        sources: Vec<crate::IdInput<super::File>>,
+    ) -> super::Container {
+        let query = self.selection.select("withMountedFiles");
+        let query = query.arg("path", path.into());
+        let query = query.arg_id_input("sources", sources);
+        super::Container {
+            session: self.session.clone(),
+            selection: query,
+        }
+    }
+    #[doc = "Executes GraphQL operation `withMountedFiles` with a borrowed, reusable `ContainerWithMountedFilesOpts` value."]
+    #[must_use]
+    pub fn with_mounted_files_opts(
+        &self,
+        path: impl Into<String>,
+        sources: Vec<crate::IdInput<super::File>>,
+        opts: &ContainerWithMountedFilesOpts,
+    ) -> super::Container {
+        let query = self.selection.select("withMountedFiles");
+        let query = if let Some(value) = &opts.expand {
+            query.arg("expand", value)
+        } else {
+            query
+        };
+        let query = query.arg("path", path.into());
+        let query = query.arg_id_input("sources", sources);
         super::Container {
             session: self.session.clone(),
             selection: query,

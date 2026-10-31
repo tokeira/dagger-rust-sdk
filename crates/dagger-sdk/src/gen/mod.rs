@@ -1,5 +1,5 @@
 //! Generated Dagger core-schema bindings and stable public re-exports.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:fa63be22540138c2888c5779db388e117bf8b168d9f7f59b2cb2a77dc4cc9f4d","target_revision":"a7a2e64e853be92728f05aad9dc07bebe63c7448"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:d606e02207a4265f6c76adc93f73153a694ceaf51c12d36b2a3b8baf131ff252","target_revision":"f0a3d728cf7012e0954f772b5dc5c8471648afaa"}
 #[path = "acronym_style.rs"]
 mod acronym_style;
 #[path = "address.rs"]
@@ -22,8 +22,6 @@ mod artifact_dimension_key;
 mod artifact_dimension_kind;
 #[path = "artifact_path.rs"]
 mod artifact_path;
-#[path = "artifact_result.rs"]
-mod artifact_result;
 #[path = "artifacts.rs"]
 mod artifacts;
 #[path = "build_arg.rs"]
@@ -271,7 +269,6 @@ pub use artifact_dimension::*;
 pub use artifact_dimension_key::*;
 pub use artifact_dimension_kind::*;
 pub use artifact_path::*;
-pub use artifact_result::*;
 pub use artifacts::*;
 pub use build_arg::*;
 pub use bytes::*;

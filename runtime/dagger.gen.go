@@ -350,9 +350,9 @@ func invoke(ctx context.Context, parentJSON []byte, parentName string, fnName st
 						dag.Function("Codegen",
 							dag.TypeDef().WithObject("GeneratedCode")).
 							WithDescription("Codegen compiles the engine-visible schema into the scoped module context and\nreturns the Rust-owned VCS policy emitted by the same operation plan. The engine\nwrites that policy into the module's own .gitattributes and .gitignore, so its\npaths are relative to the module source root rather than the context.").
-							WithSourceMap(dag.SourceMap("main.go", 401, 1)).
-							WithArg("modSource", dag.TypeDef().WithObject("ModuleSource"), dagger.FunctionWithArgOpts{SourceMap: dag.SourceMap("main.go", 403, 2)}).
-							WithArg("introspectionJSON", dag.TypeDef().WithObject("File"), dagger.FunctionWithArgOpts{SourceMap: dag.SourceMap("main.go", 404, 2)})).
+							WithSourceMap(dag.SourceMap("main.go", 402, 1)).
+							WithArg("modSource", dag.TypeDef().WithObject("ModuleSource"), dagger.FunctionWithArgOpts{SourceMap: dag.SourceMap("main.go", 404, 2)}).
+							WithArg("introspectionJSON", dag.TypeDef().WithObject("File"), dagger.FunctionWithArgOpts{SourceMap: dag.SourceMap("main.go", 405, 2)})).
 					WithFunction(
 						dag.Function("FindClientRoot",
 							dag.TypeDef().WithKind(dagger.TypeDefKindStringKind).WithOptional(true)).
@@ -363,10 +363,10 @@ func invoke(ctx context.Context, parentJSON []byte, parentName string, fnName st
 						dag.Function("GenerateClient",
 							dag.TypeDef().WithObject("Directory")).
 							WithDescription("GenerateClient renders the standalone client only within the requested output\nsubtree of the scoped module context.").
-							WithSourceMap(dag.SourceMap("main.go", 449, 1)).
-							WithArg("modSource", dag.TypeDef().WithObject("ModuleSource"), dagger.FunctionWithArgOpts{SourceMap: dag.SourceMap("main.go", 451, 2)}).
-							WithArg("introspectionJSON", dag.TypeDef().WithObject("File"), dagger.FunctionWithArgOpts{SourceMap: dag.SourceMap("main.go", 452, 2)}).
-							WithArg("outputDir", dag.TypeDef().WithKind(dagger.TypeDefKindStringKind), dagger.FunctionWithArgOpts{SourceMap: dag.SourceMap("main.go", 453, 2)})).
+							WithSourceMap(dag.SourceMap("main.go", 450, 1)).
+							WithArg("modSource", dag.TypeDef().WithObject("ModuleSource"), dagger.FunctionWithArgOpts{SourceMap: dag.SourceMap("main.go", 452, 2)}).
+							WithArg("introspectionJSON", dag.TypeDef().WithObject("File"), dagger.FunctionWithArgOpts{SourceMap: dag.SourceMap("main.go", 453, 2)}).
+							WithArg("outputDir", dag.TypeDef().WithKind(dagger.TypeDefKindStringKind), dagger.FunctionWithArgOpts{SourceMap: dag.SourceMap("main.go", 454, 2)})).
 					WithFunction(
 						dag.Function("GenerateScope",
 							dag.TypeDef().WithObject("Workspace")).
@@ -387,7 +387,7 @@ func invoke(ctx context.Context, parentJSON []byte, parentName string, fnName st
 						dag.Function("RequiredClientGenerationFiles",
 							dag.TypeDef().WithListOf(dag.TypeDef().WithKind(dagger.TypeDefKindStringKind))).
 							WithDescription("RequiredClientGenerationFiles returns the renderer-owned finite host input set.").
-							WithSourceMap(dag.SourceMap("main.go", 439, 1))).
+							WithSourceMap(dag.SourceMap("main.go", 440, 1))).
 					WithConstructor(
 						dag.Function("New",
 							dag.TypeDef().WithObject("RustSDK")).
