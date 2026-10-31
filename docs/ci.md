@@ -9,7 +9,8 @@ trigger.
 
 | Path | Contents |
 | --- | --- |
-| `dagger.toml` | Dagger workspace: installs the Rust SDK runtime from this repository at a pinned commit and registers the `ci` module |
+| `dagger.toml` | Dagger workspace: installs the Rust SDK runtime from this repository at a pinned release and registers the `ci` module |
+| `dagger.lock` | Written by Dagger: pins the release tag that `dagger.toml` names to its commit |
 | `.dagger/modules/ci/` | The module, a Cargo project whose generated files are committed |
 | `.dagger/modules/ci/acceptance/` | The acceptance's fixtures: the modules and crates it authors, its plain clients, and the sample service that the README's module builds |
 | `.dagger/modules/ci/consumer/` | The application that `package` and `published` build against a release's crates, outside this repository's workspace |
@@ -84,19 +85,24 @@ resolves the module on its own.
 
 ## The pinned SDK
 
-The module runs on this repository's own SDK at a pinned commit, not the commit under
-test, so a change cannot break the tool that checks it. `dagger.toml` and the module's
-`dagger-module.toml` name the runtime at that commit, and the module's `Cargo.toml`
-depends on the same commit, which is the SDK that runtime generates modules against
+The module runs on a release of this repository's own SDK, not the commit under test, so
+a change cannot break the tool that checks it. `dagger.toml` and the module's
+`dagger-module.toml` name the runtime at the release's tag, `dagger.lock` pins that tag to
+its commit, and the module's `Cargo.toml` depends on the same release from crates.io,
+which is the SDK that runtime generates modules against
 ([engine-integration.md](engine-integration.md#sdk-content)). To move it to another
-commit of this repository:
+release, `vX.Y.Z`:
 
-1. Run `dagger module update rust-sdk --version <commit>`, which moves `dagger.toml`.
-2. Set the same commit in the module's `dagger-module.toml` `[runtime] source`, by hand:
+1. Run `dagger module update rust-sdk --version vX.Y.Z`, which moves `dagger.toml` and
+   `dagger.lock`.
+2. Set the same tag in the module's `dagger-module.toml` `[runtime] source`, by hand:
    `dagger module update` leaves it unchanged.
-3. Set the module's `Cargo.toml` `rev` to the same commit, then run
+3. Set the module's `Cargo.toml` dependency to `version = "=X.Y.Z"`, then run
    `cargo update -p tokeira-dagger-sdk` in the module.
 4. Run `dagger generate`, and commit the result.
+
+Until a release of a new target exists, the module pins a commit of this repository
+instead: the runtime at that commit, and a `git` dependency with that commit as its `rev`.
 
 ## Changing the Dagger release
 
