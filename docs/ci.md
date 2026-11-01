@@ -93,13 +93,15 @@ which is the SDK that runtime generates modules against
 ([engine-integration.md](engine-integration.md#sdk-content)). To move it to another
 release, `vX.Y.Z`:
 
-1. Run `dagger module update rust-sdk --version vX.Y.Z`, which moves `dagger.toml` and
-   `dagger.lock`.
-2. Set the same tag in the module's `dagger-module.toml` `[runtime] source`, by hand:
+1. Remove `dagger.lock`, which pins only the runtime's tag: run over an existing lock,
+   `dagger module update` keeps the old tag's entries beside the new ones.
+2. Run `dagger module update rust-sdk --version vX.Y.Z`, which moves `dagger.toml` and
+   writes a new `dagger.lock`.
+3. Set the same tag in the module's `dagger-module.toml` `[runtime] source`, by hand:
    `dagger module update` leaves it unchanged.
-3. Set the module's `Cargo.toml` dependency to `version = "=X.Y.Z"`, then run
+4. Set the module's `Cargo.toml` dependency to `version = "=X.Y.Z"`, then run
    `cargo update -p tokeira-dagger-sdk` in the module.
-4. Run `dagger generate`, and commit the result.
+5. Run `dagger generate`, and commit the result.
 
 Until a release of a new target exists, the module pins a commit of this repository
 instead: the runtime at that commit, and a `git` dependency with that commit as its `rev`.
