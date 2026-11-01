@@ -321,6 +321,77 @@ pub mod __private {
         }
     }
 
+    /// Decodes a Core enum or scalar, which crosses the boundary as one JSON string.
+    ///
+    /// Generated Core enums and scalars implement [`ModuleInputCodec`] through this
+    /// function, so an enum accepts its canonical members and their aliases.
+    pub fn decode_string_value<T>(value: &ModuleJson) -> Result<T, DecodeError>
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        if !value.as_json().is_string() {
+            return Err(DecodeError);
+        }
+        T::deserialize(value.as_json()).map_err(|_| DecodeError)
+    }
+
+    /// Encodes a Core enum or scalar as one JSON string, an enum as its canonical member.
+    pub fn encode_string_value<'a, T>(
+        value: T,
+    ) -> ModuleBoxFuture<'a, Result<ModuleJson, EncodeError>>
+    where
+        T: serde::Serialize + Send + 'a,
+    {
+        Box::pin(async move {
+            match serde_json::to_value(value) {
+                Ok(value @ serde_json::Value::String(_)) => Ok(ModuleJson::new(value)),
+                _ => Err(EncodeError),
+            }
+        })
+    }
+
+    impl ModuleInputCodec for crate::Json {
+        fn decode_input(
+            value: &ModuleJson,
+            _context: &ModuleContextBase,
+        ) -> Result<Self, DecodeError> {
+            decode_string_value(value)
+        }
+    }
+
+    impl ModuleOutputCodec for crate::Json {
+        fn encode_output<'a>(
+            self,
+            _context: &'a ModuleContextBase,
+        ) -> ModuleBoxFuture<'a, Result<ModuleJson, EncodeError>>
+        where
+            Self: 'a,
+        {
+            encode_string_value(self)
+        }
+    }
+
+    impl ModuleInputCodec for crate::Platform {
+        fn decode_input(
+            value: &ModuleJson,
+            _context: &ModuleContextBase,
+        ) -> Result<Self, DecodeError> {
+            decode_string_value(value)
+        }
+    }
+
+    impl ModuleOutputCodec for crate::Platform {
+        fn encode_output<'a>(
+            self,
+            _context: &'a ModuleContextBase,
+        ) -> ModuleBoxFuture<'a, Result<ModuleJson, EncodeError>>
+        where
+            Self: 'a,
+        {
+            encode_string_value(self)
+        }
+    }
+
     #[cfg(feature = "gen")]
     impl<T> ModuleInputCodec for T
     where
@@ -460,6 +531,60 @@ mod tests {
             ),
             requests,
         )
+    }
+
+    #[test]
+    fn core_enums_and_scalars_cross_the_boundary_as_one_string() {
+        let (context, requests) = context("unused", false);
+        let decode = |value: serde_json::Value| ModuleJson::new(value);
+
+        // An alias decodes to its member, which encodes as the canonical value.
+        let compression = <crate::ImageLayerCompression as ModuleInputCodec>::decode_input(
+            &decode(json!("GZIP")),
+            &context,
+        )
+        .expect("an alias decodes");
+        assert_eq!(compression, crate::ImageLayerCompression::Gzip);
+        let encoded = futures::executor::block_on(compression.encode_output(&context))
+            .expect("a member encodes");
+        assert_eq!(encoded.as_json(), &json!("Gzip"));
+        for value in [json!("SCTP"), json!(1), json!(null)] {
+            assert!(
+                <crate::NetworkProtocol as ModuleInputCodec>::decode_input(
+                    &decode(value),
+                    &context
+                )
+                .is_err()
+            );
+        }
+
+        // A scalar keeps its exact text; a `JSON` value is the text of a JSON document.
+        let labels =
+            <crate::Json as ModuleInputCodec>::decode_input(&decode(json!("{\"a\":1}")), &context)
+                .expect("JSON text decodes");
+        assert_eq!(labels.as_str(), "{\"a\":1}");
+        let encoded =
+            futures::executor::block_on(labels.encode_output(&context)).expect("JSON text encodes");
+        assert_eq!(encoded.as_json(), &json!("{\"a\":1}"));
+        assert!(
+            <crate::Json as ModuleInputCodec>::decode_input(&decode(json!({"a": 1})), &context)
+                .is_err()
+        );
+        let platform = <crate::Platform as ModuleInputCodec>::decode_input(
+            &decode(json!("linux/arm64")),
+            &context,
+        )
+        .expect("a platform decodes");
+        let encoded = futures::executor::block_on(platform.encode_output(&context))
+            .expect("a platform encodes");
+        assert_eq!(encoded.as_json(), &json!("linux/arm64"));
+        let bytes =
+            <crate::Bytes as ModuleInputCodec>::decode_input(&decode(json!("aGk=")), &context)
+                .expect("base64 text decodes");
+        let encoded = futures::executor::block_on(bytes.encode_output(&context))
+            .expect("base64 text encodes");
+        assert_eq!(encoded.as_json(), &json!("aGk="));
+        assert_eq!(requests.load(Ordering::SeqCst), 0);
     }
 
     proptest! {

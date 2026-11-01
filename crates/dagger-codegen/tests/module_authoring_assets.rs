@@ -432,6 +432,39 @@ fn representative_generated_module_executes_directly_offline() {
 }
 
 #[test]
+fn an_agent_function_registers_with_the_agent_role() {
+    let registration = registration_source(&compile_representative(&representative_source()));
+    assert!(registration.contains("function_model = function_model.with_agent();"));
+}
+
+#[test]
+fn core_enums_and_scalars_register_with_their_kinds_and_defaults() {
+    let compiled = compile_representative(&representative_source());
+    let registration = registration_source(&compiled);
+    for expected in [
+        "query.type_def().with_enum(\"NetworkProtocol\")",
+        "query.type_def().with_enum(\"ImageLayerCompression\")",
+        "query.type_def().with_scalar(\"Platform\")",
+        "query.type_def().with_scalar(\"JSON\")",
+        "query.type_def().with_scalar(\"Bytes\")",
+        // Only a field names `FileType`.
+        "query.type_def().with_enum(\"FileType\")",
+        // An enum default is its member's wire value; a scalar's is its exact text.
+        ".with_default_value(renamed_sdk::Json::new(\"\\\"UDP\\\"\"))",
+        ".with_default_value(renamed_sdk::Json::new(\"\\\"linux/arm64\\\"\"))",
+        ".with_default_value(renamed_sdk::Json::new(\"\\\"{\\\\\\\"a\\\\\\\":1}\\\"\"))",
+    ] {
+        assert!(
+            registration.contains(expected),
+            "registration lacks {expected}"
+        );
+    }
+    // Registration declares Core types by name and never defines them.
+    assert!(!registration.contains("with_enum_opts(\"NetworkProtocol\""));
+    assert!(!registration.contains("module = module.with_enum(type_networkprotocol)"));
+}
+
+#[test]
 fn a_core_type_that_only_a_field_or_an_interface_method_names_registers() {
     // Registration declares a Core type with the kind of its binding, wherever the
     // module names it.
@@ -448,12 +481,6 @@ fn a_core_type_that_only_a_field_or_an_interface_method_names_registers() {
             "{declaration}"
         );
     }
-}
-
-#[test]
-fn an_agent_function_registers_with_the_agent_role() {
-    let registration = registration_source(&compile_representative(&representative_source()));
-    assert!(registration.contains("function_model = function_model.with_agent();"));
 }
 
 #[test]
@@ -723,6 +750,76 @@ fn generated_registry_runs_through_the_production_wrapper_without_an_engine() {
             assert_eq!(value, serde_json::json!(expected));
         }
 
+        // A Core enum or scalar crosses as one string. An absent argument takes its
+        // default, and an alias decodes to its member, which encodes canonically.
+        for (call_id, function, arguments, expected) in [
+            ("protocol-default", "protocol", Vec::new(), serde_json::json!("UDP")),
+            (
+                "protocol",
+                "protocol",
+                vec![("protocol", serde_json::json!("TCP"))],
+                serde_json::json!("TCP"),
+            ),
+            (
+                "compression-alias",
+                "compression",
+                vec![("compression", serde_json::json!("GZIP"))],
+                serde_json::json!("Gzip"),
+            ),
+            ("platform-default", "platform", Vec::new(), serde_json::json!("linux/arm64")),
+            ("labels-default", "labels", Vec::new(), serde_json::json!("{\"a\":1}")),
+            (
+                "labels",
+                "labels",
+                vec![("labels", serde_json::json!("[true]"))],
+                serde_json::json!("[true]"),
+            ),
+            (
+                "data",
+                "data",
+                vec![("data", serde_json::json!("aGk="))],
+                serde_json::json!(["aGk="]),
+            ),
+            ("entry", "entry", Vec::new(), serde_json::json!({"kind": "REGULAR"})),
+        ] {
+            let invocation = envelope(call_id, function, Some(parent.clone()), &arguments);
+            handle_call(
+                &GeneratedDispatchRegistry,
+                invocation.clone(),
+                context(&client, &invocation),
+                &registration_sink,
+                &result_sink,
+            )
+            .await
+            .expect("Core value invocation");
+            let value = match outcomes.lock().expect("result lock").pop().expect("value") {
+                CallOutcome::Value(value) => value.into_json(),
+                outcome => panic!("unexpected {call_id} outcome: {outcome:?}"),
+            };
+            assert_eq!(value, expected, "{call_id}");
+        }
+
+        // A value outside the enum is refused before user code runs.
+        let outside = envelope(
+            "protocol-outside",
+            "protocol",
+            Some(parent.clone()),
+            &[("protocol", serde_json::json!("SCTP"))],
+        );
+        let refused = handle_call(
+            &GeneratedDispatchRegistry,
+            outside.clone(),
+            context(&client, &outside),
+            &registration_sink,
+            &result_sink,
+        )
+        .await;
+        let published = outcomes.lock().expect("result lock").pop();
+        assert!(
+            refused.is_err() || matches!(published, Some(CallOutcome::Error { .. })),
+            "an unknown enum member must not reach user code: {published:?}"
+        );
+
         let refusal = envelope("refusal", "refuse", Some(parent.clone()), &[]);
         handle_call(
             &GeneratedDispatchRegistry,
@@ -761,20 +858,58 @@ fn generated_registry_runs_through_the_production_wrapper_without_an_engine() {
 "#
 }
 
-// The representative module names Core objects. `LLM` is `Llm` in Rust, so the
-// generated dispatch must name each Core type through its binding path rather than its
-// target name.
+// The representative module names Core objects, enums, and scalars. `LLM` is `Llm` in
+// Rust, so the generated dispatch must name each Core type through its binding path
+// rather than its target name.
 fn compile_representative(source: &ModuleSourceSnapshot) -> ModuleCompilation {
     let target = target(digest("checked-schema"));
-    let binding = |name: &str, target_name: &str| GeneratedTypeBinding {
-        rust_path: format!("renamed_sdk::{name}"),
-        target_name: target_name.to_owned(),
-        visible_schema_digest: target.visible_schema_digest.clone(),
-        kind: GeneratedTypeKind::Object,
-    };
+    let binding =
+        |name: &str, target_name: &str, kind, members: &[(&str, &str)]| GeneratedTypeBinding {
+            rust_path: format!("renamed_sdk::{name}"),
+            target_name: target_name.to_owned(),
+            visible_schema_digest: target.visible_schema_digest.clone(),
+            kind,
+            enum_members: members
+                .iter()
+                .map(|(variant, member)| ((*variant).to_owned(), (*member).to_owned()))
+                .collect(),
+        };
     let generated = GeneratedTypeRegistry::new(
         target.visible_schema_digest.clone(),
-        [binding("Directory", "Directory"), binding("Llm", "LLM")],
+        [
+            binding("Directory", "Directory", GeneratedTypeKind::Object, &[]),
+            binding("Llm", "LLM", GeneratedTypeKind::Object, &[]),
+            binding(
+                "NetworkProtocol",
+                "NetworkProtocol",
+                GeneratedTypeKind::Enum,
+                &[("Tcp", "TCP"), ("Udp", "UDP")],
+            ),
+            binding(
+                "ImageLayerCompression",
+                "ImageLayerCompression",
+                GeneratedTypeKind::Enum,
+                &[
+                    ("EStarGz", "EStarGZ"),
+                    ("Gzip", "Gzip"),
+                    ("Uncompressed", "Uncompressed"),
+                    ("Zstd", "Zstd"),
+                ],
+            ),
+            binding(
+                "FileType",
+                "FileType",
+                GeneratedTypeKind::Enum,
+                &[
+                    ("Directory", "DIRECTORY"),
+                    ("Regular", "REGULAR"),
+                    ("Symlink", "SYMLINK"),
+                ],
+            ),
+            binding("Platform", "Platform", GeneratedTypeKind::Scalar, &[]),
+            binding("Json", "JSON", GeneratedTypeKind::Scalar, &[]),
+            binding("Bytes", "Bytes", GeneratedTypeKind::Scalar, &[]),
+        ],
     )
     .expect("fixture Core bindings are unique");
     ModuleCompiler::compile(ModuleCompilationRequest {
@@ -857,8 +992,8 @@ pub(crate) struct Child {
 
 // The representative crate is authored the way an initialized module is: its root
 // describes the module and declares the generated module, and its exports include a
-// direct `ModuleError` result, Core handles whose Rust and target names differ, and an
-// agent.
+// direct `ModuleError` result, Core handles whose Rust and target names differ, an
+// agent, and Core enums and scalars, with defaults and as a field.
 fn representative_source() -> ModuleSourceSnapshot {
     let mut snapshot = source_snapshot(7, false, false);
     let root_path = ModuleSourcePath::new("src/lib.rs").expect("fixture root path is valid");
@@ -891,6 +1026,56 @@ impl Root {
     pub(crate) fn mood(&self, mood: Mood) -> Mood {
         mood
     }
+
+    #[dagger(function)]
+    pub(crate) fn protocol(
+        &self,
+        #[dagger(default = renamed_sdk::NetworkProtocol::Udp)] protocol: renamed_sdk::NetworkProtocol,
+    ) -> renamed_sdk::NetworkProtocol {
+        protocol
+    }
+
+    #[dagger(function)]
+    pub(crate) fn compression(
+        &self,
+        compression: renamed_sdk::ImageLayerCompression,
+    ) -> renamed_sdk::ImageLayerCompression {
+        compression
+    }
+
+    #[dagger(function)]
+    pub(crate) fn platform(
+        &self,
+        #[dagger(default = "linux/arm64")] platform: renamed_sdk::Platform,
+    ) -> renamed_sdk::Platform {
+        platform
+    }
+
+    #[dagger(function)]
+    pub(crate) fn labels(
+        &self,
+        #[dagger(default = "{\"a\":1}")] labels: renamed_sdk::Json,
+    ) -> renamed_sdk::Json {
+        labels
+    }
+
+    #[dagger(function)]
+    pub(crate) fn data(&self, data: Option<renamed_sdk::Bytes>) -> Vec<renamed_sdk::Bytes> {
+        data.into_iter().collect()
+    }
+
+    #[dagger(function)]
+    pub(crate) fn entry(&self) -> Entry {
+        Entry {
+            kind: renamed_sdk::FileType::Regular,
+        }
+    }
+}
+
+#[renamed_sdk::object(rename = "FixtureEntry")]
+pub(crate) struct Entry {
+    #[dagger(field)]
+    kind: renamed_sdk::FileType,
 }
 "#
     );

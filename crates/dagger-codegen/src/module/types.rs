@@ -59,6 +59,10 @@ pub enum RustModuleType {
     GeneratedObject(String),
     /// Checked generated interface handle.
     GeneratedInterface(String),
+    /// Checked generated Core enum.
+    GeneratedEnum(String),
+    /// Checked generated Core scalar, which crosses the boundary as one string.
+    GeneratedScalar(String),
 }
 
 /// Canonical target TypeDef shape derived from the Rust algebra.
@@ -95,7 +99,10 @@ impl RustModuleType {
             | Self::LocalInterface(symbol)
             | Self::LocalEnum(symbol)
             | Self::CustomScalar(symbol) => named(final_segment(symbol.as_str()), false),
-            Self::GeneratedObject(name) | Self::GeneratedInterface(name) => named(name, false),
+            Self::GeneratedObject(name)
+            | Self::GeneratedInterface(name)
+            | Self::GeneratedEnum(name)
+            | Self::GeneratedScalar(name) => named(name, false),
         }
     }
 }
@@ -131,6 +138,19 @@ impl<'a> TypeResolver<'a> {
     #[must_use]
     pub const fn new(discovery: &'a ModuleDiscovery) -> Self {
         Self { discovery }
+    }
+
+    /// Returns the canonical wire value of one Rust variant of a generated enum.
+    #[must_use]
+    pub fn generated_enum_member(&self, target_name: &str, variant: &str) -> Option<&str> {
+        self.discovery
+            .generated_types
+            .values()
+            .find(|binding| {
+                binding.kind == GeneratedTypeKind::Enum && binding.target_name == target_name
+            })
+            .and_then(|binding| binding.enum_members.get(variant))
+            .map(String::as_str)
     }
 
     /// Parses and validates one authored type at its semantic position.
@@ -300,6 +320,12 @@ impl<'a> TypeResolver<'a> {
                 }
                 GeneratedTypeKind::Interface => {
                     RustModuleType::GeneratedInterface(binding.target_name.clone())
+                }
+                GeneratedTypeKind::Enum => {
+                    RustModuleType::GeneratedEnum(binding.target_name.clone())
+                }
+                GeneratedTypeKind::Scalar => {
+                    RustModuleType::GeneratedScalar(binding.target_name.clone())
                 }
             }),
             _ => Err(unsupported(
@@ -485,6 +511,10 @@ pub enum ModuleValue {
     GeneratedObject { target_name: String, id: String },
     /// Checked generated interface handle.
     GeneratedInterface { target_name: String, id: String },
+    /// Canonical member of a generated Core enum.
+    GeneratedEnum { target_name: String, member: String },
+    /// Exact string value of a generated Core scalar.
+    GeneratedScalar { target_name: String, value: String },
 }
 
 /// Exposure and persistence policy for one object field.
@@ -1170,6 +1200,17 @@ impl<'a> ModuleValueCodec<'a> {
                 RustModuleType::GeneratedInterface(name),
                 ModuleValue::GeneratedInterface { target_name, id },
             ) if name == target_name => encode_id(id),
+            (
+                RustModuleType::GeneratedEnum(name),
+                ModuleValue::GeneratedEnum {
+                    target_name,
+                    member,
+                },
+            ) if name == target_name => Ok(Value::String(member.clone())),
+            (
+                RustModuleType::GeneratedScalar(name),
+                ModuleValue::GeneratedScalar { target_name, value },
+            ) if name == target_name => Ok(Value::String(value.clone())),
             _ => Err(value_error(
                 "typed value does not match its declared module type",
             )),
@@ -1259,6 +1300,20 @@ impl<'a> ModuleValueCodec<'a> {
                     id,
                 })
             }
+            RustModuleType::GeneratedEnum(name) => value
+                .as_str()
+                .map(|member| ModuleValue::GeneratedEnum {
+                    target_name: name.clone(),
+                    member: member.to_owned(),
+                })
+                .ok_or_else(|| value_error("expected a JSON string enum member")),
+            RustModuleType::GeneratedScalar(name) => value
+                .as_str()
+                .map(|scalar| ModuleValue::GeneratedScalar {
+                    target_name: name.clone(),
+                    value: scalar.to_owned(),
+                })
+                .ok_or_else(|| value_error("expected a JSON string scalar value")),
         }
     }
 

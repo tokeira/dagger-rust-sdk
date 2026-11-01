@@ -512,9 +512,10 @@ pub(crate) fn project_type(
         | RustModuleType::LocalInterface(symbol)
         | RustModuleType::LocalEnum(symbol)
         | RustModuleType::CustomScalar(symbol) => named(local_names[symbol].as_str(), false),
-        RustModuleType::GeneratedObject(name) | RustModuleType::GeneratedInterface(name) => {
-            named(name, false)
-        }
+        RustModuleType::GeneratedObject(name)
+        | RustModuleType::GeneratedInterface(name)
+        | RustModuleType::GeneratedEnum(name)
+        | RustModuleType::GeneratedScalar(name) => named(name, false),
     }
 }
 

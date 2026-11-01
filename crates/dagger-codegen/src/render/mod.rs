@@ -208,6 +208,7 @@ fn render_custom_scalar(
         .get(&scalar.coordinate, crate::naming::NameContext::Type)
         .ok_or_else(|| render_error(&scalar.coordinate, "custom scalar lost its Rust name"))?;
     let name = source_ident(&name.identifier, &scalar.coordinate)?;
+    let module_codec = render_module_codec(&name);
     let definition = match plan.schema().types().get(&scalar.wire_name) {
         Some(TypeDefinition::Scalar(definition)) => definition,
         _ => {
@@ -247,7 +248,39 @@ fn render_custom_scalar(
                 Self(value.to_owned())
             }
         }
+
+        #module_codec
     })
+}
+
+// A module's signatures can name a Core enum or scalar, which crosses the module
+// boundary as one JSON string. Only this crate can implement the codecs for it.
+fn render_module_codec(name: &Ident) -> TokenStream {
+    quote! {
+        impl crate::__private::ModuleInputCodec for #name {
+            fn decode_input(
+                value: &crate::__private::ModuleJson,
+                _context: &crate::__private::ModuleContextBase,
+            ) -> Result<Self, crate::__private::DecodeError> {
+                crate::__private::decode_string_value(value)
+            }
+        }
+
+        impl crate::__private::ModuleOutputCodec for #name {
+            fn encode_output<'a>(
+                self,
+                _context: &'a crate::__private::ModuleContextBase,
+            ) -> crate::__private::ModuleBoxFuture<
+                'a,
+                Result<crate::__private::ModuleJson, crate::__private::EncodeError>,
+            >
+            where
+                Self: 'a,
+            {
+                crate::__private::encode_string_value(self)
+            }
+        }
+    }
 }
 
 fn module_name(plan: &ProjectionPlan, coordinate: &SchemaCoordinate) -> Result<String, Diagnostic> {
@@ -301,12 +334,15 @@ fn render_enum(
         });
     }
 
+    let module_codec = render_module_codec(&name);
     Ok(quote! {
         #attributes
         #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, serde::Deserialize, serde::Serialize)]
         pub enum #name {
             #(#variants)*
         }
+
+        #module_codec
     })
 }
 

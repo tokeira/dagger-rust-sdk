@@ -34,6 +34,10 @@ pub enum GeneratedTypeKind {
     Object,
     /// Generated interface handle.
     Interface,
+    /// Generated Core enum.
+    Enum,
+    /// Generated Core scalar.
+    Scalar,
 }
 
 /// One checked generated type visible to source discovery.
@@ -47,6 +51,8 @@ pub struct GeneratedTypeBinding {
     pub visible_schema_digest: Sha256Digest,
     /// Target kind used by the closed type algebra.
     pub kind: GeneratedTypeKind,
+    /// An enum's canonical wire values keyed by Rust variant name; empty for other kinds.
+    pub enum_members: BTreeMap<String, String>,
 }
 
 /// Closed generated-type index for one exact visible schema.
@@ -100,8 +106,10 @@ pub struct ResolvedGeneratedType {
     pub rust_path: String,
     /// Target identity reused without local redefinition.
     pub target_name: String,
-    /// Object or interface kind.
+    /// Object, interface, enum, or scalar kind.
     pub kind: GeneratedTypeKind,
+    /// An enum's canonical wire values keyed by Rust variant name; empty for other kinds.
+    pub enum_members: BTreeMap<String, String>,
 }
 
 /// One terminating source type alias retained for closed type resolution.
@@ -1026,6 +1034,7 @@ fn resolve_reference(
                     rust_path: binding.rust_path.clone(),
                     target_name: binding.target_name.clone(),
                     kind: binding.kind,
+                    enum_members: binding.enum_members.clone(),
                 },
             );
         }
@@ -1612,6 +1621,7 @@ mod tests {
                 target_name: "Error".to_owned(),
                 visible_schema_digest: digest,
                 kind: GeneratedTypeKind::Object,
+                enum_members: BTreeMap::new(),
             }],
         )
         .unwrap();

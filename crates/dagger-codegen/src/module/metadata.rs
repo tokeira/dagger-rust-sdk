@@ -476,7 +476,7 @@ impl<'a> FunctionCompiler<'a> {
                 "a typed default expression could not be parsed",
             )
         })?;
-        let value = default_value(&expression, ty, self.catalog, source)?;
+        let value = default_value(&expression, ty, self.catalog, &self.resolver, source)?;
         let codec = ModuleValueCodec::new(self.catalog);
         let canonical = codec.encode(ty, &value).map_err(|_| {
             default_error(
@@ -576,6 +576,7 @@ fn default_value(
     expression: &Expr,
     ty: &RustModuleType,
     catalog: &TypeCatalog,
+    resolver: &TypeResolver<'_>,
     source: &SourceCoordinate,
 ) -> Result<ModuleValue, ModuleDiagnostic> {
     match (expression, ty) {
@@ -623,7 +624,7 @@ fn default_value(
                 .ok_or_else(|| default_range(source))
         }
         (Expr::Unary(unary), RustModuleType::Float) if matches!(unary.op, syn::UnOp::Neg(_)) => {
-            let positive = default_value(unary.expr.as_ref(), ty, catalog, source)?;
+            let positive = default_value(unary.expr.as_ref(), ty, catalog, resolver, source)?;
             let ModuleValue::Float(value) = positive else {
                 return Err(default_kind(source));
             };
@@ -634,7 +635,7 @@ fn default_value(
         (Expr::Array(array), RustModuleType::List(element)) => array
             .elems
             .iter()
-            .map(|value| default_value(value, element, catalog, source))
+            .map(|value| default_value(value, element, catalog, resolver, source))
             .collect::<Result<Vec<_>, _>>()
             .map(ModuleValue::List),
         (Expr::Path(path), RustModuleType::Optional(_)) if path.path.is_ident("None") => {
@@ -643,7 +644,7 @@ fn default_value(
         (Expr::Call(call), RustModuleType::Optional(inner))
             if call_path_name(call).as_deref() == Some("Some") && call.args.len() == 1 =>
         {
-            default_value(&call.args[0], inner, catalog, source)
+            default_value(&call.args[0], inner, catalog, resolver, source)
                 .map(|value| ModuleValue::Optional(Some(Box::new(value))))
         }
         (Expr::Path(path), RustModuleType::LocalEnum(symbol)) => {
@@ -667,6 +668,39 @@ fn default_value(
                 member,
             })
         }
+        (Expr::Path(path), RustModuleType::GeneratedEnum(target_name)) => {
+            let variant = path
+                .path
+                .segments
+                .last()
+                .map(|segment| segment.ident.to_string())
+                .ok_or_else(|| default_kind(source))?;
+            let member = resolver
+                .generated_enum_member(target_name, &variant)
+                .ok_or_else(|| default_kind(source))?;
+            Ok(ModuleValue::GeneratedEnum {
+                target_name: target_name.clone(),
+                member: member.to_owned(),
+            })
+        }
+        (Expr::Lit(expression), RustModuleType::GeneratedScalar(target_name)) => {
+            let syn::Lit::Str(value) = &expression.lit else {
+                return Err(default_kind(source));
+            };
+            let value = value.value();
+            // A `JSON` value is JSON text, which the engine parses when it decodes the
+            // argument, so a default that is not JSON could never be used.
+            if target_name == "JSON" && serde_json::from_str::<Value>(&value).is_err() {
+                return Err(default_error(
+                    Some(source.clone()),
+                    "a `JSON` default must be a string literal holding JSON text",
+                ));
+            }
+            Ok(ModuleValue::GeneratedScalar {
+                target_name: target_name.clone(),
+                value,
+            })
+        }
         (Expr::Call(call), RustModuleType::CustomScalar(symbol))
             if call.args.len() == 1
                 && call_path_name(call).as_deref() == symbol.as_str().split("::").last() =>
@@ -676,15 +710,20 @@ fn default_value(
                 .get(symbol)
                 .ok_or_else(|| default_kind(source))?;
             scalar.validate()?;
-            default_value(&call.args[0], &scalar.representation, catalog, source).map(|value| {
-                ModuleValue::CustomScalar {
-                    ty: symbol.clone(),
-                    value: Box::new(value),
-                }
+            default_value(
+                &call.args[0],
+                &scalar.representation,
+                catalog,
+                resolver,
+                source,
+            )
+            .map(|value| ModuleValue::CustomScalar {
+                ty: symbol.clone(),
+                value: Box::new(value),
             })
         }
-        (Expr::Paren(paren), _) => default_value(&paren.expr, ty, catalog, source),
-        (Expr::Group(group), _) => default_value(&group.expr, ty, catalog, source),
+        (Expr::Paren(paren), _) => default_value(&paren.expr, ty, catalog, resolver, source),
+        (Expr::Group(group), _) => default_value(&group.expr, ty, catalog, resolver, source),
         _ => Err(default_error(
             Some(source.clone()),
             "the typed default uses unsupported syntax or the wrong value kind",
@@ -961,7 +1000,7 @@ mod tests {
     use super::*;
     use crate::module::authoring::{AuthoringDeclaration, AuthoringParser};
     use crate::module::model::{ModuleSourcePath, Sha256Digest};
-    use crate::module::source::ModuleDiscovery;
+    use crate::module::source::{GeneratedTypeKind, ModuleDiscovery, ResolvedGeneratedType};
     use crate::module::types::{EnumContract, EnumVariantContract, ScalarContract};
 
     proptest! {
@@ -1189,6 +1228,114 @@ mod tests {
     }
 
     #[test]
+    fn core_enum_and_scalar_defaults_are_canonical_wire_values() {
+        let declarations = parse(
+            r#"
+            #[dagger_sdk::object(root)]
+            pub struct Root {}
+
+            #[dagger_sdk::methods]
+            impl Root {
+                #[dagger(function)]
+                pub fn defaults(
+                    &self,
+                    #[dagger(default = dagger_sdk::NetworkProtocol::Udp)]
+                    protocol: dagger_sdk::NetworkProtocol,
+                    #[dagger(default = "linux/arm64")] platform: dagger_sdk::Platform,
+                    #[dagger(default = "{\"a\": [1, 2]}")] labels: dagger_sdk::Json,
+                    #[dagger(default = "aGk=")] data: dagger_sdk::Bytes,
+                ) -> bool { true }
+            }
+        "#,
+        )
+        .unwrap();
+        let (discovery, function) = discovery_and_function(declarations);
+        let discovery = with_core_types(discovery);
+        let catalog = TypeCatalog::default();
+        let compiler = FunctionCompiler::new(TypeResolver::new(&discovery), &catalog);
+        let compiled = compiler
+            .compile(&discovery.root, &discovery.root, &function)
+            .unwrap();
+        let arguments = compiled
+            .arguments
+            .iter()
+            .map(|argument| {
+                (
+                    argument.ty.clone(),
+                    argument.metadata.default.clone().unwrap(),
+                )
+            })
+            .collect::<Vec<_>>();
+        // An enum default is its member's wire value; a scalar's is its exact text.
+        assert_eq!(
+            arguments,
+            vec![
+                (
+                    RustModuleType::GeneratedEnum("NetworkProtocol".to_owned()),
+                    Value::String("UDP".to_owned())
+                ),
+                (
+                    RustModuleType::GeneratedScalar("Platform".to_owned()),
+                    Value::String("linux/arm64".to_owned())
+                ),
+                (
+                    RustModuleType::GeneratedScalar("JSON".to_owned()),
+                    Value::String("{\"a\": [1, 2]}".to_owned())
+                ),
+                (
+                    RustModuleType::GeneratedScalar("Bytes".to_owned()),
+                    Value::String("aGk=".to_owned())
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn core_enum_and_scalar_defaults_outside_their_values_are_rejected() {
+        for (parameter, default) in [
+            (
+                "protocol: dagger_sdk::NetworkProtocol",
+                "dagger_sdk::NetworkProtocol::Sctp",
+            ),
+            ("protocol: dagger_sdk::NetworkProtocol", "\"UDP\""),
+            ("labels: dagger_sdk::Json", "\"{\""),
+            ("labels: dagger_sdk::Json", "7"),
+            (
+                "platform: dagger_sdk::Platform",
+                "dagger_sdk::Platform::Linux",
+            ),
+        ] {
+            let declarations = parse(&format!(
+                r#"
+                #[dagger_sdk::object(root)]
+                pub struct Root {{}}
+
+                #[dagger_sdk::methods]
+                impl Root {{
+                    #[dagger(function)]
+                    pub fn defaults(&self, #[dagger(default = {default})] {parameter}) -> bool {{
+                        true
+                    }}
+                }}
+            "#
+            ))
+            .unwrap();
+            let (discovery, function) = discovery_and_function(declarations);
+            let discovery = with_core_types(discovery);
+            let catalog = TypeCatalog::default();
+            let compiler = FunctionCompiler::new(TypeResolver::new(&discovery), &catalog);
+            let error = compiler
+                .compile(&discovery.root, &discovery.root, &function)
+                .expect_err(default);
+            assert_eq!(
+                error.code(),
+                ModuleDiagnosticCode::DefaultInvalid,
+                "{default}"
+            );
+        }
+    }
+
+    #[test]
     fn arbitrary_default_calls_and_out_of_range_ttls_are_rejected() {
         let declarations = parse(
             r#"
@@ -1283,6 +1430,35 @@ mod tests {
             },
             function,
         )
+    }
+
+    // The Core types that discovery resolves for a module that names them.
+    fn with_core_types(mut discovery: ModuleDiscovery) -> ModuleDiscovery {
+        let binding =
+            |name: &str, target_name: &str, kind, members: &[(&str, &str)]| ResolvedGeneratedType {
+                rust_path: format!("dagger_sdk::{name}"),
+                target_name: target_name.to_owned(),
+                kind,
+                enum_members: members
+                    .iter()
+                    .map(|(variant, member)| ((*variant).to_owned(), (*member).to_owned()))
+                    .collect(),
+            };
+        discovery.generated_types = [
+            binding(
+                "NetworkProtocol",
+                "NetworkProtocol",
+                GeneratedTypeKind::Enum,
+                &[("Tcp", "TCP"), ("Udp", "UDP")],
+            ),
+            binding("Platform", "Platform", GeneratedTypeKind::Scalar, &[]),
+            binding("Json", "JSON", GeneratedTypeKind::Scalar, &[]),
+            binding("Bytes", "Bytes", GeneratedTypeKind::Scalar, &[]),
+        ]
+        .into_iter()
+        .map(|binding| (binding.rust_path.clone(), binding))
+        .collect();
+        discovery
     }
 
     fn symbol(value: &str) -> RustSymbol {

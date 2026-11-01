@@ -118,6 +118,26 @@ appears in the TypeDef; a private persistent field participates only in state en
 an ordinary unmarked field remains implementation detail. Generated Core, self, and
 dependency handles preserve their typed IDs and re-enter through the active session.
 
+Arguments, results, and fields can also be Core enums and scalars, such as
+`NetworkProtocol`, `Platform`, `Json`, and `Bytes`. An enum crosses the boundary as the
+name of its member and accepts the aliases the engine gives a member; a scalar keeps its
+exact text, so a `Json` value is the text of a JSON document. A default names an enum
+member or gives a scalar's text as a string literal:
+
+```rust
+#[dagger(function)]
+fn listen(
+    &self,
+    #[dagger(default = NetworkProtocol::Udp)] protocol: NetworkProtocol,
+    #[dagger(default = "linux/arm64")] platform: Platform,
+) -> String {
+    format!("{protocol:?} on {platform}")
+}
+```
+
+Generation refuses a default that is not one of the enum's members, and a `Json` default
+that is not JSON.
+
 ## Descriptor and generated ownership
 
 The source compiler walks the selected Cargo package, respects the compilation cfg,

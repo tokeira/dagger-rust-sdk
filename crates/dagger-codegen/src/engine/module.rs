@@ -12,7 +12,8 @@ use crate::module::{
     ModuleCompilation, ModuleCompilationRequest, ModuleCompiler, ModuleDiagnosticSet, ModuleTarget,
     Sha256Digest as ModuleDigest, TargetValue, WireName,
 };
-use crate::projection::types::TypeProjection;
+use crate::naming::NameContext;
+use crate::projection::types::{ScalarKind, TypeProjection};
 
 use super::model::{CandidateArtifactKind, ContentDomain, PostWorkPlan, operation_diagnostic};
 use super::render::{rust_source_paths, visible_binding_artifacts};
@@ -106,19 +107,65 @@ fn generated_type_registry(
 ) -> Result<GeneratedTypeRegistry, DiagnosticSet> {
     let mut bindings = Vec::new();
     for projection in schema.projection().named_types().values() {
-        let (wire_name, rust_name, kind, extension_name) = match projection {
+        let (wire_name, rust_name, kind, extension_name, enum_members) = match projection {
             TypeProjection::Object(object) => (
                 object.wire_name.as_str(),
                 object.rust_name.as_str(),
                 GeneratedTypeKind::Object,
                 &object.wire_name,
+                BTreeMap::new(),
             ),
             TypeProjection::Interface(interface) => (
                 interface.wire_name.as_str(),
                 interface.client_name.as_str(),
                 GeneratedTypeKind::Interface,
                 &interface.wire_name,
+                BTreeMap::new(),
             ),
+            // Only the SDK crate implements module codecs for enums and scalars, so a
+            // module's signatures can name Core ones and no others.
+            TypeProjection::Enum(enumeration)
+                if !schema.is_extension_type(&enumeration.wire_name) =>
+            {
+                (
+                    enumeration.wire_name.as_str(),
+                    enumeration.rust_name.as_str(),
+                    GeneratedTypeKind::Enum,
+                    &enumeration.wire_name,
+                    enumeration
+                        .variants
+                        .values()
+                        .map(|variant| (variant.rust_name.clone(), variant.wire_name.to_string()))
+                        .collect(),
+                )
+            }
+            TypeProjection::Scalar(scalar) if !schema.is_extension_type(&scalar.wire_name) => {
+                let rust_name = match scalar.scalar {
+                    ScalarKind::Json => "Json",
+                    ScalarKind::Platform => "Platform",
+                    ScalarKind::Custom => schema
+                        .projection()
+                        .names()
+                        .get(&scalar.coordinate, NameContext::Type)
+                        .map(|name| name.identifier.as_str())
+                        .ok_or_else(failure)?,
+                    // Builtin scalars are Rust primitives, an `ID` is a handle's identity,
+                    // and `Void` is a unit result.
+                    ScalarKind::Boolean
+                    | ScalarKind::Float
+                    | ScalarKind::Int
+                    | ScalarKind::String
+                    | ScalarKind::Id
+                    | ScalarKind::Void => continue,
+                };
+                (
+                    scalar.wire_name.as_str(),
+                    rust_name,
+                    GeneratedTypeKind::Scalar,
+                    &scalar.wire_name,
+                    BTreeMap::new(),
+                )
+            }
             _ => continue,
         };
         let rust_path = if schema.is_extension_type(extension_name) {
@@ -131,6 +178,7 @@ fn generated_type_registry(
             target_name: wire_name.to_owned(),
             visible_schema_digest: digest.clone(),
             kind,
+            enum_members,
         });
     }
     GeneratedTypeRegistry::new(digest, bindings).map_err(|_| failure())

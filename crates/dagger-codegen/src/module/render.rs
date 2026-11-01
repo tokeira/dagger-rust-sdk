@@ -862,6 +862,8 @@ fn projected_named_kind(
         .map(|binding| match binding.kind {
             GeneratedTypeKind::Object => ProjectedTypeKind::Object,
             GeneratedTypeKind::Interface => ProjectedTypeKind::Interface,
+            GeneratedTypeKind::Enum => ProjectedTypeKind::Enum,
+            GeneratedTypeKind::Scalar => ProjectedTypeKind::Scalar,
         })
         .ok_or_else(|| singleton(generation_error()))
 }
@@ -1162,12 +1164,13 @@ fn rust_type(
         | RustModuleType::LocalInterface(symbol)
         | RustModuleType::LocalEnum(symbol)
         | RustModuleType::CustomScalar(symbol) => symbol.as_str().to_owned(),
-        RustModuleType::GeneratedObject(name) | RustModuleType::GeneratedInterface(name) => {
-            generated_types
-                .get(name)
-                .map(|binding| binding.rust_path.clone())
-                .ok_or_else(|| singleton(generation_error()))?
-        }
+        RustModuleType::GeneratedObject(name)
+        | RustModuleType::GeneratedInterface(name)
+        | RustModuleType::GeneratedEnum(name)
+        | RustModuleType::GeneratedScalar(name) => generated_types
+            .get(name)
+            .map(|binding| binding.rust_path.clone())
+            .ok_or_else(|| singleton(generation_error()))?,
     })
 }
 

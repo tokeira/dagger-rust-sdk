@@ -37,3 +37,25 @@ pub enum TypeDefKind {
     #[serde(rename = "VOID_KIND", alias = "VOID")]
     VoidKind,
 }
+impl crate::__private::ModuleInputCodec for TypeDefKind {
+    fn decode_input(
+        value: &crate::__private::ModuleJson,
+        _context: &crate::__private::ModuleContextBase,
+    ) -> Result<Self, crate::__private::DecodeError> {
+        crate::__private::decode_string_value(value)
+    }
+}
+impl crate::__private::ModuleOutputCodec for TypeDefKind {
+    fn encode_output<'a>(
+        self,
+        _context: &'a crate::__private::ModuleContextBase,
+    ) -> crate::__private::ModuleBoxFuture<
+        'a,
+        Result<crate::__private::ModuleJson, crate::__private::EncodeError>,
+    >
+    where
+        Self: 'a,
+    {
+        crate::__private::encode_string_value(self)
+    }
+}
