@@ -1,5 +1,5 @@
 {
-  "descriptor_digest": "sha256:24eaea6e713acfaf3812cac74a095ec72d51716dc8dab40874742c83fee13aa4",
+  "descriptor_digest": "sha256:ed40d1041dcc134da7e886b56496aeca5012cf59cd82d2368a302838bd7cb9d2",
   "documentation": "Continuous integration for the Rust SDK for Dagger, built with the SDK itself.\n\nEvery function runs inside the Dagger engine, so the same calls work from a laptop, a CI\nrunner, or a managed engine. Orchestration, secrets, and engine provisioning stay outside\nthe module, in `.dagger/engine.sh` and the pipelines that call it. So does publishing:\n`package` prepares a release's archives, and `published` proves the release afterwards.",
   "format_version": 1,
   "types": {
@@ -84,7 +84,7 @@
               "optional": false,
               "source": {
                 "column": 9,
-                "line": 154,
+                "line": 157,
                 "path": "src/lib.rs"
               },
               "ty": {
@@ -109,7 +109,7 @@
           "role": "ordinary",
           "source": {
             "column": 18,
-            "line": 148,
+            "line": 151,
             "path": "src/lib.rs"
           },
           "wire_name": "package"
@@ -126,7 +126,7 @@
               "optional": false,
               "source": {
                 "column": 89,
-                "line": 173,
+                "line": 176,
                 "path": "src/lib.rs"
               },
               "ty": {
@@ -151,7 +151,7 @@
           "role": "ordinary",
           "source": {
             "column": 18,
-            "line": 170,
+            "line": 173,
             "path": "src/lib.rs"
           },
           "wire_name": "published"

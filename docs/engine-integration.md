@@ -127,12 +127,15 @@ needs a Git workspace:
 2. `dagger module init rust --name gate` scaffolds the module, writes its
    `dagger-module.toml`, and seals the SDK content. The module's `Cargo.toml` depends on
    `<commit>`.
-3. Author exports that take and return Core types. Loading the module before
-   regeneration fails with a diagnostic that names `dagger generate`.
+3. Author exports that take and return Core types: objects, enums, and scalars, with
+   defaults, and an agent function. Loading the module before regeneration fails with a
+   diagnostic that names `dagger generate`.
 4. `dagger generate` regenerates. A second run changes nothing, and the module's
    `.gitattributes` stays scoped to the module.
-5. `dagger call gate <function>` loads the module and calls each export, and the engine
-   describes the module with its crate documentation.
+5. `dagger call gate <function>` loads the module and calls each export, with and
+   without the arguments that have defaults. The engine describes the module with its
+   crate documentation. `dagger agent --list` lists the agent function, and composing it
+   gives a conversation the module's functions as tools, with no model involved.
 6. Plain clients built against the commit's crates run under `dagger run`. One makes
    Void calls and exports an image; the other makes each kind of generated Core call and
    meets each kind of failure the client reports.
@@ -147,9 +150,10 @@ needs a Git workspace:
    and one changed since its last generation, such as by a new dependency, with
    `GENERATED_STALE`. One whose `rust-toolchain.toml` names a release older than the
    SDK's minimum fails to load with `TOOLCHAIN_UNSUPPORTED`, even after
-   `dagger generate`. One whose `dagger-module.toml` declares an earlier release as its
-   `engineVersion` fails `dagger generate` with `TARGET_IDENTITY_INVALID`, and the message
-   names the `engineVersion` to declare.
+   `dagger generate`, and one whose agent function does not return the conversation it
+   extends with the engine's reason. One whose `dagger-module.toml` declares an earlier
+   release as its `engineVersion` fails `dagger generate` with `TARGET_IDENTITY_INVALID`,
+   and the message names the `engineVersion` to declare.
 10. `dagger module init` writes nothing outside the workspace. A `--path` that climbs out
     of it is refused, and so is a module path that is a symbolic link to a directory
     outside, with `OUTPUT_SYMLINK_ESCAPE`, which leaves that directory empty. A crate that
@@ -170,7 +174,9 @@ The README's `ci` module is a fuller module check: `test` against PostgreSQL, `b
 and `publish` to a registry that only the engine can reach
 (`docker run -d --network container:rust-sdk-acceptance registry:2`, then
 `--address=localhost:5000/…`). The ci module runs its `test` and `build` unchanged, from
-the block marked for it; check `publish` by hand. Remove the engine container, its
+the block marked for it, lists and composes its `reviewer` as `dagger agent` does, and runs
+`review` with a recorded conversation in which the reviewer approves, so no model is
+involved; check `publish` by hand. Remove the engine container, its
 volume, the registry, and any exported images afterwards.
 
 ## Immutable generated dependency

@@ -34,4 +34,45 @@ impl Gate {
         i64::try_from(entries.len())
             .map_err(|_| dagger_sdk::ModuleError::new("entry count exceeds the target range"))
     }
+
+    /// Gives a conversation the gate's functions as tools.
+    #[dagger(function, role = "agent")]
+    pub fn expert(
+        &self,
+        base: dagger_sdk::Llm,
+        #[dagger(context)] context: dagger_generated::ModuleContext,
+    ) -> dagger_sdk::Llm {
+        base.with_tools(context.current_node())
+            .with_system_prompt("You check releases.")
+    }
+
+    /// Flips a network protocol, UDP unless another is given.
+    #[dagger(function)]
+    pub fn flip(
+        &self,
+        #[dagger(default = dagger_sdk::NetworkProtocol::Udp)] protocol: dagger_sdk::NetworkProtocol,
+    ) -> dagger_sdk::NetworkProtocol {
+        match protocol {
+            dagger_sdk::NetworkProtocol::Tcp => dagger_sdk::NetworkProtocol::Udp,
+            dagger_sdk::NetworkProtocol::Udp => dagger_sdk::NetworkProtocol::Tcp,
+        }
+    }
+
+    /// Returns a platform, linux/arm64 unless another is given.
+    #[dagger(function)]
+    pub fn platform(
+        &self,
+        #[dagger(default = "linux/arm64")] platform: dagger_sdk::Platform,
+    ) -> dagger_sdk::Platform {
+        platform
+    }
+
+    /// Returns a JSON document, `{"gate":true}` unless another is given.
+    #[dagger(function)]
+    pub fn labels(
+        &self,
+        #[dagger(default = "{\"gate\":true}")] labels: dagger_sdk::Json,
+    ) -> dagger_sdk::Json {
+        labels
+    }
 }

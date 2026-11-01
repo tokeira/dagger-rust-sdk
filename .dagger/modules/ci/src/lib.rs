@@ -120,21 +120,24 @@ impl Ci {
             module_flows(&cli, &fixtures, &runtime, &dependency),
             plain_clients(dag, &cli, &fixtures, &tree, &engine),
             adoption(&cli, &fixtures, &runtime, &dependency),
-            load_refusals(&cli, &runtime),
+            load_refusals(&cli, &fixtures, &runtime),
             init_refusals(&cli, &fixtures, &runtime, &commit),
             legacy_module(&cli, &fixtures, &runtime),
             readme_module(&cli, &fixtures, &tree, &runtime),
         )?;
         Ok(format!(
             "{commit} passed on {engine}: the runtime installed; a module initialized, \
-             regenerated, loaded and answered calls; plain clients made each kind of Core call, \
+             regenerated, loaded and answered calls, Core enums, scalars and defaults \
+             included, and its agent was listed and composed; plain clients made each kind of Core call, \
              met each kind of failure and exported an image; a Rust client scope was refused; an \
              existing crate was adopted and one without a root object refused; modules with \
-             missing or stale generated files or too old a toolchain failed to load, and one \
-             that declares an earlier release's engineVersion failed to regenerate; \
+             missing or stale generated files, too old a toolchain or a misshapen agent \
+             failed to load, and one that declares an earlier release's engineVersion failed \
+             to regenerate; \
              initialization wrote nothing outside the workspace and refused to overwrite a file \
-             or print a credential; a legacy module answered a call; the README module's test \
-             and build passed; and a plain client's query outlasted a lost reply to a \
+             or print a credential; a legacy module answered a call; the README module's test, \
+             build and recorded review passed, and its reviewer was listed and composed; and \
+             a plain client's query outlasted a lost reply to a \
              keepalive probe"
         ))
     }
@@ -470,6 +473,29 @@ async fn module_flows(
         ),
         described(&workspace, ".dagger/modules/gate", GATE_DESCRIPTION),
     )?;
+    // A Core enum or scalar crosses the boundary as the engine's string, and a default
+    // applies when the call omits its argument.
+    tokio::try_join!(
+        prints(&workspace, &["call", "gate", "flip"], "TCP"),
+        prints(
+            &workspace,
+            &["call", "gate", "flip", "--protocol", "TCP"],
+            "UDP"
+        ),
+        prints(&workspace, &["call", "gate", "platform"], "linux/arm64"),
+        prints(&workspace, &["call", "gate", "labels"], "{\"gate\":true}"),
+        prints(
+            &workspace,
+            &["call", "gate", "labels", "--labels", "{\"a\":[1,2]}"],
+            "{\"a\":[1,2]}"
+        ),
+        prints(
+            &workspace,
+            &["agent", "--list", "--format", "link"],
+            "dag+expertise://?expertise=gate/expert"
+        ),
+        composed(&workspace, &["flip"], &["expert"]),
+    )?;
     client_scope_refused(&workspace).await
 }
 
@@ -685,9 +711,14 @@ async fn adoption(
 
 /// Step 9: a module whose generated files are missing, or which changed after its last
 /// generation, fails to load; so does one whose toolchain is older than the SDK's minimum,
-/// even once regenerated. One that declares an earlier release as its engineVersion fails
-/// to regenerate, with a message that names the engineVersion to declare.
-async fn load_refusals(cli: &Container, runtime: &str) -> Result<(), ModuleError> {
+/// even once regenerated, and one whose agent function does not return the conversation.
+/// One that declares an earlier release as its engineVersion fails to regenerate, with a
+/// message that names the engineVersion to declare.
+async fn load_refusals(
+    cli: &Container,
+    fixtures: &Directory,
+    runtime: &str,
+) -> Result<(), ModuleError> {
     let ungenerated = async {
         let module = initialized(cli, "ungenerated", runtime).with_exec(vec![
             "rm",
@@ -727,6 +758,24 @@ async fn load_refusals(cli: &Container, runtime: &str) -> Result<(), ModuleError
         .await
     };
 
+    // The engine checks the shape of an agent function when it loads the module, as it
+    // does for every SDK, and the author sees its reason.
+    let agent = async {
+        let module = dagger(
+            &initialized(cli, "advisor", runtime).with_file(
+                "/advisor/.dagger/modules/advisor/src/lib.rs",
+                fixtures.file("advisor.rs"),
+            ),
+            &["generate", "-y"],
+        );
+        refused(
+            &module,
+            &["functions", "advisor"],
+            "function \"expert\" is marked @agent but does not return LLM!",
+        )
+        .await
+    };
+
     // A module made for an earlier release keeps that release's engineVersion, so the
     // engine serves it that release's API view, which generation refuses.
     let earlier = async {
@@ -755,7 +804,7 @@ async fn load_refusals(cli: &Container, runtime: &str) -> Result<(), ModuleError
         .await
     };
 
-    tokio::try_join!(ungenerated, stale, toolchain, earlier)?;
+    tokio::try_join!(ungenerated, stale, toolchain, agent, earlier)?;
     Ok(())
 }
 
@@ -961,8 +1010,9 @@ async fn legacy_module(
 }
 
 /// The README's module, as readers copy it: generated into a sample service, then its
-/// test against PostgreSQL and its build. Its publish needs a registry, so it is checked by
-/// hand.
+/// test against PostgreSQL, its build, and its reviewer, which is listed and composed as
+/// `dagger agent` does and approves a change in a recorded review, so no model is involved.
+/// Its publish needs a registry, so it is checked by hand.
 async fn readme_module(
     cli: &Container,
     fixtures: &Directory,
@@ -1012,8 +1062,59 @@ async fn readme_module(
         ],
         "api 0.1.0",
     );
-    tokio::try_join!(test, build)?;
+    let replay = format!("--model={}", approving_replay());
+    let reviewer = async {
+        prints(
+            &service,
+            &["agent", "--list", "--format", "link"],
+            "dag+expertise://?expertise=ci/reviewer",
+        )
+        .await?;
+        composed(
+            &service,
+            &["diff", "file", "test"],
+            &["publish", "review", "reviewer"],
+        )
+        .await?;
+        prints(&service, &["call", "ci", "review", &replay], APPROVAL).await
+    };
+    tokio::try_join!(test, build, reviewer)?;
     Ok(())
+}
+
+/// The reviewer's reply in `approving_replay`.
+const APPROVAL: &str = "The change is sound.\n\nAPPROVE";
+
+/// A model for the README module's `review` that replays a recorded conversation in which
+/// the reviewer approves: one of the engine's `recording/` models, which need no provider.
+fn approving_replay() -> String {
+    let conversation = serde_json::json!([
+        {"role": "USER", "content": [{"kind": "TEXT", "text": "Review the change."}]},
+        {"role": "ASSISTANT", "content": [{"kind": "TEXT", "text": APPROVAL}]},
+    ]);
+    format!("recording/{}", base64(conversation.to_string().as_bytes()))
+}
+
+/// Standard base64, with padding.
+fn base64(bytes: &[u8]) -> String {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut encoded = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let group = chunk
+            .iter()
+            .enumerate()
+            .fold(0_u32, |group, (index, byte)| {
+                group | (u32::from(*byte) << (16 - 8 * index))
+            });
+        for index in 0..4 {
+            encoded.push(if index <= chunk.len() {
+                char::from(ALPHABET[((group >> (18 - 6 * index)) & 63) as usize])
+            } else {
+                '='
+            });
+        }
+    }
+    encoded
 }
 
 /// The module block that `README_MARKER` introduces in the README.
@@ -1517,6 +1618,35 @@ async fn described(container: &Container, path: &str, expected: &str) -> Result<
             format!("is {description:?}, not {expected:?}"),
         )),
         None => Err(check_failed(&check, format!("is missing from {output:?}"))),
+    }
+}
+
+/// Composes the workspace's one agent function into a conversation, as `dagger agent` does
+/// before it prompts, and checks that the conversation offers each tool in `offered` and
+/// none in `withheld`. Composing needs no model.
+async fn composed(
+    container: &Container,
+    offered: &[&str],
+    withheld: &[&str],
+) -> Result<(), ModuleError> {
+    let pipeline = "llm | compose $(current-workspace | artifacts | filter-types Expertise | one | value) | tools";
+    let output = dagger(container, &["-c", pipeline])
+        .stdout()
+        .await
+        .map_err(step_failure)?;
+    let tools: Vec<&str> = output
+        .lines()
+        .filter_map(|line| line.strip_prefix("## "))
+        .collect();
+    if offered.iter().all(|tool| tools.contains(tool))
+        && !withheld.iter().any(|tool| tools.contains(tool))
+    {
+        Ok(())
+    } else {
+        Err(check_failed(
+            &format!("dagger -c {pipeline:?}"),
+            format!("offered the tools {tools:?}"),
+        ))
     }
 }
 
