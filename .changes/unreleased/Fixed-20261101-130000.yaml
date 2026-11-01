@@ -1,0 +1,7 @@
+kind: Fixed
+body: |
+    Generation no longer fails for a module whose object field or interface method names a Core type that none of its functions takes or returns, such as `#[dagger(field)] source: Directory`. It failed with "generated module assets could not be rendered" and no location.
+time: 2026-11-01T13:00:00Z
+custom:
+    Author: iw
+    PR: "42"

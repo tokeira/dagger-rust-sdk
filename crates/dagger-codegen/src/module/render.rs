@@ -20,6 +20,7 @@ use super::model::{
     ProjectedFunction, ProjectedTypeDef, ProjectedTypeKind, RegenerationClass,
     RegistrationProjection, RustSymbol, Sha256Digest, SourceCoordinate,
 };
+use super::source::{GeneratedTypeKind, ResolvedGeneratedType};
 use super::types::{ProjectedType, RustModuleType};
 
 const MANIFEST_PATH: &str = "src/dagger_generated/generated-module-assets.json";
@@ -45,10 +46,11 @@ pub struct ModuleRenderRequest<'a> {
     pub sdk_dependency_alias: &'a str,
     /// Checked binding assets reused without regeneration.
     pub checked_bindings: &'a BTreeMap<GeneratedAssetPath, Vec<u8>>,
-    /// Rust path of every checked generated type the descriptor references, keyed by
-    /// target type name. Target and Rust names differ for some Core types (`LLM` is
-    /// `Llm`), so generated code names each handle through the path discovery resolved.
-    pub generated_type_paths: &'a BTreeMap<String, String>,
+    /// Every checked generated type the descriptor references, keyed by target type
+    /// name. Target and Rust names differ for some Core types (`LLM` is `Llm`), so
+    /// generated code names each type through the path discovery resolved, and
+    /// registration declares the kind of its binding.
+    pub generated_types: &'a BTreeMap<String, ResolvedGeneratedType>,
 }
 
 /// Pure generated-module renderer.
@@ -105,7 +107,7 @@ impl ModuleRenderer {
             "src/dagger_generated/module_descriptor.rs",
             generated_source(
                 request.descriptor,
-                render_descriptor(request.descriptor, request.generated_type_paths)?,
+                render_descriptor(request.descriptor, request.generated_types)?,
             )?,
             GeneratedAssetOwner::Descriptor,
             request.descriptor.digest.clone(),
@@ -120,6 +122,7 @@ impl ModuleRenderer {
                 render_registration(
                     request.descriptor,
                     request.registration,
+                    request.generated_types,
                     request.sdk_dependency_alias,
                 )?,
             )?,
@@ -133,7 +136,7 @@ impl ModuleRenderer {
             "src/dagger_generated/module_codec.rs",
             generated_source(
                 request.descriptor,
-                render_codecs(request.descriptor, request.generated_type_paths)?,
+                render_codecs(request.descriptor, request.generated_types)?,
             )?,
             GeneratedAssetOwner::Dispatch,
             request.descriptor.digest.clone(),
@@ -145,7 +148,7 @@ impl ModuleRenderer {
             "src/dagger_generated/module_dispatch.rs",
             generated_source(
                 request.descriptor,
-                render_dispatch(request.descriptor, request.generated_type_paths)?,
+                render_dispatch(request.descriptor, request.generated_types)?,
             )?,
             GeneratedAssetOwner::Dispatch,
             request.descriptor.digest.clone(),
@@ -350,7 +353,7 @@ fn render_context(alias: &str) -> Vec<u8> {
 
 fn render_descriptor(
     descriptor: &ModuleDescriptor,
-    generated_type_paths: &BTreeMap<String, String>,
+    generated_types: &BTreeMap<String, ResolvedGeneratedType>,
 ) -> Result<Vec<u8>, ModuleDiagnosticSet> {
     let mut output = String::from("//! Generated static descriptor view.\n\n");
     for (index, function) in descriptor.functions.iter().enumerate() {
@@ -396,7 +399,7 @@ fn render_descriptor(
             "    super::__private::FunctionView {{ parent_wire_name: {parent:?}, function_wire_name: {:?}, constructor: {}, arguments: ARGUMENTS_{index}, result_type: {:?} }},\n",
             invocation_name(function),
             function.compiled.kind == FunctionKind::Constructor,
-            rust_type(function.compiled.return_type.success(), generated_type_paths)?
+            rust_type(function.compiled.return_type.success(), generated_types)?
         ));
     }
     let root = descriptor
@@ -414,6 +417,7 @@ fn render_descriptor(
 fn render_registration(
     descriptor: &ModuleDescriptor,
     registration: &RegistrationProjection,
+    generated_types: &BTreeMap<String, ResolvedGeneratedType>,
     alias: &str,
 ) -> Result<Vec<u8>, ModuleDiagnosticSet> {
     let json = String::from_utf8(
@@ -481,13 +485,18 @@ fn render_registration(
             output.push_str(&format!(
                 "            {variable} = {variable}.with_field_opts({:?}, {}, &{options});\n",
                 field.wire_name.as_str(),
-                render_projected_type(&field.ty, descriptor, alias)?
+                render_projected_type(&field.ty, descriptor, generated_types, alias)?
             ));
         }
         for function in &ty.functions {
             if !function.constructor {
                 output.push_str(&render_function(
-                    &variable, function, descriptor, alias, false,
+                    &variable,
+                    function,
+                    descriptor,
+                    generated_types,
+                    alias,
+                    false,
                 )?);
             }
         }
@@ -496,6 +505,7 @@ fn render_registration(
                 &variable,
                 constructor,
                 descriptor,
+                generated_types,
                 alias,
                 true,
             )?);
@@ -618,6 +628,7 @@ fn render_function(
     owner: &str,
     function: &ProjectedFunction,
     descriptor: &ModuleDescriptor,
+    generated_types: &BTreeMap<String, ResolvedGeneratedType>,
     alias: &str,
     constructor: bool,
 ) -> Result<String, ModuleDiagnosticSet> {
@@ -637,7 +648,7 @@ fn render_function(
     let return_type = if constructor {
         format!("{owner}.clone()")
     } else {
-        render_projected_type(&function.return_type, descriptor, alias)?
+        render_projected_type(&function.return_type, descriptor, generated_types, alias)?
     };
     let mut output =
         format!("            let mut {variable} = query.function({name:?}, {return_type});\n");
@@ -680,7 +691,13 @@ fn render_function(
         render_source_map("query", &function.source)
     ));
     for argument in &function.arguments {
-        output.push_str(&render_argument(&variable, argument, descriptor, alias)?);
+        output.push_str(&render_argument(
+            &variable,
+            argument,
+            descriptor,
+            generated_types,
+            alias,
+        )?);
     }
     let attach = if constructor {
         "with_constructor"
@@ -697,6 +714,7 @@ fn render_argument(
     function: &str,
     argument: &ProjectedArgument,
     descriptor: &ModuleDescriptor,
+    generated_types: &BTreeMap<String, ResolvedGeneratedType>,
     alias: &str,
 ) -> Result<String, ModuleDiagnosticSet> {
     let mut options = format!("{alias}::FunctionWithArgOpts::default()");
@@ -736,16 +754,17 @@ fn render_argument(
     Ok(format!(
         "            {function} = {function}.with_arg_opts({:?}, {}, &{options});\n",
         argument.wire_name.as_str(),
-        render_argument_type(argument, descriptor, alias)?
+        render_argument_type(argument, descriptor, generated_types, alias)?
     ))
 }
 
 fn render_argument_type(
     argument: &ProjectedArgument,
     descriptor: &ModuleDescriptor,
+    generated_types: &BTreeMap<String, ResolvedGeneratedType>,
     alias: &str,
 ) -> Result<String, ModuleDiagnosticSet> {
-    let rendered = render_projected_type(&argument.ty, descriptor, alias)?;
+    let rendered = render_projected_type(&argument.ty, descriptor, generated_types, alias)?;
     Ok(
         if argument.optional && !projected_type_is_optional(&argument.ty) {
             format!("{rendered}.with_optional(true)")
@@ -765,6 +784,7 @@ fn projected_type_is_optional(ty: &ProjectedType) -> bool {
 fn render_projected_type(
     ty: &ProjectedType,
     descriptor: &ModuleDescriptor,
+    generated_types: &BTreeMap<String, ResolvedGeneratedType>,
     alias: &str,
 ) -> Result<String, ModuleDiagnosticSet> {
     let query = "query";
@@ -776,7 +796,7 @@ fn render_projected_type(
         ProjectedType::List { element, nullable } => (
             format!(
                 "{query}.type_def().with_list_of({})",
-                render_projected_type(element, descriptor, alias)?
+                render_projected_type(element, descriptor, generated_types, alias)?
             ),
             *nullable,
         ),
@@ -792,7 +812,7 @@ fn render_projected_type(
                     format!("{query}.type_def().with_kind({alias}::TypeDefKind::BooleanKind)")
                 }
                 "Float" => format!("{query}.type_def().with_kind({alias}::TypeDefKind::FloatKind)"),
-                name => match projected_named_kind(name, descriptor)? {
+                name => match projected_named_kind(name, descriptor, generated_types)? {
                     ProjectedTypeKind::Object => {
                         format!("{query}.type_def().with_object({name:?})")
                     }
@@ -817,9 +837,12 @@ fn render_projected_type(
     })
 }
 
+// A name is either a local type or a checked generated type that discovery resolved,
+// whether a function, a field, or an interface method reaches it.
 fn projected_named_kind(
     name: &str,
     descriptor: &ModuleDescriptor,
+    generated_types: &BTreeMap<String, ResolvedGeneratedType>,
 ) -> Result<ProjectedTypeKind, ModuleDiagnosticSet> {
     if let Some(local) = descriptor
         .types
@@ -833,32 +856,13 @@ fn projected_named_kind(
             LocalTypeKind::Scalar { .. } => ProjectedTypeKind::Scalar,
         });
     }
-    for function in &descriptor.functions {
-        for argument in &function.compiled.arguments {
-            if let Some(kind) = generated_type_kind(name, &argument.ty) {
-                return Ok(kind);
-            }
-        }
-        if let Some(kind) = generated_type_kind(name, function.compiled.return_type.success()) {
-            return Ok(kind);
-        }
-    }
-    Err(singleton(generation_error()))
-}
-
-fn generated_type_kind(name: &str, ty: &RustModuleType) -> Option<ProjectedTypeKind> {
-    match ty {
-        RustModuleType::GeneratedObject(candidate) if candidate == name => {
-            Some(ProjectedTypeKind::Object)
-        }
-        RustModuleType::GeneratedInterface(candidate) if candidate == name => {
-            Some(ProjectedTypeKind::Interface)
-        }
-        RustModuleType::List(inner) | RustModuleType::Optional(inner) => {
-            generated_type_kind(name, inner)
-        }
-        _ => None,
-    }
+    generated_types
+        .get(name)
+        .map(|binding| match binding.kind {
+            GeneratedTypeKind::Object => ProjectedTypeKind::Object,
+            GeneratedTypeKind::Interface => ProjectedTypeKind::Interface,
+        })
+        .ok_or_else(|| singleton(generation_error()))
 }
 
 fn append_string_option(output: &mut String, method: &str, value: Option<&str>) {
@@ -878,17 +882,17 @@ fn render_source_map(query: &str, source: &SourceCoordinate) -> String {
 
 fn render_codecs(
     descriptor: &ModuleDescriptor,
-    generated_type_paths: &BTreeMap<String, String>,
+    generated_types: &BTreeMap<String, ResolvedGeneratedType>,
 ) -> Result<Vec<u8>, ModuleDiagnosticSet> {
     let mut output = String::from("//! Generated descriptor-owned local value codecs.\n\n");
     for ty in &descriptor.types {
         match &ty.contract {
             LocalTypeContract::Object(contract) => {
-                render_object_codec(&mut output, contract, generated_type_paths)?;
+                render_object_codec(&mut output, contract, generated_types)?;
             }
             LocalTypeContract::Enum(contract) => render_enum_codec(&mut output, contract)?,
             LocalTypeContract::Scalar(contract) => {
-                render_scalar_codec(&mut output, contract, generated_type_paths)?;
+                render_scalar_codec(&mut output, contract, generated_types)?;
             }
             LocalTypeContract::Interface(_) => {}
         }
@@ -899,7 +903,7 @@ fn render_codecs(
 fn render_object_codec(
     output: &mut String,
     contract: &super::types::ObjectContract,
-    generated_type_paths: &BTreeMap<String, String>,
+    generated_types: &BTreeMap<String, ResolvedGeneratedType>,
 ) -> Result<(), ModuleDiagnosticSet> {
     let object_type = contract.symbol.as_str();
     output.push_str(&format!(
@@ -908,7 +912,7 @@ fn render_object_codec(
     for (index, field) in contract.fields.iter().enumerate() {
         output.push_str(&format!(
             "        let value_{index} = <{} as super::__private::ModuleInputCodec>::decode_input(&super::__private::ModuleJson::new(object.get({:?}).cloned().ok_or(super::__private::DecodeError)?), context)?;\n",
-            rust_type(&field.ty, generated_type_paths)?,
+            rust_type(&field.ty, generated_types)?,
             field.wire_name.as_str()
         ));
     }
@@ -926,7 +930,7 @@ fn render_object_codec(
         output.push_str(&format!(
             "            object.insert({:?}.to_owned(), <{} as super::__private::ModuleOutputCodec>::encode_output(value_{index}, context).await?.into_json());\n",
             field.wire_name.as_str(),
-            rust_type(&field.ty, generated_type_paths)?
+            rust_type(&field.ty, generated_types)?
         ));
     }
     output.push_str("            Ok(super::__private::ModuleJson::new(super::__private::serde_json::Value::Object(object)))\n        })\n    }\n}\n\n");
@@ -966,10 +970,10 @@ fn render_enum_codec(
 fn render_scalar_codec(
     output: &mut String,
     contract: &super::types::ScalarContract,
-    generated_type_paths: &BTreeMap<String, String>,
+    generated_types: &BTreeMap<String, ResolvedGeneratedType>,
 ) -> Result<(), ModuleDiagnosticSet> {
     let scalar_type = contract.symbol.as_str();
-    let representation = rust_type(&contract.representation, generated_type_paths)?;
+    let representation = rust_type(&contract.representation, generated_types)?;
     output.push_str(&format!(
         "impl super::__private::ModuleInputCodec for {scalar_type} {{\n    fn decode_input(value: &super::__private::ModuleJson, context: &super::__private::ModuleContextBase) -> Result<Self, super::__private::DecodeError> {{\n        let value = <{representation} as super::__private::ModuleInputCodec>::decode_input(value, context)?;\n        Ok(<{scalar_type} as super::__private::ModuleScalarBridge>::from_representation(value))\n    }}\n}}\n\n"
     ));
@@ -989,7 +993,7 @@ fn tuple_expression(values: &[String]) -> String {
 
 fn render_dispatch(
     descriptor: &ModuleDescriptor,
-    generated_type_paths: &BTreeMap<String, String>,
+    generated_types: &BTreeMap<String, ResolvedGeneratedType>,
 ) -> Result<Vec<u8>, ModuleDiagnosticSet> {
     let mut output = String::from(
         "//! Generated closed typed dispatch registry.\n\n/// Exact descriptor-owned dispatch implementation.\npub struct GeneratedDispatchRegistry;\n\nimpl super::__private::DispatchRegistry for GeneratedDispatchRegistry {\n    fn descriptor(&self) -> &'static super::__private::ModuleDescriptorView { &super::module_descriptor::DESCRIPTOR }\n\n    fn registration(&self) -> &'static super::__private::RegistrationView { &super::module_registration::REGISTRATION }\n\n    fn invoke<'a>(&'a self, call: super::__private::PreparedCall, context: super::__private::ModuleContextBase) -> super::__private::ModuleBoxFuture<'a, Result<super::__private::ModuleJson, super::__private::InvocationError>> {\n        Box::pin(async move {\n            let super::__private::CallSelector::Invocation { parent_wire_name, function_wire_name } = call.identity.selector() else { return Err(super::__private::InvocationError::UnknownFunction); };\n            let coordinate = super::__private::CallCoordinate { parent_wire_name: parent_wire_name.as_str().to_owned(), function_wire_name: function_wire_name.as_str().to_owned() };\n            match parent_wire_name.as_str() {\n",
@@ -1015,7 +1019,7 @@ fn render_dispatch(
                 "                    {:?} => {{\n",
                 invocation_name(function)
             ));
-            render_dispatch_arm(&mut output, function, generated_type_paths)?;
+            render_dispatch_arm(&mut output, function, generated_types)?;
             output.push_str("                    }\n");
         }
         output.push_str("                    _ => Err(super::__private::InvocationError::UnknownFunction),\n                },\n");
@@ -1040,7 +1044,7 @@ fn invocation_name(function: &super::model::FunctionDescriptor) -> &str {
 fn render_dispatch_arm(
     output: &mut String,
     function: &super::model::FunctionDescriptor,
-    generated_type_paths: &BTreeMap<String, String>,
+    generated_types: &BTreeMap<String, ResolvedGeneratedType>,
 ) -> Result<(), ModuleDiagnosticSet> {
     let fingerprint = function
         .fingerprint
@@ -1056,7 +1060,7 @@ fn render_dispatch_arm(
         ));
     }
     for (index, argument) in function.compiled.arguments.iter().enumerate() {
-        let argument_type = rust_type(&argument.ty, generated_type_paths)?;
+        let argument_type = rust_type(&argument.ty, generated_types)?;
         // `get(0)` would trip `clippy::get_first` in the module that compiles this.
         let lookup = if index == 0 {
             "first()".to_owned()
@@ -1106,10 +1110,7 @@ fn render_dispatch_arm(
         output.push_str(".map_err(super::__private::InvocationError::Application)?");
     }
     output.push_str(";\n");
-    let success = rust_type(
-        function.compiled.return_type.success(),
-        generated_type_paths,
-    )?;
+    let success = rust_type(function.compiled.return_type.success(), generated_types)?;
     output.push_str(&format!(
         "                        <{success} as super::__private::ModuleOutputCodec>::encode_output(value, &context).await.map_err(|_| super::__private::InvocationError::Encode {{ coordinate, result_type: {success:?}.to_owned() }})\n"
     ));
@@ -1144,7 +1145,7 @@ fn render_entrypoint(descriptor: &ModuleDescriptor) -> Vec<u8> {
 
 fn rust_type(
     ty: &RustModuleType,
-    generated_type_paths: &BTreeMap<String, String>,
+    generated_types: &BTreeMap<String, ResolvedGeneratedType>,
 ) -> Result<String, ModuleDiagnosticSet> {
     Ok(match ty {
         RustModuleType::String => "String".to_owned(),
@@ -1152,18 +1153,18 @@ fn rust_type(
         RustModuleType::Boolean => "bool".to_owned(),
         RustModuleType::Float => "f64".to_owned(),
         RustModuleType::Void => "()".to_owned(),
-        RustModuleType::List(inner) => format!("Vec<{}>", rust_type(inner, generated_type_paths)?),
+        RustModuleType::List(inner) => format!("Vec<{}>", rust_type(inner, generated_types)?),
         RustModuleType::Optional(inner) => {
-            format!("Option<{}>", rust_type(inner, generated_type_paths)?)
+            format!("Option<{}>", rust_type(inner, generated_types)?)
         }
         RustModuleType::LocalObject(symbol)
         | RustModuleType::LocalInterface(symbol)
         | RustModuleType::LocalEnum(symbol)
         | RustModuleType::CustomScalar(symbol) => symbol.as_str().to_owned(),
         RustModuleType::GeneratedObject(name) | RustModuleType::GeneratedInterface(name) => {
-            generated_type_paths
+            generated_types
                 .get(name)
-                .cloned()
+                .map(|binding| binding.rust_path.clone())
                 .ok_or_else(|| singleton(generation_error()))?
         }
     })

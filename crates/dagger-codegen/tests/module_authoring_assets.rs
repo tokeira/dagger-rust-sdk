@@ -333,7 +333,7 @@ proptest! {
                     introspection: &introspection,
                     sdk_dependency_alias: "renamed_sdk",
                     checked_bindings: &BTreeMap::new(),
-                    generated_type_paths: &BTreeMap::new(),
+                    generated_types: &BTreeMap::new(),
                 })
             }
         };
@@ -344,33 +344,7 @@ proptest! {
 #[test]
 fn representative_generated_module_executes_directly_offline() {
     let source = representative_source();
-    let target = target(digest("checked-schema"));
-    // `LLM` is `Llm` in Rust, so the generated dispatch must name each Core handle
-    // through its binding path rather than its target name.
-    let generated = GeneratedTypeRegistry::new(
-        target.visible_schema_digest.clone(),
-        [
-            ("renamed_sdk::Directory", "Directory"),
-            ("renamed_sdk::Llm", "LLM"),
-        ]
-        .map(|(rust_path, target_name)| GeneratedTypeBinding {
-            rust_path: rust_path.to_owned(),
-            target_name: target_name.to_owned(),
-            visible_schema_digest: target.visible_schema_digest.clone(),
-            kind: GeneratedTypeKind::Object,
-        }),
-    )
-    .expect("fixture Core bindings are unique");
-    let compiled = ModuleCompiler::compile(ModuleCompilationRequest {
-        target: &target,
-        source: &source,
-        generated_types: &generated,
-        visible_type_names: &BTreeSet::new(),
-        generator_digest: &digest("checked-generator"),
-        sdk_dependency_alias: "renamed_sdk",
-        checked_bindings: &BTreeMap::new(),
-    })
-    .expect("representative module must compile purely");
+    let compiled = compile_representative(&source);
     for (path, bytes) in &compiled.assets.files {
         if path.as_str().ends_with(".rs") {
             syn::parse_file(std::str::from_utf8(bytes).expect("generated Rust is UTF-8"))
@@ -455,6 +429,25 @@ fn representative_generated_module_executes_directly_offline() {
         "generated fixture has lints:\n{}",
         String::from_utf8_lossy(&lints.stderr)
     );
+}
+
+#[test]
+fn a_core_type_that_only_a_field_or_an_interface_method_names_registers() {
+    // Registration declares a Core type with the kind of its binding, wherever the
+    // module names it.
+    for declaration in [
+        "#[renamed_sdk::object(rename = \"FixtureTree\")]\npub(crate) struct Tree {\n    #[dagger(field)]\n    tree: renamed_sdk::Directory,\n}\n",
+        "#[renamed_sdk::interface]\npub(crate) trait Probe {\n    fn tree(&self) -> renamed_sdk::Directory;\n}\n",
+    ] {
+        let source = with_contents(source_snapshot(3, false, false), "src/lib.rs", |contents| {
+            format!("{contents}\n{declaration}")
+        });
+        let registration = registration_source(&compile_representative(&source));
+        assert!(
+            registration.contains("query.type_def().with_object(\"Directory\")"),
+            "{declaration}"
+        );
+    }
 }
 
 #[test]
@@ -760,6 +753,34 @@ fn generated_registry_runs_through_the_production_wrapper_without_an_engine() {
     });
 }
 "#
+}
+
+// The representative module names Core objects. `LLM` is `Llm` in Rust, so the
+// generated dispatch must name each Core type through its binding path rather than its
+// target name.
+fn compile_representative(source: &ModuleSourceSnapshot) -> ModuleCompilation {
+    let target = target(digest("checked-schema"));
+    let binding = |name: &str, target_name: &str| GeneratedTypeBinding {
+        rust_path: format!("renamed_sdk::{name}"),
+        target_name: target_name.to_owned(),
+        visible_schema_digest: target.visible_schema_digest.clone(),
+        kind: GeneratedTypeKind::Object,
+    };
+    let generated = GeneratedTypeRegistry::new(
+        target.visible_schema_digest.clone(),
+        [binding("Directory", "Directory"), binding("Llm", "LLM")],
+    )
+    .expect("fixture Core bindings are unique");
+    ModuleCompiler::compile(ModuleCompilationRequest {
+        target: &target,
+        source,
+        generated_types: &generated,
+        visible_type_names: &BTreeSet::new(),
+        generator_digest: &digest("checked-generator"),
+        sdk_dependency_alias: "renamed_sdk",
+        checked_bindings: &BTreeMap::new(),
+    })
+    .expect("representative module must compile purely")
 }
 
 fn compile(

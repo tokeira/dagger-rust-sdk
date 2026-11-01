@@ -15,7 +15,9 @@ use super::model::{
 };
 use super::projection::ProjectionCompiler;
 use super::render::{ModuleRenderRequest, ModuleRenderer, RenderedModuleAssets};
-use super::source::{GeneratedTypeRegistry, ModuleDiscovery, SourceDiscovery};
+use super::source::{
+    GeneratedTypeRegistry, ModuleDiscovery, ResolvedGeneratedType, SourceDiscovery,
+};
 use super::types::{TypeCatalog, TypeResolver};
 
 /// Immutable inputs to one complete engine-free compilation.
@@ -89,14 +91,14 @@ impl ModuleCompiler {
             generator_digest: request.generator_digest,
         })?;
         let projections = ProjectionCompiler::project(&descriptor, request.visible_type_names)?;
-        let generated_type_paths = generated_type_paths(&discovery)?;
+        let generated_types = generated_types(&discovery)?;
         let assets = ModuleRenderer::render(ModuleRenderRequest {
             descriptor: &descriptor,
             registration: &projections.registration,
             introspection: &projections.introspection,
             sdk_dependency_alias: request.sdk_dependency_alias,
             checked_bindings: request.checked_bindings,
-            generated_type_paths: &generated_type_paths,
+            generated_types: &generated_types,
         })?;
         Ok(ModuleCompilation {
             descriptor,
@@ -109,14 +111,14 @@ impl ModuleCompiler {
 
 // Every generated type in the descriptor was resolved from one checked binding in
 // the discovery closure, so its binding path is the spelling generated code must use.
-fn generated_type_paths(
+fn generated_types(
     discovery: &ModuleDiscovery,
-) -> Result<BTreeMap<String, String>, ModuleDiagnosticSet> {
-    let mut paths = BTreeMap::new();
+) -> Result<BTreeMap<String, ResolvedGeneratedType>, ModuleDiagnosticSet> {
+    let mut types = BTreeMap::new();
     for binding in discovery.generated_types.values() {
-        if paths
-            .insert(binding.target_name.clone(), binding.rust_path.clone())
-            .is_some_and(|previous| previous != binding.rust_path)
+        if types
+            .insert(binding.target_name.clone(), binding.clone())
+            .is_some_and(|previous| previous.rust_path != binding.rust_path)
         {
             return Err(singleton(diag(
                 ModuleDiagnosticCode::RustPathInvalid,
@@ -125,7 +127,7 @@ fn generated_type_paths(
             )));
         }
     }
-    Ok(paths)
+    Ok(types)
 }
 
 fn diag(
