@@ -451,6 +451,12 @@ fn a_core_type_that_only_a_field_or_an_interface_method_names_registers() {
 }
 
 #[test]
+fn an_agent_function_registers_with_the_agent_role() {
+    let registration = registration_source(&compile_representative(&representative_source()));
+    assert!(registration.contains("function_model = function_model.with_agent();"));
+}
+
+#[test]
 fn crate_root_documentation_is_the_module_description() {
     let target = target(digest("checked-schema"));
     let generator = digest("checked-generator");
@@ -851,7 +857,8 @@ pub(crate) struct Child {
 
 // The representative crate is authored the way an initialized module is: its root
 // describes the module and declares the generated module, and its exports include a
-// direct `ModuleError` result and Core handles whose Rust and target names differ.
+// direct `ModuleError` result, Core handles whose Rust and target names differ, and an
+// agent.
 fn representative_source() -> ModuleSourceSnapshot {
     let mut snapshot = source_snapshot(7, false, false);
     let root_path = ModuleSourcePath::new("src/lib.rs").expect("fixture root path is valid");
@@ -875,7 +882,7 @@ impl Root {
         source
     }
 
-    #[dagger(function)]
+    #[dagger(function, role = "agent")]
     pub(crate) fn model(&self, model: renamed_sdk::Llm) -> renamed_sdk::Llm {
         model
     }

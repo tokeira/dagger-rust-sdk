@@ -1,0 +1,7 @@
+kind: Experimental
+body: |
+    A module function with `role = "agent"` is an agent function, as a Go function marked `+agent` is, so `dagger agent` composes the module's expertise into its conversation. The engine checks the function's shape when it loads the module: its one required `Llm` argument is the conversation, and it returns the conversation it extends. The role is experimental, as `Function.withAgent` is upstream.
+time: 2026-11-01T13:01:00Z
+custom:
+    Author: iw
+    PR: "42"

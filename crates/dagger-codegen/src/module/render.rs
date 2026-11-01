@@ -680,6 +680,7 @@ fn render_function(
         FunctionRole::Check => Some("with_check"),
         FunctionRole::Generator => Some("with_generator"),
         FunctionRole::Up => Some("with_up"),
+        FunctionRole::Agent => Some("with_agent"),
     };
     if let Some(role_method) = role_method {
         output.push_str(&format!(

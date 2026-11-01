@@ -79,6 +79,34 @@ impl Greeter {
 renames are interpreted once by the shared authoring grammar. Unsupported shapes fail
 at authored coordinates rather than degrading to untyped JSON.
 
+A function's `role` gives it to a Dagger command. The engine checks the shape that each
+role needs when it loads the module, as it does for every SDK:
+
+| Metadata | Run by | Shape |
+| --- | --- | --- |
+| `role = "check"` | `dagger check` | returns nothing |
+| `role = "generator"` | `dagger generate` | returns a `Changeset` and requires no arguments |
+| `role = "up"` | `dagger start` | returns a `Service` and requires no arguments |
+| `role = "agent"` | `dagger agent` | `fn expert(&self, base: Llm) -> Llm` |
+
+An agent function adds the module's expertise to a conversation: its one required `Llm`
+argument is the conversation, and it returns the conversation it extends. Its other
+arguments are optional or an `Agent`, which receives the agent that owns the
+conversation. `dagger agent` composes the agent functions of the workspace's modules into
+one conversation. An agent usually gives that conversation its module's functions as
+tools, through the receiver that the context holds:
+
+```rust
+#[dagger(function, role = "agent")]
+fn expert(&self, base: Llm, #[dagger(context)] context: ModuleContext) -> Llm {
+    base.with_tools(context.current_node())
+        .with_system_prompt("You review releases.")
+}
+```
+
+The agent function itself is not one of the tools. Like `Function.withAgent`, the role is
+experimental upstream, so a later Dagger release may change it.
+
 Rustdoc comments become descriptions. The `///` comment of an exported type, field, or
 function describes it, and the crate root's `//!` comment describes the module: its first
 line is the module's short description, and the rest is its long description. Only

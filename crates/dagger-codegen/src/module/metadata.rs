@@ -103,6 +103,9 @@ pub enum FunctionRole {
     Generator,
     /// Up function.
     Up,
+    /// Agent function: a source of expertise. Like `Function.withAgent`, experimental
+    /// upstream; the engine checks its shape when it loads the module.
+    Agent,
 }
 
 /// Complete metadata for one projected data argument.
@@ -877,6 +880,7 @@ fn parse_role(
         "check" => Ok(FunctionRole::Check),
         "generator" => Ok(FunctionRole::Generator),
         "up" => Ok(FunctionRole::Up),
+        "agent" => Ok(FunctionRole::Agent),
         _ => Err(metadata_error(
             Some(source.clone()),
             "function role is not supported by the selected target",
@@ -1022,7 +1026,7 @@ mod tests {
             renamed in any::<bool>(),
             required_deprecated in any::<bool>(),
             collision in any::<bool>(),
-            role in 0_u8..4,
+            role in 0_u8..5,
         ) {
             let async_token = if asynchronous { "async " } else { "" };
             let rename = if renamed { ", rename = \"enabledFlag\"" } else { "" };
@@ -1032,7 +1036,7 @@ mod tests {
                 format!("default = false, deprecated = \"use replacement\", doc = \"flag\"{rename}")
             };
             let role_index = usize::from(role);
-            let role = ["ordinary", "check", "generator", "up"][role_index];
+            let role = ["ordinary", "check", "generator", "up", "agent"][role_index];
             let second = if collision {
                 ", foo_bar: bool, fooBar: bool"
             } else {
@@ -1066,7 +1070,7 @@ mod tests {
                 let compiled = compiled.unwrap();
                 prop_assert_eq!(compiled.metadata.documentation.as_deref(), Some("semantic docs"));
                 prop_assert_eq!(compiled.metadata.cache, CachePolicy::Never);
-                prop_assert_eq!(compiled.metadata.role, [FunctionRole::Ordinary, FunctionRole::Check, FunctionRole::Generator, FunctionRole::Up][role_index]);
+                prop_assert_eq!(compiled.metadata.role, [FunctionRole::Ordinary, FunctionRole::Check, FunctionRole::Generator, FunctionRole::Up, FunctionRole::Agent][role_index]);
                 prop_assert_eq!(compiled.arguments[0].wire_name.as_str(), if renamed { "enabledFlag" } else { "enabled" });
                 prop_assert_eq!(&compiled.arguments[0].metadata.default, &Some(Value::Bool(false)));
                 prop_assert_eq!(compiled.arguments[0].metadata.deprecation.as_deref(), Some("use replacement"));
