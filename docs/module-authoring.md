@@ -117,7 +117,10 @@ prior manifest owns.
 The entrypoint reads an active call once into a typed envelope. An empty parent name
 selects registration; an empty function name remains the root constructor selector.
 For invocation, parent state and the complete named argument set are validated before
-user code runs. Context parameters are injected and absent from TypeDefs.
+user code runs. Context parameters are injected and absent from TypeDefs. When the
+engine refuses the registration, for example because a function does not have the
+shape its role requires, the entrypoint returns the engine's reason as the
+registration's error, as the Go SDK does, so the command that loaded the module shows it.
 
 Each call owns its parent, decoded values, session context, cancellation signal, and
 result sink. The entrypoint installs a termination-signal producer, so `SIGTERM` and

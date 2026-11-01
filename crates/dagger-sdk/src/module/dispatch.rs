@@ -17,7 +17,7 @@ use super::context::ModuleContextBase;
 use super::error::ModuleError;
 use super::view::{ModuleDescriptorView, RegistrationView};
 use super::wire::{CallEnvelope, CallIdentity, CallSelector, ModuleJson};
-use crate::CloseError;
+use crate::{CloseError, QueryError};
 
 /// Stable parent/function coordinates retained by every dispatch failure.
 #[doc(hidden)]
@@ -516,16 +516,34 @@ where
     }
     match envelope.identity.selector() {
         CallSelector::Registration => {
-            registration_sink
-                .serve(registry.registration())
-                .await
-                .map_err(DispatchError::Registration)?;
+            if let Err(error) = registration_sink.serve(registry.registration()).await {
+                // As Go's dispatcher does, the engine is offered the reason it refused the
+                // registration, such as a function whose shape its role does not allow, so
+                // the author sees that reason instead of an unexplained exit. The refusal
+                // concerns the authored module, and the publication is best-effort because
+                // the failure may be the session itself.
+                let refused = CallOutcome::Error {
+                    error: registration_failure(&error),
+                    kind: ErrorOutcomeKind::Application,
+                };
+                let _ = result_sink.publish(refused).await;
+                return Err(DispatchError::Registration(error));
+            }
             Ok(CallReceipt {
                 identity: envelope.identity,
                 outcome: None,
             })
         }
         CallSelector::Invocation { .. } => dispatch(registry, envelope, context, result_sink).await,
+    }
+}
+
+/// The engine's error behind a failed registration, converted as Go's dispatcher converts
+/// it, or the adapter's own message when the failure carries no query error.
+fn registration_failure(error: &RegistrationError) -> ModuleError {
+    match Error::source(error).and_then(|source| source.downcast_ref::<QueryError>()) {
+        Some(query) => ModuleError::from(query.clone()),
+        None => ModuleError::new(error.to_string()),
     }
 }
 
@@ -632,11 +650,11 @@ mod tests {
 
     use async_trait::async_trait;
     use proptest::prelude::*;
-    use serde_json::json;
+    use serde_json::{Map, json};
 
     use super::*;
     use crate::connection::{EngineConnection, EngineConnectionError};
-    use crate::graphql::{RawRequest, RawResponse, ResponseData};
+    use crate::graphql::{GraphQlError, RawRequest, RawResponse, ResponseData};
     use crate::lifecycle::SessionHandle;
     use crate::module::context::{CurrentCall, ModuleCancellation};
     use crate::module::view::{ArgumentView, FunctionView};
@@ -976,6 +994,77 @@ mod tests {
         assert!(outcomes.lock().expect("outcome lock").is_empty());
     }
 
+    struct RefusedRegistration(QueryError);
+
+    impl RegistrationSink for RefusedRegistration {
+        fn serve<'a>(
+            &'a self,
+            _registration: &'a RegistrationView,
+        ) -> ModuleBoxFuture<'a, Result<(), RegistrationError>> {
+            Box::pin(async move { Err(RegistrationError::with_source(self.0.clone())) })
+        }
+    }
+
+    #[tokio::test]
+    async fn a_refused_registration_publishes_the_engine_reason() {
+        let registry = Registry {
+            behavior: Behavior::Value,
+            user_events: Arc::new(AtomicUsize::new(0)),
+            barrier: None,
+        };
+        let identity = CallIdentity::new("registration", CallSelector::Registration)
+            .expect("static identity is valid");
+        let envelope = CallEnvelope::new(identity, None, Vec::new());
+        let context = ModuleContextBase::new(
+            QueryBuilder::new(SessionHandle::new(
+                Box::new(CountingConnection(Arc::new(AtomicUsize::new(0)))),
+                None,
+                None,
+            )),
+            ModuleCancellation::default(),
+            opentelemetry::Context::new(),
+            CurrentCall::new("registration", CallSelector::Registration)
+                .expect("static identity is valid"),
+        );
+        let reason = "function \"expert\" is marked @agent but does not return LLM!";
+        let response = RawResponse::new(ResponseData::Null)
+            .with_errors(vec![GraphQlError::new(reason).with_extensions(
+                Map::from_iter([("code".to_owned(), json!("refused"))]),
+            )]);
+        let registration_sink = RefusedRegistration(QueryError::GraphQl { response });
+        let outcomes = Arc::new(Mutex::new(Vec::new()));
+        let result_sink = Sink {
+            outcomes: Arc::clone(&outcomes),
+            fail: false,
+        };
+
+        let result = handle_call(
+            &registry,
+            envelope,
+            context,
+            &registration_sink,
+            &result_sink,
+        )
+        .await;
+
+        assert!(matches!(result, Err(DispatchError::Registration(_))));
+        let outcomes = outcomes.lock().expect("outcome lock");
+        let [
+            CallOutcome::Error {
+                error,
+                kind: ErrorOutcomeKind::Application,
+            },
+        ] = outcomes.as_slice()
+        else {
+            panic!("expected the engine's reason as the one outcome: {outcomes:?}");
+        };
+        assert_eq!(error.message(), reason);
+        assert_eq!(
+            error.details().map(|(name, _)| name).collect::<Vec<_>>(),
+            ["code"]
+        );
+    }
+
     proptest! {
         #![proptest_config(proptest_config())]
 
@@ -1047,7 +1136,9 @@ mod tests {
             if registration {
                 prop_assert_eq!(registration_events.load(Ordering::SeqCst), 1);
                 prop_assert_eq!(user_events.load(Ordering::SeqCst), 0);
-                prop_assert!(outcomes.lock().expect("outcome lock").is_empty());
+                // Only a refused registration publishes: the engine's reason, best-effort.
+                let published = outcomes.lock().expect("outcome lock").len();
+                prop_assert_eq!(published, usize::from(registration_fails && !publication_fails));
                 prop_assert_eq!(result.is_err(), registration_fails);
             } else {
                 prop_assert_eq!(registration_events.load(Ordering::SeqCst), 0);

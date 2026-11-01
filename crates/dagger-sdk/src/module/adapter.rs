@@ -620,6 +620,8 @@ mod tests {
                     prop_assert!(matches!(result, Err(ModuleEntrypointError::Dispatch(DispatchError::Registration(_)))));
                     prop_assert_eq!(registrations.load(Ordering::SeqCst), 1);
                     prop_assert_eq!(invocations.load(Ordering::SeqCst), 0);
+                    let requests = connection.requests.lock().expect("request recorder lock");
+                    prop_assert!(requests.iter().any(|request| request.contains("returnError")));
                 } else if case.registration {
                     prop_assert!(result.is_ok());
                     prop_assert_eq!(registrations.load(Ordering::SeqCst), 1);
