@@ -1,7 +1,0 @@
-kind: Added
-body: |
-    A module's arguments, results and fields can be Core enums and scalars, such as `NetworkProtocol`, `Platform`, `Json` and `Bytes`, as a Go module's can. An enum crosses the boundary as the name of its member and accepts the engine's aliases for it, and a scalar keeps its exact text. A default names an enum member, as in `#[dagger(default = NetworkProtocol::Udp)]`, or gives a scalar's text as a string literal, and generation refuses a default that is not one of the enum's members, or a `Json` default that is not JSON.
-time: 2026-11-01T13:02:00Z
-custom:
-    Author: iw
-    PR: "42"

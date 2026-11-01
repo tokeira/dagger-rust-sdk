@@ -4,7 +4,7 @@
   "dagger_revision": "f0a3d728cf7012e0954f772b5dc5c8471648afaa",
   "engine_version": "v1.0.0-beta.23",
   "rust_edition": "2024",
-  "rust_sdk_version": "0.4.0",
+  "rust_sdk_version": "0.4.1",
   "rust_version": "1.99.1",
   "schema_digest": "sha256:d606e02207a4265f6c76adc93f73153a694ceaf51c12d36b2a3b8baf131ff252",
   "schema_version": "v1.0.0-beta.23"
