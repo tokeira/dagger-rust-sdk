@@ -1,8 +1,8 @@
 {
   "assets": {
     "src/bin/dagger-module.rs": {
-      "digest": "sha256:958326b12775fa7b47907384042f3dde4e2e71c9aaf3c41ccbdaa46f9c05bb6e",
-      "input_digest": "sha256:c7e387a18a89ec176c1b24c3e29eaaa817007ecc9f11cc13e6775eec6d3b6ef5",
+      "digest": "sha256:6db140e70ac3960d175f0bcc65f5fb2ef3f2f0626ea1badff698f744974b7540",
+      "input_digest": "sha256:fadf5e46f19f03db87095c9e48d530efb17251e8b51cd219e83d954facaceb14",
       "owner": "entrypoint",
       "path": "src/bin/dagger-module.rs",
       "regeneration": "generator"
@@ -15,64 +15,64 @@
       "regeneration": "visible-schema"
     },
     "src/dagger_generated/mod.rs": {
-      "digest": "sha256:1789c357cfc2de9fa1b744cd4700edfdf40e8cfc3822ac4a5bcc985f842847c8",
-      "input_digest": "sha256:d504c624919497110b43f584de9688e270fa1e2c0381665608f55f248ee482df",
+      "digest": "sha256:e3a6fcd5cbcf35187ac6ac827941b1cf5881249d5fedb4f988d16cfd753469b5",
+      "input_digest": "sha256:9acf6dc1afb35dccdb363dcd8facc8397e8828606c5f4b91b3aea986c1773644",
       "owner": "descriptor",
       "path": "src/dagger_generated/mod.rs",
       "regeneration": "authoring"
     },
     "src/dagger_generated/module-introspection.json": {
-      "digest": "sha256:075cca5a9e5f260dcdf1229d05462853cb06b3c5b0130dfb89b953d8e899198c",
-      "input_digest": "sha256:be6f0c0df7714f9979814588618b6e7c8b32db8a13d1f4145ac0e0dfbe220596",
+      "digest": "sha256:3ea24ce7b7c9a90883da9452c7407de7472a05849b0af845ed5a552168252569",
+      "input_digest": "sha256:46e9a2822841a723d0468aa7044cf96da20180c302e46a445daf036d6b7998cd",
       "owner": "introspection",
       "path": "src/dagger_generated/module-introspection.json",
       "regeneration": "authoring"
     },
     "src/dagger_generated/module_codec.rs": {
-      "digest": "sha256:d3d2a3ca9aa61095efe1de87eca3e9159e2ba3a2da727fd0ea3ee63a415b9897",
-      "input_digest": "sha256:be6f0c0df7714f9979814588618b6e7c8b32db8a13d1f4145ac0e0dfbe220596",
+      "digest": "sha256:b0fc8f378ed7284659c733c3c7232027959cf6af9d1228e50bb431ccde3f36b3",
+      "input_digest": "sha256:46e9a2822841a723d0468aa7044cf96da20180c302e46a445daf036d6b7998cd",
       "owner": "dispatch",
       "path": "src/dagger_generated/module_codec.rs",
       "regeneration": "authoring"
     },
     "src/dagger_generated/module_context.rs": {
-      "digest": "sha256:3bb7b2f65d3f441732bdfcc0abffa7bdb219576aa10b76a7d261dd9e3f972695",
+      "digest": "sha256:cb5dbcb55607ae092dc58b89948f4bbf09bf9a2ab871a2008dfe92d5cb96c634",
       "input_digest": "sha256:1d149309370c2bf0ab6f50dc566923835f783c1ec84939b562acf508d244edd3",
       "owner": "context",
       "path": "src/dagger_generated/module_context.rs",
       "regeneration": "visible-schema"
     },
     "src/dagger_generated/module_descriptor.rs": {
-      "digest": "sha256:a0ec82ccad0e2f1eafca42b1ad7f7a53d50e78b4bd8eff228602c5bec1d18424",
-      "input_digest": "sha256:be6f0c0df7714f9979814588618b6e7c8b32db8a13d1f4145ac0e0dfbe220596",
+      "digest": "sha256:7adc6a7024d4a67779518d27f27c6f869f1b5dc6511bbd9a11c3869f1812f042",
+      "input_digest": "sha256:46e9a2822841a723d0468aa7044cf96da20180c302e46a445daf036d6b7998cd",
       "owner": "descriptor",
       "path": "src/dagger_generated/module_descriptor.rs",
       "regeneration": "authoring"
     },
     "src/dagger_generated/module_dispatch.rs": {
-      "digest": "sha256:cb90b5649866fa594595c7a560b1704f7c1c79038c24edc4d05acc369a169f42",
-      "input_digest": "sha256:be6f0c0df7714f9979814588618b6e7c8b32db8a13d1f4145ac0e0dfbe220596",
+      "digest": "sha256:75d678cf1eeb7d04dbb195c1b3fc5a3df418e4272de03a75b4fd43bc1fff3e07",
+      "input_digest": "sha256:46e9a2822841a723d0468aa7044cf96da20180c302e46a445daf036d6b7998cd",
       "owner": "dispatch",
       "path": "src/dagger_generated/module_dispatch.rs",
       "regeneration": "authoring"
     },
     "src/dagger_generated/module_registration.rs": {
-      "digest": "sha256:fd465e74f8aa9dfed27e35f57e4d3e3330880133360cf025309b983416d0164b",
-      "input_digest": "sha256:be6f0c0df7714f9979814588618b6e7c8b32db8a13d1f4145ac0e0dfbe220596",
+      "digest": "sha256:ec3ec6b42c4c557b9584c0cdd71e7c4d62d5a308b2165962c594e7a4eeed5118",
+      "input_digest": "sha256:46e9a2822841a723d0468aa7044cf96da20180c302e46a445daf036d6b7998cd",
       "owner": "registration",
       "path": "src/dagger_generated/module_registration.rs",
       "regeneration": "authoring"
     }
   },
-  "descriptor_digest": "sha256:be6f0c0df7714f9979814588618b6e7c8b32db8a13d1f4145ac0e0dfbe220596",
-  "digest": "sha256:4f58c90113cf25094351fcb57aab5ada86b7776583d4c0af5dea7330981a199f",
+  "descriptor_digest": "sha256:46e9a2822841a723d0468aa7044cf96da20180c302e46a445daf036d6b7998cd",
+  "digest": "sha256:00d6311bd3f0556de1c7f5743dbaa9a2eed7877d2936a146ce6c524b209c6adc",
   "format_version": 1,
   "manifest_path": "src/dagger_generated/generated-module-assets.json",
   "target": {
     "dagger_revision": "a45241b20a5e07fbfc5954479ef0b61da843499c",
     "engine_version": "1.0.0-beta.25",
     "rust_edition": "2024",
-    "rust_sdk_version": "0.4.1",
+    "rust_sdk_version": "0.5.0",
     "rust_toolchain": "1.99.1",
     "visible_schema_digest": "sha256:1d149309370c2bf0ab6f50dc566923835f783c1ec84939b562acf508d244edd3"
   }
