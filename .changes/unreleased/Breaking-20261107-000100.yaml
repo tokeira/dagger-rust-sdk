@@ -1,0 +1,7 @@
+kind: Breaking
+body: |
+    The SDK targets stock Dagger `v1.0.0-beta.25` engines and CLIs instead of `v1.0.0-beta.23`. Each Dagger release serves an API view of its own, and the SDK requires beta.25's, so a module must declare `engineVersion = "v1.0.0-beta.25"` in its `dagger-module.toml`. The generated client follows the beta.25 schema. It adds a `transparentHugePages` option for `Container.withExec`, and `include` and `exclude` options for `File.extract`.
+time: 2026-11-07T00:01:00Z
+custom:
+    Author: iw
+    PR: "45"

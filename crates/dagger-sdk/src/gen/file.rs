@@ -1,5 +1,5 @@
 //! Generated bindings owned by the GraphQL `File` type.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:d606e02207a4265f6c76adc93f73153a694ceaf51c12d36b2a3b8baf131ff252","target_revision":"f0a3d728cf7012e0954f772b5dc5c8471648afaa"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:4dfe7942ff12bd22554ccd2cb26a5427e3a9eeece22dbba9d8aa89e4590e97ff","target_revision":"a45241b20a5e07fbfc5954479ef0b61da843499c"}
 #[doc = "A file."]
 #[derive(Clone)]
 pub struct File {
@@ -78,10 +78,26 @@ impl FileExportOpts {
 #[derive(Clone, Debug, Default)]
 #[non_exhaustive]
 pub struct FileExtractOpts {
+    #[doc = "If set, entries matching one of these glob patterns, or in a directory that does, are not extracted (e.g., \\[\"**/testdata\", \"**/*_test.go\"\\]).\n\nPatterns match entry paths after stripComponents is applied.\n\n`None` omits GraphQL field `exclude` and preserves engine default `List(\\[\\])`."]
+    pub exclude: Option<Vec<String>>,
+    #[doc = "If set, only entries matching one of these glob patterns, or in a directory that does, are extracted (e.g., \\[\"src/\", \"*.go\"\\]).\n\nPatterns match entry paths after stripComponents is applied.\n\n`None` omits GraphQL field `include` and preserves engine default `List(\\[\\])`."]
+    pub include: Option<Vec<String>>,
     #[doc = "Remove this many leading elements from each entry's path, as tar --strip-components does.\n\nEntries with no more elements than this are skipped.\n\n`None` omits GraphQL field `stripComponents` and preserves engine default `Int(0)`."]
     pub strip_components: Option<i64>,
 }
 impl FileExtractOpts {
+    #[doc = "Sets GraphQL argument `exclude` to a concrete value instead of omitting it."]
+    #[must_use]
+    pub fn with_exclude(mut self, value: Vec<impl Into<String>>) -> Self {
+        self.exclude = Some(value.into_iter().map(Into::into).collect());
+        self
+    }
+    #[doc = "Sets GraphQL argument `include` to a concrete value instead of omitting it."]
+    #[must_use]
+    pub fn with_include(mut self, value: Vec<impl Into<String>>) -> Self {
+        self.include = Some(value.into_iter().map(Into::into).collect());
+        self
+    }
     #[doc = "Sets GraphQL argument `stripComponents` to a concrete value instead of omitting it."]
     #[must_use]
     pub fn with_strip_components(mut self, value: i64) -> Self {
@@ -363,6 +379,16 @@ impl File {
     #[must_use]
     pub fn extract_opts(&self, opts: &FileExtractOpts) -> super::Directory {
         let query = self.selection.select("extract");
+        let query = if let Some(value) = &opts.exclude {
+            query.arg("exclude", value)
+        } else {
+            query
+        };
+        let query = if let Some(value) = &opts.include {
+            query.arg("include", value)
+        } else {
+            query
+        };
         let query = if let Some(value) = &opts.strip_components {
             query.arg("stripComponents", value)
         } else {

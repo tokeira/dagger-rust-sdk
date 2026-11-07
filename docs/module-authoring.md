@@ -33,7 +33,7 @@ module to a new SDK release:
    the new runtime.
 2. In the module's `dagger-module.toml`, set `[runtime] source` to the same reference by
    hand, because `dagger module update` leaves it unchanged, and set `engineVersion` to
-   the new SDK's target release, such as `"v1.0.0-beta.23"`.
+   the new SDK's target release, such as `"v1.0.0-beta.25"`.
 3. Change the module's `Cargo.toml` dependency to the SDK that `<ref>` names, as
    [engine-integration.md](engine-integration.md#sdk-content) describes, then run
    `cargo update -p tokeira-dagger-sdk` in the module.

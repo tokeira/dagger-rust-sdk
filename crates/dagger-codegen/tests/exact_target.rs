@@ -25,7 +25,7 @@ fn checked_target_compiles_complete_coordinate_inventory() {
     assert_eq!(inventory.enums, 28);
     assert_eq!(inventory.input_objects, 5);
     assert_eq!(inventory.fields, 919);
-    assert_eq!(inventory.arguments, 799);
+    assert_eq!(inventory.arguments, 802);
     assert_eq!(inventory.input_fields, 22);
     assert_eq!(inventory.enum_values, 124);
     assert_eq!(inventory.interface_edges, 107);

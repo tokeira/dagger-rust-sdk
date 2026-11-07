@@ -114,7 +114,7 @@ fn parsed_public_surface_equals_generated_reachability_and_catalog_coverage() {
             .values()
             .map(|field| field.arguments.len())
             .sum::<usize>(),
-        799
+        802
     );
     let mut expected_omissions = BTreeSet::new();
     for field in plan.fields().values() {

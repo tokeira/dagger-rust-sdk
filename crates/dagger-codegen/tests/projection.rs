@@ -158,7 +158,7 @@ fn catalog_has_only_exact_semantic_keys() {
         *kinds.entry(key.binding_kind).or_default() += 1;
     }
 
-    assert_eq!(plan.catalog().bindings().len(), 2_145);
+    assert_eq!(plan.catalog().bindings().len(), 2_148);
     assert_eq!(kinds[&BindingKind::QueryRoot], 1);
     assert_eq!(kinds[&BindingKind::Scalar], 9);
     assert_eq!(kinds[&BindingKind::ObjectHandle], 92);
@@ -173,7 +173,7 @@ fn catalog_has_only_exact_semantic_keys() {
     assert_eq!(kinds[&BindingKind::FieldOperation], 919);
     assert!(!kinds.contains_key(&BindingKind::TargetPrivateType));
     assert!(!kinds.contains_key(&BindingKind::TargetPrivateField));
-    assert_eq!(kinds[&BindingKind::Argument], 799);
+    assert_eq!(kinds[&BindingKind::Argument], 802);
     assert_eq!(kinds[&BindingKind::DirectivePolicy], 18);
     assert_eq!(kinds[&BindingKind::DirectiveArgument], 15);
 }

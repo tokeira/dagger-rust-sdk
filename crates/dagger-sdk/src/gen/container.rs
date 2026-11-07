@@ -1,5 +1,5 @@
 //! Generated bindings owned by the GraphQL `Container` type.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:d606e02207a4265f6c76adc93f73153a694ceaf51c12d36b2a3b8baf131ff252","target_revision":"f0a3d728cf7012e0954f772b5dc5c8471648afaa"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:4dfe7942ff12bd22554ccd2cb26a5427e3a9eeece22dbba9d8aa89e4590e97ff","target_revision":"a45241b20a5e07fbfc5954479ef0b61da843499c"}
 #[doc = "An OCI-compatible container, also known as a Docker container."]
 #[derive(Clone)]
 pub struct Container {
@@ -795,6 +795,8 @@ pub struct ContainerWithExecOpts {
     pub redirect_stdout: Option<String>,
     #[doc = "Content to write to the command's standard input. Example: \"Hello world\")\n\n`None` omits GraphQL field `stdin` and preserves engine default `String(\"\")`."]
     pub stdin: Option<String>,
+    #[doc = "Let the command, and the processes it starts, use the Linux kernel's transparent huge pages. Large-memory programs such as compilers can run faster with them, at some cost in memory.\n\nWithout this, a command gets huge pages only for memory its own program asks huge pages for, as on a host set to \"madvise\". That only matters on hosts with Linux 6.18 or later whose transparent huge pages are set to \"always\" (/sys/kernel/mm/transparent_hugepage/enabled, or a size under /sys/kernel/mm/transparent_hugepage/hugepages-*). With the usual default settings, this changes nothing. On older kernels, commands get what the host's settings give them, whether they set this or not.\n\nIt isn't part of the exec's cache key: an exec that differs from a cached one only in this setting reuses the cached result, whichever setting produced it.\n\n`None` omits GraphQL field `transparentHugePages` and preserves engine default `Boolean(false)`."]
+    pub transparent_huge_pages: Option<bool>,
     #[doc = "Apply the OCI entrypoint, if present, by prepending it to the args. Ignored by default.\n\n`None` omits GraphQL field `useEntrypoint` and preserves engine default `Boolean(false)`."]
     pub use_entrypoint: Option<bool>,
 }
@@ -863,6 +865,12 @@ impl ContainerWithExecOpts {
     #[must_use]
     pub fn with_stdin(mut self, value: impl Into<String>) -> Self {
         self.stdin = Some(value.into());
+        self
+    }
+    #[doc = "Sets GraphQL argument `transparentHugePages` to a concrete value instead of omitting it."]
+    #[must_use]
+    pub fn with_transparent_huge_pages(mut self, value: bool) -> Self {
+        self.transparent_huge_pages = Some(value);
         self
     }
     #[doc = "Sets GraphQL argument `useEntrypoint` to a concrete value instead of omitting it."]
@@ -2631,6 +2639,11 @@ impl Container {
         };
         let query = if let Some(value) = &opts.stdin {
             query.arg("stdin", value)
+        } else {
+            query
+        };
+        let query = if let Some(value) = &opts.transparent_huge_pages {
+            query.arg("transparentHugePages", value)
         } else {
             query
         };

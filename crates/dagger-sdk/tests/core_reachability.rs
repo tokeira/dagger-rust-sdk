@@ -1,5 +1,5 @@
 //! Compile-only reachability proof for every generated public Rust symbol.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:d606e02207a4265f6c76adc93f73153a694ceaf51c12d36b2a3b8baf131ff252","target_revision":"f0a3d728cf7012e0954f772b5dc5c8471648afaa"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:4dfe7942ff12bd22554ccd2cb26a5427e3a9eeece22dbba9d8aa89e4590e97ff","target_revision":"a45241b20a5e07fbfc5954479ef0b61da843499c"}
 #![cfg(feature = "gen")]
 use dagger_sdk::*;
 fn generated_value<T>() -> T {
@@ -628,6 +628,8 @@ fn reach_container(value: &Container) {
     drop(ContainerWithExecOpts::default().with_redirect_stdout(String::new()));
     let _ = &opts.stdin;
     drop(ContainerWithExecOpts::default().with_stdin(String::new()));
+    let _ = &opts.transparent_huge_pages;
+    drop(ContainerWithExecOpts::default().with_transparent_huge_pages(generated_value::<bool>()));
     let _ = &opts.use_entrypoint;
     drop(ContainerWithExecOpts::default().with_use_entrypoint(generated_value::<bool>()));
     drop(value.with_exposed_port(generated_value::<i64>()));
@@ -1261,6 +1263,10 @@ fn reach_file(value: &File) {
     drop(value.extract());
     let opts = FileExtractOpts::default();
     drop(value.extract_opts(&opts));
+    let _ = &opts.exclude;
+    drop(FileExtractOpts::default().with_exclude(generated_value::<Vec<String>>()));
+    let _ = &opts.include;
+    drop(FileExtractOpts::default().with_include(generated_value::<Vec<String>>()));
     let _ = &opts.strip_components;
     drop(FileExtractOpts::default().with_strip_components(generated_value::<i64>()));
     drop(value.id());

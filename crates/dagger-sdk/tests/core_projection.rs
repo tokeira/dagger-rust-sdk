@@ -1,5 +1,5 @@
 //! Structured field and argument inventory for exhaustive query verification.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:d606e02207a4265f6c76adc93f73153a694ceaf51c12d36b2a3b8baf131ff252","target_revision":"f0a3d728cf7012e0954f772b5dc5c8471648afaa"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:4dfe7942ff12bd22554ccd2cb26a5427e3a9eeece22dbba9d8aa89e4590e97ff","target_revision":"a45241b20a5e07fbfc5954479ef0b61da843499c"}
 #![cfg(feature = "gen")]
 const FIELDS: &[(&str, &str, &str, &str, &str)] = &[
     (
@@ -4894,6 +4894,12 @@ const ARGUMENTS: &[(&str, &str, bool, bool)] = &[
     ),
     ("Container.withExec(stdin:)", "stdin", false, false),
     (
+        "Container.withExec(transparentHugePages:)",
+        "transparentHugePages",
+        false,
+        false,
+    ),
+    (
         "Container.withExec(useEntrypoint:)",
         "useEntrypoint",
         false,
@@ -5496,6 +5502,8 @@ const ARGUMENTS: &[(&str, &str, bool, bool)] = &[
         false,
     ),
     ("File.export(path:)", "path", true, false),
+    ("File.extract(exclude:)", "exclude", false, false),
+    ("File.extract(include:)", "include", false, false),
     (
         "File.extract(stripComponents:)",
         "stripComponents",
@@ -6400,7 +6408,7 @@ impl RecordingExecutor {
 #[test]
 fn generated_query_projection_inventory_is_exhaustive() {
     assert_eq!(FIELDS.len(), 919usize);
-    assert_eq!(ARGUMENTS.len(), 799usize);
+    assert_eq!(ARGUMENTS.len(), 802usize);
     assert!(FIELDS.windows(2).all(|pair| pair[0].0 < pair[1].0));
     assert!(ARGUMENTS.windows(2).all(|pair| pair[0].0 < pair[1].0));
     for field in FIELDS {
