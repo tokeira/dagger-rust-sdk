@@ -10,7 +10,7 @@ trigger.
 | Path | Contents |
 | --- | --- |
 | `dagger.toml` | Dagger workspace: installs the Rust SDK runtime from this repository at a pinned release and registers the `ci` module |
-| `dagger.lock` | Written by Dagger: pins the release tag that `dagger.toml` names to its commit |
+| `dagger.lock` | Written by Dagger while `dagger.toml` names a release tag: pins that tag to its commit |
 | `.dagger/modules/ci/` | The module, a Cargo project whose generated files are committed |
 | `.dagger/modules/ci/acceptance/` | The acceptance's fixtures: the modules and crates it authors, its plain clients, and the sample service that the README's module builds |
 | `.dagger/modules/ci/consumer/` | The application that `package` and `published` build against a release's crates, outside this repository's workspace |
@@ -55,9 +55,9 @@ dagger call ci gates
 ```
 
 The first run downloads the CLI into `~/.cache/dagger-rust-sdk/dagger/`, checks it against
-its pinned SHA-256, and starts the `dagger-rust-sdk-engine-v1.0.0-beta.23` container from
+its pinned SHA-256, and starts the `dagger-rust-sdk-engine-v1.0.0-beta.25` container from
 the image pinned by digest. Later runs reuse the container. The engine keeps its state in
-the `dagger-rust-sdk-engine-v1.0.0-beta.23-state` volume and collects its cache above
+the `dagger-rust-sdk-engine-v1.0.0-beta.25-state` volume and collects its cache above
 30 GB, because the disk it sees, such as a container VM's on a Mac, can be far larger than
 the space really free.
 
@@ -105,6 +105,7 @@ release, `vX.Y.Z`:
 
 Until a release of a new target exists, the module pins a commit of this repository
 instead: the runtime at that commit, and a `git` dependency with that commit as its `rev`.
+Remove `dagger.lock` first here too: a commit needs no pin, so the update writes no lock.
 
 ## Changing the Dagger release
 

@@ -1,5 +1,5 @@
 {
-  "descriptor_digest": "sha256:1d88085208fbf94ff5ade3003ad6002427a86b28cf3286101895913ff10bc509",
+  "descriptor_digest": "sha256:be6f0c0df7714f9979814588618b6e7c8b32db8a13d1f4145ac0e0dfbe220596",
   "documentation": "Continuous integration for the Rust SDK for Dagger, built with the SDK itself.\n\nEvery function runs inside the Dagger engine, so the same calls work from a laptop, a CI\nrunner, or a managed engine. Orchestration, secrets, and engine provisioning stay outside\nthe module, in `.dagger/engine.sh` and the pipelines that call it. So does publishing:\n`package` prepares a release's archives, and `published` proves the release afterwards.",
   "format_version": 1,
   "types": {
@@ -37,7 +37,7 @@
           },
           "constructor": false,
           "deprecation": null,
-          "documentation": "Runs the stock-engine acceptance of docs/engine-integration.md for a pushed commit:\nthe runtime installed from it, a module initialized, regenerated, loaded and called,\nplain clients, a refused client scope, an existing crate adopted, the refusals of\nbroken modules and unsafe initializations, a legacy module, the README module's test\nand build, and a plain client's query through a lost keepalive reply. It needs an\nengine of the release the commit targets.",
+          "documentation": "Runs the stock-engine acceptance of docs/engine-integration.md for a pushed commit:\nthe runtime installed from it, a module initialized, regenerated, loaded and called,\ncollections, plain clients, a refused client scope, an existing crate adopted, the\nrefusals of broken modules and unsafe initializations, a legacy module, the README\nmodule's test and build, and a plain client's query through a lost keepalive reply.\nIt needs an engine of the release the commit targets.",
           "return_type": {
             "kind": "named",
             "name": "String",
@@ -84,7 +84,7 @@
               "optional": false,
               "source": {
                 "column": 9,
-                "line": 157,
+                "line": 161,
                 "path": "src/lib.rs"
               },
               "ty": {
@@ -109,7 +109,7 @@
           "role": "ordinary",
           "source": {
             "column": 18,
-            "line": 151,
+            "line": 155,
             "path": "src/lib.rs"
           },
           "wire_name": "package"
@@ -126,7 +126,7 @@
               "optional": false,
               "source": {
                 "column": 89,
-                "line": 176,
+                "line": 180,
                 "path": "src/lib.rs"
               },
               "ty": {
@@ -151,7 +151,7 @@
           "role": "ordinary",
           "source": {
             "column": 18,
-            "line": 173,
+            "line": 177,
             "path": "src/lib.rs"
           },
           "wire_name": "published"

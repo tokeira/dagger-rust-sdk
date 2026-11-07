@@ -128,14 +128,19 @@ needs a Git workspace:
    `dagger-module.toml`, and seals the SDK content. The module's `Cargo.toml` depends on
    `<commit>`.
 3. Author exports that take and return Core types: objects, enums, and scalars, with
-   defaults, and an agent function. Loading the module before regeneration fails with a
-   diagnostic that names `dagger generate`.
+   defaults, an agent function, and a collection. Loading the module before
+   regeneration fails with a diagnostic that names `dagger generate`.
 4. `dagger generate` regenerates. A second run changes nothing, and the module's
    `.gitattributes` stays scoped to the module.
 5. `dagger call gate <function>` loads the module and calls each export, with and
    without the arguments that have defaults. The engine describes the module with its
    crate documentation. `dagger agent --list` lists the agent function, and composing it
-   gives a conversation the module's functions as tools, with no model involved.
+   gives a conversation the module's functions as tools, with no model involved. The
+   module's collection answers the engine's `keys`, `list`, `get` and `subset`; values
+   derived from it, and one passed back by its ID, keep their base, so the engine computes
+   their delta against it; and the collection's item flag selects which items
+   `dagger check` runs a check for. A second module, whose main object is a collection
+   keyed by an enum, answers the same operations.
 6. Plain clients built against the commit's crates run under `dagger run`. One makes
    Void calls and exports an image; the other makes each kind of generated Core call and
    meets each kind of failure the client reports.

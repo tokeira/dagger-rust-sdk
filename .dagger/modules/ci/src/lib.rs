@@ -30,7 +30,7 @@ const GATES_PASSED: &str = "cargo fmt, check, clippy, doc, test (all and no defa
 /// The repository the acceptance installs the runtime from and builds the client against.
 const REPOSITORY: &str = "github.com/tokeira/dagger-rust-sdk";
 /// The release of the CLI the acceptance drives the engine with: the one the SDK targets.
-const DAGGER_VERSION: &str = "1.0.0-beta.23";
+const DAGGER_VERSION: &str = "1.0.0-beta.25";
 /// The description of the acceptance's gate module: the crate documentation of
 /// `acceptance/gate.rs`.
 const GATE_DESCRIPTION: &str = "Release-gate module authored after initialization.\n\n\
@@ -92,10 +92,10 @@ impl Ci {
 
     /// Runs the stock-engine acceptance of docs/engine-integration.md for a pushed commit:
     /// the runtime installed from it, a module initialized, regenerated, loaded and called,
-    /// plain clients, a refused client scope, an existing crate adopted, the refusals of
-    /// broken modules and unsafe initializations, a legacy module, the README module's test
-    /// and build, and a plain client's query through a lost keepalive reply. It needs an
-    /// engine of the release the commit targets.
+    /// collections, plain clients, a refused client scope, an existing crate adopted, the
+    /// refusals of broken modules and unsafe initializations, a legacy module, the README
+    /// module's test and build, and a plain client's query through a lost keepalive reply.
+    /// It needs an engine of the release the commit targets.
     #[dagger(function)]
     pub async fn acceptance(
         &self,
@@ -123,12 +123,16 @@ impl Ci {
             load_refusals(&cli, &fixtures, &runtime),
             init_refusals(&cli, &fixtures, &runtime, &commit),
             legacy_module(&cli, &fixtures, &runtime),
+            main_collection(&cli, &fixtures, &runtime),
             readme_module(&cli, &fixtures, &tree, &runtime),
         )?;
         Ok(format!(
             "{commit} passed on {engine}: the runtime installed; a module initialized, \
              regenerated, loaded and answered calls, Core enums, scalars and defaults \
-             included, and its agent was listed and composed; plain clients made each kind of Core call, \
+             included, and its agent was listed and composed; its collections answered the \
+             engine's operations, kept their bases and had their items selected by a check, \
+             as did a module whose main object is an enum-keyed collection; plain clients \
+             made each kind of Core call, \
              met each kind of failure and exported an image; a Rust client scope was refused; an \
              existing crate was adopted and one without a root object refused; modules with \
              missing or stale generated files, too old a toolchain or a misshapen agent \
@@ -378,11 +382,11 @@ async fn dagger_cli(dag: &Query) -> Result<Container, ModuleError> {
     let (platform, sha256) = match dag.default_platform().await?.as_str() {
         "linux/amd64" => (
             "linux_amd64",
-            "ba2588c2e0444c723e19fd43812cd6dbd868c58fc6cfa1c346e86708b1643d51",
+            "32405fd37daa95d9444e9faf66b9d6bd1ddd1580916f145fa2fc6f3cec6e7b69",
         ),
         "linux/arm64" => (
             "linux_arm64",
-            "9ecf4217ca607d686f56cf71aeb6a21248fa987b679df11abfaa4b2f1d776cd1",
+            "0f5abed7003cfaa2b6bcbb85286c802d0119336a805f54589f3859c9a4f02b0a",
         ),
         other => {
             return Err(ModuleError::new(format!(
@@ -496,7 +500,230 @@ async fn module_flows(
         ),
         composed(&workspace, &["flip"], &["expert"]),
     )?;
+    collections(&workspace).await?;
     client_scope_refused(&workspace).await
+}
+
+/// Step 5: the gate module's collection answers the engine's `keys`, `list`, `get` and
+/// `subset`, and the engine computes its delta against the base that derived values keep,
+/// as upstream's collection tests check with a Go module. Upstream passes a collection
+/// back as an argument through a self-call, which a Rust module cannot make, so its ID
+/// goes to a second query instead.
+async fn collections(workspace: &Container) -> Result<(), ModuleError> {
+    let id = async {
+        let response = query(workspace, "{ gate { items { id } } }").await?;
+        response["gate"]["items"]["id"]
+            .as_str()
+            .map(str::to_owned)
+            .ok_or_else(|| check_failed("the items' ID", format!("is missing from {response}")))
+    };
+    let (_, _, _, _, _, _, id) = tokio::try_join!(
+        prints(workspace, &["call", "gate", "items", "keys"], "b\na\nc"),
+        listed_items(workspace),
+        queried(workspace, COLLECTION_QUERY, COLLECTION_EXPECTED),
+        queried(workspace, COLLECTION_DELTA_QUERY, COLLECTION_DELTA_EXPECTED),
+        queried(
+            workspace,
+            "{ gate { items { change(names: [\"c\", \"d\"]) { deltaCheck { pass } } } } }",
+            r#"{"gate":{"items":{"change":{"deltaCheck":{"pass":true}}}}}"#,
+        ),
+        selected_checks(workspace),
+        id,
+    )?;
+    queried(
+        workspace,
+        &format!("{{ gate {{ forward(items: {id:?}) {{ keys added }} }} }}"),
+        r#"{"gate":{"forward":{"keys":["d"],"added":["d"]}}}"#,
+    )
+    .await
+}
+
+/// The query of upstream's `TestGoAPI`, less its self-calls, and its answer.
+const COLLECTION_QUERY: &str = r#"{ gate { items {
+  keys
+  list { name }
+  get(key: "a") { name }
+  selected removed
+  subset(keys: ["c", "b"]) {
+    keys
+    selected removed copy { subset(keys: ["c"]) { removed } }
+    subset(keys: ["c"]) { keys selected removed }
+    empty: subset(keys: []) { keys list { name } selected removed }
+  }
+} } }"#;
+const COLLECTION_EXPECTED: &str = r#"{"gate":{"items":{
+  "keys":["b","a","c"],
+  "list":[{"name":"item:b"},{"name":"item:a"},{"name":"item:c"}],
+  "get":{"name":"item:a"},
+  "subset":{
+    "keys":["b","c"],
+    "subset":{"keys":["c"],"selected":["c"],"removed":["b","a"]},
+    "empty":{"keys":[],"list":[],"selected":[],"removed":["b","a","c"]},
+    "selected":["b","c"],
+    "removed":["a"],
+    "copy":{"subset":{"removed":["b","a"]}}
+  },
+  "selected":["b","a","c"],
+  "removed":[]
+}}}"#;
+
+/// The delta query of upstream's `TestGoAPI`, and its answer.
+const COLLECTION_DELTA_QUERY: &str = r#"{ gate { items {
+  change(names: ["c", "d"]) {
+    keys
+    added removed change(names: ["c", "b", "a"]) { added removed }
+    subset(keys: ["d"]) { added removed }
+  }
+  subset(keys: ["c"]) {
+    change(names: ["b", "c", "d"]) { added removed }
+    fresh { keys added removed }
+  }
+} } }"#;
+const COLLECTION_DELTA_EXPECTED: &str = r#"{"gate":{"items":{
+  "subset":{"change":{"added":["d"],"removed":["a"]},"fresh":{"keys":["z"],"added":[],"removed":[]}},
+  "change":{
+    "keys":["c","d"],
+    "subset":{"added":["d"],"removed":["b","a","c"]},
+    "added":["d"],
+    "removed":["b","a"],
+    "change":{"added":[],"removed":[]}
+  }
+}}}"#;
+
+/// `dagger call` lists one item for each key, as upstream's `TestCallProjectedList` checks.
+async fn listed_items(workspace: &Container) -> Result<(), ModuleError> {
+    let args = ["call", "gate", "items", "list"];
+    let output = dagger(workspace, &args)
+        .stdout()
+        .await
+        .map_err(step_failure)?;
+    if output.matches("Item@").count() == 3 {
+        Ok(())
+    } else {
+        Err(check_failed(
+            &format!("dagger {}", args.join(" ")),
+            format!("printed {output:?}, not three items"),
+        ))
+    }
+}
+
+/// `dagger check` runs an item's check once for each item, and the collection's item flag
+/// selects which, as upstream's `TestCheckSelection` checks: run alone, item c fails, and
+/// with the flag selecting items a and b, it never runs.
+async fn selected_checks(workspace: &Container) -> Result<(), ModuleError> {
+    let listing = ["check", "-l", "--all", "-f=cli", "gate/items/verify"];
+    let output = dagger(workspace, &listing)
+        .stdout()
+        .await
+        .map_err(step_failure)?;
+    let check = format!("dagger {}", listing.join(" "));
+    // Each row selects one item with `--<module> --<item flag>=<key>`, followed by the
+    // check's description as a `#` comment.
+    let mut selectors: Vec<(&str, &str)> = output
+        .lines()
+        .filter(|line| !line.starts_with('#'))
+        .filter_map(|line| {
+            let selection = line
+                .split_once('#')
+                .map_or(line, |(selection, _)| selection);
+            selection.split_whitespace().last()?.split_once('=')
+        })
+        .collect();
+    selectors.sort_by_key(|(_, key)| *key);
+    let flag = match selectors.as_slice() {
+        [(flag, "a"), (b, "b"), (c, "c")] if flag == b && flag == c => *flag,
+        _ => {
+            return Err(check_failed(
+                &check,
+                format!("printed {output:?}, not one row for each of a, b and c"),
+            ));
+        }
+    };
+    let selected = [
+        "check".to_owned(),
+        "gate/items/verify".to_owned(),
+        format!("{flag}=a"),
+        format!("{flag}=b"),
+    ];
+    let selected: Vec<&str> = selected.iter().map(String::as_str).collect();
+    let (run, _) = tokio::try_join!(
+        async {
+            dagger(workspace, &selected)
+                .combined_output()
+                .await
+                .map_err(step_failure)
+        },
+        refused(
+            workspace,
+            &["check", "gate/items/verify"],
+            "unselected item c ran"
+        ),
+    )?;
+    if run.contains("unselected item c ran") {
+        return Err(check_failed(
+            &format!("dagger {}", selected.join(" ")),
+            format!("ran item c:\n{}", tail(&run)),
+        ));
+    }
+    Ok(())
+}
+
+/// Step 5: a module whose main object is a collection, keyed by an enum and with members of
+/// the default names, answers the engine's collection operations, as upstream's
+/// `TestMainCollection` and `TestEnumKeys` check. The query names the enum's members as the
+/// engine spells them, so the variant `Red` is `RED`.
+async fn main_collection(
+    cli: &Container,
+    fixtures: &Directory,
+    runtime: &str,
+) -> Result<(), ModuleError> {
+    let workspace = commit_all(
+        &initialized(cli, "shelf", runtime).with_file(
+            "/shelf/.dagger/modules/shelf/src/lib.rs",
+            fixtures.file("shelf.rs"),
+        ),
+        "shelf module",
+    );
+    let workspace = dagger(&workspace, &["generate", "-y"]);
+    queried(
+        &workspace,
+        "{ shelf { keys get(key: RED) { name } subset(keys: [BLUE]) { keys count removed get(key: BLUE) { name } } } }",
+        r#"{"shelf":{"keys":["RED","BLUE"],"get":{"name":"red"},"subset":{"keys":["BLUE"],"count":1,"removed":["RED"],"get":{"name":"blue"}}}}"#,
+    )
+    .await
+}
+
+/// Sends `document` with `dagger api query`, which serves the workspace's modules, and
+/// returns the response.
+async fn query(container: &Container, document: &str) -> Result<Value, ModuleError> {
+    let output = dagger(
+        &container.with_new_file(document, "/query.graphql"),
+        &["api", "query", "--doc", "/query.graphql"],
+    )
+    .stdout()
+    .await
+    .map_err(step_failure)?;
+    serde_json::from_str(&output).map_err(|error| {
+        check_failed(
+            &format!("the query {document:?}"),
+            format!("printed no JSON: {error}\n{}", tail(&output)),
+        )
+    })
+}
+
+/// Checks that `document` answers `expected`, a JSON document.
+async fn queried(container: &Container, document: &str, expected: &str) -> Result<(), ModuleError> {
+    let expected: Value = serde_json::from_str(expected)
+        .map_err(|error| check_failed("the expected answer", format!("is not JSON: {error}")))?;
+    let response = query(container, document).await?;
+    if response == expected {
+        Ok(())
+    } else {
+        Err(check_failed(
+            &format!("the query {document:?}"),
+            format!("answered {response}, not {expected}"),
+        ))
+    }
 }
 
 /// Step 7: adding a Rust client scope is refused before anything is written.
@@ -1511,7 +1738,7 @@ fn release_sums(sums: &str) -> Result<ReleaseSums, ModuleError> {
 }
 
 /// A Git repository at `path` that commits whatever the container already holds there, as
-/// beta.23's workspaces require. The engine caches the directories a session syncs by path
+/// beta.25's workspaces require. The engine caches the directories a session syncs by path
 /// and by the client ID that the first `dagger` command stores in the container, so
 /// sessions that run at once and sync different contents each need a repository of their
 /// own.

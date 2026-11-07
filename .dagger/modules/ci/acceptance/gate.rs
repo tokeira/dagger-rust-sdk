@@ -75,4 +75,136 @@ impl Gate {
     ) -> dagger_sdk::Json {
         labels
     }
+
+    /// Returns the items b, a and c, each named with the prefix `item:`.
+    #[dagger(function)]
+    pub fn items(&self) -> Items {
+        Items {
+            names: vec!["b".to_owned(), "a".to_owned(), "c".to_owned()],
+            selection: None,
+            prefix: "item:".to_owned(),
+            base: dagger_sdk::CollectionBase::default(),
+        }
+    }
+
+    /// Returns the collection it is given, holding the one item d.
+    #[dagger(function)]
+    pub fn forward(&self, items: Items) -> Items {
+        Items {
+            names: vec!["d".to_owned()],
+            selection: None,
+            ..items
+        }
+    }
+}
+
+/// Items, looked up by name.
+#[dagger_sdk::object(collection)]
+#[derive(Clone)]
+pub struct Items {
+    /// The names of the items.
+    #[dagger(field, keys)]
+    names: Vec<String>,
+    /// The names added and removed since the collection these items were derived from.
+    #[dagger(field, delta)]
+    selection: Option<dagger_sdk::CollectionDelta>,
+    #[dagger(state)]
+    prefix: String,
+    base: dagger_sdk::CollectionBase,
+}
+
+#[dagger_sdk::methods]
+impl Items {
+    /// Returns the item with a name.
+    #[dagger(function, get)]
+    pub fn lookup(&self, name: String) -> Item {
+        Item {
+            name: format!("{}{name}", self.prefix),
+        }
+    }
+
+    /// Returns the names this value holds.
+    #[dagger(function)]
+    pub fn selected(&self) -> Vec<String> {
+        self.names.clone()
+    }
+
+    /// Returns the names added since the base.
+    #[dagger(function)]
+    pub async fn added(&self) -> Result<Vec<String>, dagger_sdk::ModuleError> {
+        Ok(self.delta()?.added_keys().await?)
+    }
+
+    /// Returns the names removed since the base.
+    #[dagger(function)]
+    pub async fn removed(&self) -> Result<Vec<String>, dagger_sdk::ModuleError> {
+        Ok(self.delta()?.removed_keys().await?)
+    }
+
+    /// Returns these items unchanged.
+    #[dagger(function)]
+    pub fn copy(&self) -> Items {
+        self.clone()
+    }
+
+    /// Returns these items under other names, derived from the same base.
+    #[dagger(function)]
+    pub fn change(&self, names: Vec<String>) -> Items {
+        Items {
+            names,
+            selection: None,
+            ..self.clone()
+        }
+    }
+
+    /// Returns a new collection holding the one item z.
+    #[dagger(function)]
+    pub fn fresh(&self) -> Items {
+        Items {
+            names: vec!["z".to_owned()],
+            selection: self.selection.clone(),
+            prefix: self.prefix.clone(),
+            base: dagger_sdk::CollectionBase::default(),
+        }
+    }
+
+    /// Passes when d was added and b and a removed since the base.
+    #[dagger(function, role = "check")]
+    pub async fn delta_check(&self) -> Result<(), dagger_sdk::ModuleError> {
+        let added = self.added().await?;
+        let removed = self.removed().await?;
+        if added == ["d"] && removed == ["b", "a"] {
+            Ok(())
+        } else {
+            Err(dagger_sdk::ModuleError::new(format!(
+                "unexpected delta: added={added:?} removed={removed:?}"
+            )))
+        }
+    }
+
+    fn delta(&self) -> Result<&dagger_sdk::CollectionDelta, dagger_sdk::ModuleError> {
+        self.selection
+            .as_ref()
+            .ok_or_else(|| dagger_sdk::ModuleError::new("the engine gave these items no delta"))
+    }
+}
+
+/// One item.
+#[dagger_sdk::object]
+pub struct Item {
+    /// The item's name, with its collection's prefix.
+    #[dagger(field)]
+    name: String,
+}
+
+#[dagger_sdk::methods]
+impl Item {
+    /// Fails for item c, which the selected checks leave out.
+    #[dagger(function, role = "check")]
+    pub fn verify(&self) -> Result<(), dagger_sdk::ModuleError> {
+        if self.name == "item:c" {
+            return Err(dagger_sdk::ModuleError::new("unselected item c ran"));
+        }
+        Ok(())
+    }
 }
