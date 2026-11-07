@@ -1,0 +1,5 @@
+error: `get` marks a collection's `#[dagger(function)]`
+  --> tests/fixtures/module_authoring/fail/collection_get_without_function.rs:18:5
+   |
+18 |     fn get(&self, key: String) -> String {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

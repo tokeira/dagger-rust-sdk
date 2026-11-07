@@ -473,6 +473,7 @@ fn interface_functions(
             constructor: false,
             cache: super::metadata::CachePolicy::Default,
             role: super::metadata::FunctionRole::Ordinary,
+            collection_get: false,
             documentation: method.documentation.clone(),
             deprecation: method.deprecation.clone(),
             source: method.source.clone(),

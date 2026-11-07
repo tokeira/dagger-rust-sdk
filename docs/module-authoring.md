@@ -75,9 +75,10 @@ impl Greeter {
 
 `object`, `interface`, `enum_type`, and `scalar` mark exported type contracts;
 `methods` checks constructors and functions. Nested `field`, `state`, `constructor`,
-`function`, `context`, defaults, target metadata, documentation, deprecation, and
-renames are interpreted once by the shared authoring grammar. Unsupported shapes fail
-at authored coordinates rather than degrading to untyped JSON.
+`function`, `context`, the [collection](#collections) markers, defaults, target
+metadata, documentation, deprecation, and renames are interpreted once by the shared
+authoring grammar. Unsupported shapes fail at authored coordinates rather than
+degrading to untyped JSON.
 
 A function's `role` gives it to a Dagger command. The engine checks the shape that each
 role needs when it loads the module, as it does for every SDK:
@@ -137,6 +138,58 @@ fn listen(
 
 Generation refuses a default that is not one of the enum's members, and a `Json` default
 that is not JSON.
+
+### Collections
+
+A collection is a set of objects with unique keys, such as the packages or test files a
+module discovers in a project. Callers see the operations the engine gives it: `keys`,
+`list`, `get(key:)`, and `subset(keys:)`. `dagger check` and `dagger generate` gain a
+flag, named after its items, that selects items by key. Mark the object `collection`,
+its keys field `keys`, the function that returns one item `get`, and optionally a field
+that receives the collection's changes `delta`:
+
+```rust
+#[dagger_sdk::object(collection)]
+#[derive(Clone)]
+pub(crate) struct Packages {
+    #[dagger(field, keys)]
+    names: Vec<String>,
+    #[dagger(field, delta)]
+    changes: Option<CollectionDelta>,
+    base: CollectionBase,
+}
+
+#[dagger_sdk::methods]
+impl Packages {
+    #[dagger(function, get)]
+    fn package(&self, name: String) -> Package {
+        Package { name }
+    }
+
+    #[dagger(function)]
+    fn without_examples(&self) -> Packages {
+        Packages {
+            names: self.names.iter().filter(|name| !name.starts_with("examples/")).cloned().collect(),
+            ..self.clone()
+        }
+    }
+}
+```
+
+The engine checks a collection's shape when it loads the module, as it does for every
+SDK: the keys field holds a list of strings, numbers, booleans, a scalar, or an enum;
+the get function takes one argument of the key type and returns an object; and no other
+function is named `keys`, `list`, `get`, or `subset`. A member that its author leaves
+unmarked keeps its default name, so a field named `keys` or a function named `get`
+needs no marker. Generation refuses `keys` or `delta` on anything but an exposed field,
+`get` on anything but a function, and either outside a collection.
+
+The `CollectionBase` field carries the collection that a value was derived from. The
+engine fills it, and computes the delta, the keys added and removed since the base,
+against it. A value built from the receiver, with `self.clone()` or `..self.clone()`,
+keeps its base, as `without_examples` does. A value built afresh starts from
+`CollectionBase::default()` and is its own base. A collection declares exactly one
+such field, and no other object declares one.
 
 ## Descriptor and generated ownership
 

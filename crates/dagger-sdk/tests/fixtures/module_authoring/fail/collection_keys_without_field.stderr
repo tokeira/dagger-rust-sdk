@@ -1,0 +1,5 @@
+error: `keys` and `delta` mark a collection's `#[dagger(field)]`
+  --> tests/fixtures/module_authoring/fail/collection_keys_without_field.rs:11:5
+   |
+11 |     names: Vec<String>,
+   |     ^^^^^^^^^^^^^^^^^^

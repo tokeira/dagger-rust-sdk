@@ -8,10 +8,14 @@ use syn::parse::Parser;
 use syn::{Attribute, Error, Result, Visibility};
 
 const MARKERS: &[&str] = &[
+    "collection",
     "constructor",
     "context",
+    "delta",
     "field",
     "function",
+    "get",
+    "keys",
     "root",
     "state",
 ];
@@ -63,7 +67,14 @@ impl Metadata {
         if self.0.contains_key(&name) {
             return Err(nested.error(format!("duplicate Dagger metadata `{name}`")));
         }
-        for (left, right) in [("field", "state"), ("constructor", "function")] {
+        for (left, right) in [
+            ("field", "state"),
+            ("constructor", "function"),
+            ("constructor", "get"),
+            ("delta", "keys"),
+            ("delta", "state"),
+            ("keys", "state"),
+        ] {
             if (name == left && self.has(right)) || (name == right && self.has(left)) {
                 return Err(
                     nested.error(format!("Dagger metadata `{left}` conflicts with `{right}`"))
@@ -183,10 +194,14 @@ mod tests {
     #[test]
     fn every_shared_metadata_spelling_is_explicitly_recognized() {
         for marker in [
+            quote!(collection),
             quote!(constructor),
             quote!(context),
+            quote!(delta),
             quote!(field),
             quote!(function),
+            quote!(get),
+            quote!(keys),
             quote!(root),
             quote!(state),
         ] {
@@ -208,6 +223,12 @@ mod tests {
         }
         assert!(Metadata::parse_args(quote!(field, state)).is_err());
         assert!(Metadata::parse_args(quote!(constructor, function)).is_err());
+        assert!(Metadata::parse_args(quote!(constructor, get)).is_err());
+        assert!(Metadata::parse_args(quote!(keys, delta)).is_err());
+        assert!(Metadata::parse_args(quote!(state, keys)).is_err());
+        assert!(Metadata::parse_args(quote!(delta, state)).is_err());
+        assert!(Metadata::parse_args(quote!(field, keys)).is_ok());
+        assert!(Metadata::parse_args(quote!(function, get)).is_ok());
         assert!(Metadata::parse_args(quote!(context, default = false)).is_err());
     }
 }

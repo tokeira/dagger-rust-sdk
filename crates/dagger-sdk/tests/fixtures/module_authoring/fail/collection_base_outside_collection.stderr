@@ -1,0 +1,5 @@
+error: a `CollectionBase` field belongs only in a collection, marked `#[dagger_sdk::object(collection)]`
+  --> tests/fixtures/module_authoring/fail/collection_base_outside_collection.rs:12:11
+   |
+12 |     base: dagger_sdk::CollectionBase,
+   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^

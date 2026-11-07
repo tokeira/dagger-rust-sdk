@@ -642,6 +642,16 @@ pub enum ProjectedTypeKind {
     Scalar,
 }
 
+/// The collection member that a marked field registers as.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum CollectionMember {
+    /// The collection's stored keys.
+    Keys,
+    /// The changes since the collection's base.
+    Delta,
+}
+
 /// One projected object field.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -650,6 +660,9 @@ pub struct ProjectedField {
     pub wire_name: WireName,
     /// Recursive target type.
     pub ty: ProjectedType,
+    /// The collection member the field registers as, when marked.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub collection: Option<CollectionMember>,
     /// Sanitized documentation.
     pub documentation: Option<String>,
     /// Optional deprecation reason.
@@ -700,6 +713,9 @@ pub struct ProjectedFunction {
     pub cache: CachePolicy,
     /// Exact target function role.
     pub role: FunctionRole,
+    /// Whether the function is its collection's get function.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub collection_get: bool,
     /// Sanitized documentation.
     pub documentation: Option<String>,
     /// Optional deprecation reason.
@@ -730,6 +746,9 @@ pub struct ProjectedTypeDef {
     pub wire_name: WireName,
     /// Target type category.
     pub kind: ProjectedTypeKind,
+    /// Whether the object is a collection.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub collection: bool,
     /// Exposed object fields.
     pub fields: Vec<ProjectedField>,
     /// Constructors and exported methods.

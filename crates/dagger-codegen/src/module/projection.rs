@@ -10,9 +10,10 @@ use super::descriptor::project_type;
 use super::diagnostic::{ModuleDiagnostic, ModuleDiagnosticCode, ModuleDiagnosticSet};
 use super::metadata::FunctionKind;
 use super::model::{
-    FunctionDescriptor, LocalTypeContract, LocalTypeDescriptor, LocalTypeKind, ModuleDescriptor,
-    ModuleIntrospection, ProjectedArgument, ProjectedEnumValue, ProjectedField, ProjectedFunction,
-    ProjectedTypeDef, ProjectedTypeKind, RegistrationProjection, RustSymbol, WireName,
+    CollectionMember, FunctionDescriptor, LocalTypeContract, LocalTypeDescriptor, LocalTypeKind,
+    ModuleDescriptor, ModuleIntrospection, ProjectedArgument, ProjectedEnumValue, ProjectedField,
+    ProjectedFunction, ProjectedTypeDef, ProjectedTypeKind, RegistrationProjection, RustSymbol,
+    WireName,
 };
 use super::types::ObjectFieldMode;
 
@@ -78,6 +79,7 @@ impl ProjectionCompiler {
         let query = ProjectedTypeDef {
             wire_name: query_name.clone(),
             kind: ProjectedTypeKind::Object,
+            collection: false,
             fields: Vec::new(),
             functions: vec![project_function(constructor, &local_names)],
             enum_values: Vec::new(),
@@ -128,6 +130,20 @@ fn project_local_type(
         LocalTypeKind::Enum => ProjectedTypeKind::Enum,
         LocalTypeKind::Scalar { .. } => ProjectedTypeKind::Scalar,
     };
+    let collection = match &local.contract {
+        LocalTypeContract::Object(contract) => contract.collection.as_ref(),
+        _ => None,
+    };
+    let member = |wire_name: &WireName| {
+        let collection = collection?;
+        if collection.keys.as_ref() == Some(wire_name) {
+            Some(CollectionMember::Keys)
+        } else if collection.delta.as_ref() == Some(wire_name) {
+            Some(CollectionMember::Delta)
+        } else {
+            None
+        }
+    };
     let fields = local
         .fields
         .iter()
@@ -135,6 +151,7 @@ fn project_local_type(
         .map(|field| ProjectedField {
             wire_name: field.wire_name.clone(),
             ty: project_type(&field.ty, local_names),
+            collection: member(&field.wire_name),
             documentation: field.documentation.clone(),
             deprecation: field.deprecation.clone(),
             source: field.source.clone(),
@@ -168,6 +185,7 @@ fn project_local_type(
     Ok(ProjectedTypeDef {
         wire_name: local.wire_name.clone(),
         kind,
+        collection: collection.is_some(),
         fields,
         functions,
         enum_values: local
@@ -214,6 +232,7 @@ fn project_function(
         constructor: function.compiled.kind == FunctionKind::Constructor,
         cache: function.compiled.metadata.cache,
         role: function.compiled.metadata.role,
+        collection_get: function.compiled.metadata.collection_get,
         documentation: function.compiled.metadata.documentation.clone(),
         deprecation: function.compiled.metadata.deprecation.clone(),
         source: function.source.clone(),

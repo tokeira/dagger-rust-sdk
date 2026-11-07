@@ -192,8 +192,8 @@ pub use graphql::{
 };
 pub use id_input::IdInput;
 pub use module::{
-    CurrentCall, ModuleCancellation, ModuleError, ModuleErrorBuildError, ModuleErrorDetail,
-    TelemetryContext,
+    CollectionBase, CurrentCall, ModuleCancellation, ModuleError, ModuleErrorBuildError,
+    ModuleErrorDetail, TelemetryContext,
 };
 pub use runtime_errors::{
     CompatibilityError, CompatibilityErrorKind, CompatibilityEvidenceGap, ExecError,

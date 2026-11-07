@@ -22,10 +22,14 @@ const FNV_OFFSET_BASIS: u128 = 0x6c62_272e_07bb_0142_62b8_2175_6295_c58d;
 const FNV_PRIME: u128 = 0x0000_0000_0100_0000_0000_0000_0000_013b;
 
 const MARKERS: &[&str] = &[
+    "collection",
     "constructor",
     "context",
+    "delta",
     "field",
     "function",
+    "get",
+    "keys",
     "root",
     "state",
 ];
@@ -75,6 +79,8 @@ pub enum AuthoringFieldPolicy {
     State,
     /// Ordinary implementation detail reconstructed with `Default`.
     Transient,
+    /// A collection's `CollectionBase`, which carries the collection it was derived from.
+    CollectionBase,
 }
 
 /// One normalized authored object field.
@@ -632,12 +638,14 @@ fn parse_object(
         ));
     };
 
+    let collection = outer.has("collection");
     let mut parts = vec![
         "object".to_owned(),
         item.ident.to_string(),
         outer.canonical(),
     ];
     let mut authored_fields = Vec::new();
+    let mut has_base = false;
     for field in &mut fields.named {
         let metadata = take_nested(path, &mut field.attrs)?;
         let name = field
@@ -652,17 +660,54 @@ fn parse_object(
                     "use a named field",
                 )
             })?;
-        let policy = if metadata.has("field") {
+        let policy = if is_collection_base(&field.ty) {
+            if !metadata.values.is_empty() {
+                return Err(boxed_diagnostic(
+                    ModuleDiagnosticCode::StateShapeInvalid,
+                    Some(coordinate(path, field.span())),
+                    "a `CollectionBase` field takes no Dagger metadata",
+                    "remove the field's `#[dagger(...)]` attribute",
+                ));
+            }
+            if !collection {
+                return Err(boxed_diagnostic(
+                    ModuleDiagnosticCode::StateShapeInvalid,
+                    Some(coordinate(path, field.ty.span())),
+                    "a `CollectionBase` field belongs only in a collection",
+                    "mark the object `#[dagger_sdk::object(collection)]`, or remove the field",
+                ));
+            }
+            if has_base {
+                return Err(boxed_diagnostic(
+                    ModuleDiagnosticCode::StateShapeInvalid,
+                    Some(coordinate(path, field.span())),
+                    "a collection declares exactly one `CollectionBase` field",
+                    "remove the other `CollectionBase` fields",
+                ));
+            }
+            has_base = true;
+            AuthoringFieldPolicy::CollectionBase
+        } else if metadata.has("field") {
             AuthoringFieldPolicy::Field
         } else if metadata.has("state") {
             AuthoringFieldPolicy::State
         } else {
             AuthoringFieldPolicy::Transient
         };
+        if (metadata.has("keys") || metadata.has("delta")) && policy != AuthoringFieldPolicy::Field
+        {
+            return Err(boxed_diagnostic(
+                ModuleDiagnosticCode::MetadataConflict,
+                Some(coordinate(path, field.span())),
+                "`keys` and `delta` mark a collection's `#[dagger(field)]`",
+                "add `field` to the field's Dagger metadata",
+            ));
+        }
         let policy_name = match policy {
             AuthoringFieldPolicy::Field => "field",
             AuthoringFieldPolicy::State => "state",
             AuthoringFieldPolicy::Transient => "transient",
+            AuthoringFieldPolicy::CollectionBase => "base",
         };
         let rust_type = canonical_tokens(&field.ty);
         parts.extend([
@@ -680,6 +725,14 @@ fn parse_object(
             deprecation: rust_deprecation(&field.attrs),
             source: coordinate(path, field.span()),
         });
+    }
+    if collection && !has_base {
+        return Err(boxed_diagnostic(
+            ModuleDiagnosticCode::StateShapeInvalid,
+            Some(coordinate(path, item.ident.span())),
+            "a collection declares one `CollectionBase` field, which carries the collection it was derived from",
+            "add a field such as `base: dagger_sdk::CollectionBase`",
+        ));
     }
     Ok(Some(declaration(
         path,
@@ -699,6 +752,20 @@ fn parse_object(
             fingerprint: fingerprint(parts),
         },
     )))
+}
+
+/// Whether a field's type names the SDK's `CollectionBase`, by its final path segment, as
+/// the object attribute decides.
+fn is_collection_base(ty: &syn::Type) -> bool {
+    let syn::Type::Path(path) = ty else {
+        return false;
+    };
+    path.qself.is_none()
+        && path
+            .path
+            .segments
+            .last()
+            .is_some_and(|segment| segment.ident == "CollectionBase" && segment.arguments.is_none())
 }
 
 fn parse_interface(
@@ -982,6 +1049,14 @@ fn parse_methods(
         };
         let metadata = take_nested(path, &mut function.attrs)?;
         let parameter_metadata = take_parameter_metadata(path, &mut function.sig.inputs)?;
+        if metadata.has("get") && !metadata.has("function") {
+            return Err(boxed_diagnostic(
+                ModuleDiagnosticCode::MetadataConflict,
+                Some(coordinate(path, function.sig.span())),
+                "`get` marks a collection's `#[dagger(function)]`",
+                "add `function` to the function's Dagger metadata",
+            ));
+        }
         if !metadata.has("constructor") && !metadata.has("function") {
             if parameter_metadata
                 .iter()
@@ -1251,7 +1326,14 @@ impl Metadata {
         if self.values.contains_key(&name) {
             return Err(nested.error(format!("duplicate Dagger metadata `{name}`")));
         }
-        for (left, right) in [("field", "state"), ("constructor", "function")] {
+        for (left, right) in [
+            ("field", "state"),
+            ("constructor", "function"),
+            ("constructor", "get"),
+            ("delta", "keys"),
+            ("delta", "state"),
+            ("keys", "state"),
+        ] {
             if (name == left && self.has(right)) || (name == right && self.has(left)) {
                 return Err(
                     nested.error(format!("Dagger metadata `{left}` conflicts with `{right}`"))

@@ -8,10 +8,10 @@ use std::process::Command;
 use dagger_codegen::module::{
     CfgEnvironment, FormatVersion, FunctionKind, GeneratedAssetPath, GeneratedTypeBinding,
     GeneratedTypeKind, GeneratedTypeRegistry, ModuleCompilation, ModuleCompilationRequest,
-    ModuleCompiler, ModulePackage, ModuleRenderRequest, ModuleRenderer, ModuleSourcePath,
-    ModuleSourceSnapshot, ModuleTarget, PackageName, ProjectionCompiler, RegenerationPlanner,
-    Sha256Digest, SourceDocument, TargetValue, WireName, canonical_bytes, manifest_digest,
-    source_snapshot_digest,
+    ModuleCompiler, ModuleDiagnosticCode, ModulePackage, ModuleRenderRequest, ModuleRenderer,
+    ModuleSourcePath, ModuleSourceSnapshot, ModuleTarget, PackageName, ProjectionCompiler,
+    RegenerationPlanner, Sha256Digest, SourceDocument, TargetValue, WireName, canonical_bytes,
+    manifest_digest, source_snapshot_digest,
 };
 use proptest::prelude::*;
 
@@ -438,6 +438,130 @@ fn an_agent_function_registers_with_the_agent_role() {
 }
 
 #[test]
+fn a_collection_registers_the_members_its_author_marked() {
+    let registration = registration_source(&compile_representative(&representative_source()));
+    for expected in [
+        "type_fixtureitems = type_fixtureitems.with_collection();",
+        "type_fixtureitems = type_fixtureitems.with_collection_keys(\"names\");",
+        "type_fixtureitems = type_fixtureitems.with_collection_delta(\"selection\");",
+        "type_fixtureitems = type_fixtureitems.with_collection_get(\"lookup\");",
+    ] {
+        assert!(
+            registration.contains(expected),
+            "registration lacks {expected}"
+        );
+    }
+    // Only the collection is one, and its base is no part of its API.
+    assert_eq!(registration.matches(".with_collection()").count(), 1);
+    assert!(!registration.contains("\"base\""));
+}
+
+#[test]
+fn collection_markers_out_of_place_are_refused_before_generation() {
+    let target = target(digest("checked-schema"));
+    let generator = digest("checked-generator");
+    let object = |outer: &str, fields: &str| {
+        format!(
+            "#[renamed_sdk::object({outer}rename = \"FixtureBag\")]\npub(crate) struct Bag {{\n{fields}}}\n"
+        )
+    };
+    let base = "    base: renamed_sdk::CollectionBase,\n";
+    let keys = "    #[dagger(field, keys)]\n    names: Vec<String>,\n";
+    let get = |marker: &str, name: &str| {
+        format!(
+            "#[renamed_sdk::methods]\nimpl Bag {{\n    #[dagger({marker})]\n    pub(crate) fn {name}(&self, name: String) -> String {{ name }}\n}}\n"
+        )
+    };
+    for (declaration, code, message) in [
+        (
+            object("", &format!("{keys}{base}")),
+            ModuleDiagnosticCode::StateShapeInvalid,
+            "a `CollectionBase` field belongs only in a collection",
+        ),
+        (
+            object("collection, ", keys),
+            ModuleDiagnosticCode::StateShapeInvalid,
+            "a collection declares one `CollectionBase` field, which carries the collection it was derived from",
+        ),
+        (
+            object(
+                "collection, ",
+                &format!("{keys}{base}    other: renamed_sdk::CollectionBase,\n"),
+            ),
+            ModuleDiagnosticCode::StateShapeInvalid,
+            "a collection declares exactly one `CollectionBase` field",
+        ),
+        (
+            object(
+                "collection, ",
+                &format!("    #[dagger(keys)]\n    names: Vec<String>,\n{base}"),
+            ),
+            ModuleDiagnosticCode::MetadataConflict,
+            "`keys` and `delta` mark a collection's `#[dagger(field)]`",
+        ),
+        (
+            object("", keys),
+            ModuleDiagnosticCode::MetadataConflict,
+            "`keys`, `get` and `delta` mark members of a collection",
+        ),
+        (
+            object(
+                "collection, ",
+                &format!("{keys}    #[dagger(field, keys)]\n    others: Vec<String>,\n{base}"),
+            ),
+            ModuleDiagnosticCode::MetadataConflict,
+            "a collection marks one keys field and one delta field",
+        ),
+        (
+            format!(
+                "{}{}",
+                object("", keys.replace(", keys", "").as_str()),
+                get("function, get", "lookup")
+            ),
+            ModuleDiagnosticCode::MetadataConflict,
+            "`keys`, `get` and `delta` mark members of a collection",
+        ),
+        (
+            format!(
+                "{}{}{}",
+                object("collection, ", &format!("{keys}{base}")),
+                get("function, get", "lookup"),
+                get("function, get", "find"),
+            ),
+            ModuleDiagnosticCode::MetadataConflict,
+            "a collection marks one get function",
+        ),
+        (
+            format!(
+                "{}{}",
+                object("collection, ", &format!("{keys}{base}")),
+                get("get", "lookup"),
+            ),
+            ModuleDiagnosticCode::MetadataConflict,
+            "`get` marks a collection's `#[dagger(function)]`",
+        ),
+    ] {
+        let source = with_contents(source_snapshot(3, false, false), "src/lib.rs", |contents| {
+            format!("{contents}\n{declaration}")
+        });
+        let diagnostics = compile(&source, &target, &generator, BTreeSet::new())
+            .err()
+            .unwrap_or_else(|| panic!("generation must refuse:\n{declaration}"));
+        // A refused declaration also hides the root declared beside it, so the refusal
+        // can name more than this one diagnostic.
+        let found = diagnostics
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| (diagnostic.code(), diagnostic.message()))
+            .collect::<Vec<_>>();
+        assert!(
+            found.contains(&(code, message)),
+            "{declaration}\nrefused with {found:?}"
+        );
+    }
+}
+
+#[test]
 fn core_enums_and_scalars_register_with_their_kinds_and_defaults() {
     let compiled = compile_representative(&representative_source());
     let registration = registration_source(&compiled);
@@ -629,20 +753,26 @@ impl ResultSink for ResultRecorder {
     }
 }
 
-fn selector(function: &str) -> CallSelector {
-    CallSelector::Invocation {
-        parent_wire_name: ModuleWireName::new("FixtureRoot").expect("parent name"),
-        function_wire_name: ModuleFunctionName::new(function).expect("function name"),
-    }
-}
-
 fn envelope(
     call_id: &str,
     function: &str,
     parent: Option<serde_json::Value>,
     arguments: &[(&str, serde_json::Value)],
 ) -> CallEnvelope {
-    let selector = selector(function);
+    envelope_on("FixtureRoot", call_id, function, parent, arguments)
+}
+
+fn envelope_on(
+    parent_type: &str,
+    call_id: &str,
+    function: &str,
+    parent: Option<serde_json::Value>,
+    arguments: &[(&str, serde_json::Value)],
+) -> CallEnvelope {
+    let selector = CallSelector::Invocation {
+        parent_wire_name: ModuleWireName::new(parent_type).expect("parent name"),
+        function_wire_name: ModuleFunctionName::new(function).expect("function name"),
+    };
     CallEnvelope::new(
         CallIdentity::new(call_id, selector).expect("call identity"),
         parent.map(ModuleJson::new),
@@ -781,6 +911,13 @@ fn generated_registry_runs_through_the_production_wrapper_without_an_engine() {
                 serde_json::json!(["aGk="]),
             ),
             ("entry", "entry", Vec::new(), serde_json::json!({"kind": "REGULAR"})),
+            // A fresh collection is its own base, so its JSON names none.
+            (
+                "collection",
+                "items",
+                Vec::new(),
+                serde_json::json!({"names": ["a", "b"], "selection": null, "prefix": ""}),
+            ),
         ] {
             let invocation = envelope(call_id, function, Some(parent.clone()), &arguments);
             handle_call(
@@ -792,6 +929,57 @@ fn generated_registry_runs_through_the_production_wrapper_without_an_engine() {
             )
             .await
             .expect("Core value invocation");
+            let value = match outcomes.lock().expect("result lock").pop().expect("value") {
+                CallOutcome::Value(value) => value.into_json(),
+                outcome => panic!("unexpected {call_id} outcome: {outcome:?}"),
+            };
+            assert_eq!(value, expected, "{call_id}");
+        }
+
+        // The engine hands a collection the collection it was derived from. A value
+        // built from the receiver returns that base, and a fresh value returns none.
+        let items = serde_json::json!({
+            "names": ["a", "b"],
+            "selection": null,
+            "prefix": "p-",
+            "__daggerCollectionBase": "base-id",
+        });
+        for (call_id, function, arguments, expected) in [
+            (
+                "collection-get",
+                "lookup",
+                vec![("name", serde_json::json!("a"))],
+                serde_json::json!({"name": "p-a"}),
+            ),
+            (
+                "collection-derived",
+                "withPrefix",
+                vec![("prefix", serde_json::json!("q-"))],
+                serde_json::json!({
+                    "names": ["a", "b"],
+                    "selection": null,
+                    "prefix": "q-",
+                    "__daggerCollectionBase": "base-id",
+                }),
+            ),
+            (
+                "collection-fresh",
+                "fresh",
+                Vec::new(),
+                serde_json::json!({"names": ["z"], "selection": null, "prefix": "p-"}),
+            ),
+        ] {
+            let invocation =
+                envelope_on("FixtureItems", call_id, function, Some(items.clone()), &arguments);
+            handle_call(
+                &GeneratedDispatchRegistry,
+                invocation.clone(),
+                context(&client, &invocation),
+                &registration_sink,
+                &result_sink,
+            )
+            .await
+            .expect("collection invocation");
             let value = match outcomes.lock().expect("result lock").pop().expect("value") {
                 CallOutcome::Value(value) => value.into_json(),
                 outcome => panic!("unexpected {call_id} outcome: {outcome:?}"),
@@ -879,6 +1067,12 @@ fn compile_representative(source: &ModuleSourceSnapshot) -> ModuleCompilation {
         [
             binding("Directory", "Directory", GeneratedTypeKind::Object, &[]),
             binding("Llm", "LLM", GeneratedTypeKind::Object, &[]),
+            binding(
+                "CollectionDelta",
+                "CollectionDelta",
+                GeneratedTypeKind::Object,
+                &[],
+            ),
             binding(
                 "NetworkProtocol",
                 "NetworkProtocol",
@@ -993,7 +1187,7 @@ pub(crate) struct Child {
 // The representative crate is authored the way an initialized module is: its root
 // describes the module and declares the generated module, and its exports include a
 // direct `ModuleError` result, Core handles whose Rust and target names differ, an
-// agent, and Core enums and scalars, with defaults and as a field.
+// agent, Core enums and scalars, with defaults and as a field, and a collection.
 fn representative_source() -> ModuleSourceSnapshot {
     let mut snapshot = source_snapshot(7, false, false);
     let root_path = ModuleSourcePath::new("src/lib.rs").expect("fixture root path is valid");
@@ -1070,12 +1264,68 @@ impl Root {
             kind: renamed_sdk::FileType::Regular,
         }
     }
+
+    #[dagger(function)]
+    pub(crate) fn items(&self) -> Items {
+        Items {
+            names: vec!["a".to_owned(), "b".to_owned()],
+            selection: None,
+            prefix: String::new(),
+            base: renamed_sdk::CollectionBase::default(),
+        }
+    }
 }
 
 #[renamed_sdk::object(rename = "FixtureEntry")]
 pub(crate) struct Entry {
     #[dagger(field)]
     kind: renamed_sdk::FileType,
+}
+
+#[renamed_sdk::object(collection, rename = "FixtureItems")]
+#[derive(Clone)]
+pub(crate) struct Items {
+    #[dagger(field, keys)]
+    names: Vec<String>,
+    #[dagger(field, delta)]
+    selection: Option<renamed_sdk::CollectionDelta>,
+    #[dagger(field)]
+    prefix: String,
+    base: renamed_sdk::CollectionBase,
+}
+
+#[renamed_sdk::methods]
+impl Items {
+    #[dagger(function, get)]
+    pub(crate) fn lookup(&self, name: String) -> Item {
+        Item {
+            name: format!("{}{name}", self.prefix),
+        }
+    }
+
+    #[dagger(function)]
+    pub(crate) fn with_prefix(&self, prefix: String) -> Items {
+        Items {
+            prefix,
+            ..self.clone()
+        }
+    }
+
+    #[dagger(function)]
+    pub(crate) fn fresh(&self) -> Items {
+        Items {
+            names: vec!["z".to_owned()],
+            selection: None,
+            prefix: self.prefix.clone(),
+            base: renamed_sdk::CollectionBase::default(),
+        }
+    }
+}
+
+#[renamed_sdk::object(rename = "FixtureItem")]
+pub(crate) struct Item {
+    #[dagger(field)]
+    name: String,
 }
 "#
     );

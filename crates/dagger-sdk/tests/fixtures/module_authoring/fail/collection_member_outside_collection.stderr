@@ -1,0 +1,5 @@
+error: `keys`, `get` and `delta` mark members of a collection, marked `#[dagger_sdk::object(collection)]`
+  --> tests/fixtures/module_authoring/fail/collection_member_outside_collection.rs:11:5
+   |
+11 |     names: Vec<String>,
+   |     ^^^^^^^^^^^^^^^^^^

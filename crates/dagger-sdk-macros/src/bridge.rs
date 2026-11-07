@@ -14,6 +14,7 @@ pub(crate) fn object(args: TokenStream, mut item: ItemStruct) -> syn::Result<Tok
     require_export_visibility(&item.vis)?;
     reject_generics(&item.generics)?;
     let outer = Metadata::parse_args(args)?;
+    let collection = outer.has("collection");
     let Fields::Named(fields) = &mut item.fields else {
         return Err(Error::new_spanned(
             &item.fields,
@@ -28,30 +29,84 @@ pub(crate) fn object(args: TokenStream, mut item: ItemStruct) -> syn::Result<Tok
     ];
     let mut persistent = Vec::new();
     let mut transient = Vec::new();
+    let mut base = None;
+    let mut keys = false;
+    let mut delta = false;
     for field in &mut fields.named {
         let metadata = Metadata::take_from(&mut field.attrs)?;
         let Some(ident) = field.ident.clone() else {
             return Err(Error::new_spanned(&*field, "object fields must be named"));
         };
-        let policy = if metadata.has("field") {
+        let policy = if is_collection_base(&field.ty) {
+            if !metadata.canonical().is_empty() {
+                return Err(Error::new_spanned(
+                    &*field,
+                    "a `CollectionBase` field takes no Dagger metadata",
+                ));
+            }
+            if !collection {
+                return Err(Error::new_spanned(
+                    &field.ty,
+                    "a `CollectionBase` field belongs only in a collection, marked `#[dagger_sdk::object(collection)]`",
+                ));
+            }
+            if base.is_some() {
+                return Err(Error::new_spanned(
+                    &*field,
+                    "a collection declares exactly one `CollectionBase` field",
+                ));
+            }
+            "base"
+        } else if metadata.has("field") {
             "field"
         } else if metadata.has("state") {
             "state"
         } else {
             "transient"
         };
+        if (metadata.has("keys") || metadata.has("delta")) && policy != "field" {
+            return Err(Error::new_spanned(
+                &*field,
+                "`keys` and `delta` mark a collection's `#[dagger(field)]`",
+            ));
+        }
+        for (marker, seen) in [("keys", &mut keys), ("delta", &mut delta)] {
+            if !metadata.has(marker) {
+                continue;
+            }
+            if !collection {
+                return Err(Error::new_spanned(
+                    &*field,
+                    "`keys`, `get` and `delta` mark members of a collection, marked `#[dagger_sdk::object(collection)]`",
+                ));
+            }
+            if std::mem::replace(seen, true) {
+                return Err(Error::new_spanned(
+                    &*field,
+                    "a collection marks one keys field and one delta field",
+                ));
+            }
+        }
         fingerprint_parts.extend([
             policy.to_owned(),
             ident.to_string(),
             canonical_tokens(&field.ty),
             metadata.canonical(),
         ]);
-        if policy == "transient" {
-            transient.push(ident);
-        } else {
-            persistent.push((ident, field.ty.clone()));
+        match policy {
+            "transient" => transient.push(ident),
+            "base" => base = Some((ident, field.ty.clone())),
+            _ => persistent.push((ident, field.ty.clone())),
         }
     }
+    if collection && base.is_none() {
+        return Err(Error::new_spanned(
+            &item.ident,
+            "a collection declares one `CollectionBase` field, which carries the collection it was derived from",
+        ));
+    }
+    // The base follows the authored persistent fields, so generated codecs find it last.
+    persistent.extend(base);
 
     let ident = &item.ident;
     let value = fingerprint(fingerprint_parts);
@@ -285,6 +340,12 @@ pub(crate) fn methods(args: TokenStream, mut item: ItemImpl) -> syn::Result<Toke
         };
         let metadata = Metadata::take_from(&mut function.attrs)?;
         let parameter_metadata = strip_inputs(&mut function.sig.inputs)?;
+        if metadata.has("get") && !metadata.has("function") {
+            return Err(Error::new_spanned(
+                &function.sig,
+                "`get` marks a collection's `#[dagger(function)]`",
+            ));
+        }
         let exported = metadata.has("constructor") || metadata.has("function");
         if !exported {
             if parameter_metadata
@@ -464,6 +525,21 @@ fn reject_generics(generics: &syn::Generics) -> syn::Result<()> {
             "generic Dagger exports are not supported",
         ))
     }
+}
+
+/// Whether a field's type names the SDK's `CollectionBase`, by its final path segment, as
+/// source analysis decides. Generated codecs give the field the SDK type, so another type
+/// of that name fails to compile.
+fn is_collection_base(ty: &Type) -> bool {
+    let Type::Path(path) = ty else {
+        return false;
+    };
+    path.qself.is_none()
+        && path
+            .path
+            .segments
+            .last()
+            .is_some_and(|segment| segment.ident == "CollectionBase" && segment.arguments.is_none())
 }
 
 fn tuple_type(fields: &[(syn::Ident, Type)]) -> TokenStream {

@@ -8,12 +8,14 @@
 #[cfg(feature = "gen")]
 mod adapter;
 mod codec;
+mod collection;
 mod context;
 mod dispatch;
 mod error;
 mod view;
 mod wire;
 
+pub use collection::CollectionBase;
 pub use context::{CurrentCall, ModuleCancellation, TelemetryContext};
 pub use error::{ModuleError, ModuleErrorBuildError, ModuleErrorDetail};
 
@@ -24,6 +26,7 @@ pub mod __private {
     #[cfg(feature = "gen")]
     pub use super::adapter::{ModuleEntrypointError, run_module_entrypoint};
     pub use super::codec::__private::*;
+    pub use super::collection::__private::{decode_collection_base, encode_collection_base};
     pub use super::context::ModuleContextBase;
     pub use super::dispatch::{
         CallCoordinate, CallOutcome, CallPreparationError, CallReceipt, DispatchError,

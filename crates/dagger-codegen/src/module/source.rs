@@ -902,7 +902,10 @@ fn merge_detached_functions(
 fn declaration_references(declaration: &AuthoringDeclaration) -> Vec<String> {
     let mut references = Vec::new();
     for field in &declaration.fields {
-        if field.policy != AuthoringFieldPolicy::Transient {
+        if matches!(
+            field.policy,
+            AuthoringFieldPolicy::Field | AuthoringFieldPolicy::State
+        ) {
             references.extend(type_paths(&field.rust_type));
         }
     }

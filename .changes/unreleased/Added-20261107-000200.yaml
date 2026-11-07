@@ -1,0 +1,7 @@
+kind: Added
+body: |
+    A module can export a collection, as a Go module can: an object marked `#[dagger_sdk::object(collection)]`, whose `#[dagger(field, keys)]` holds its keys and whose `#[dagger(function, get)]` returns one item, with an optional `#[dagger(field, delta)]` that receives a `CollectionDelta`. Callers get the engine's `keys`, `list`, `get` and `subset` operations, and `dagger check` and `dagger generate` gain a flag that selects items by key. Each collection declares one `CollectionBase` field, which the engine fills with the collection that a value was derived from: a value built from the receiver keeps it, and a value built afresh from `CollectionBase::default()` is its own base.
+time: 2026-11-07T00:02:00Z
+custom:
+    Author: iw
+    PR: "45"

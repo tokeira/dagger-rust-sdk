@@ -15,9 +15,9 @@ use super::metadata::{
     CachePolicy, ExecutionKind, FunctionKind, FunctionReturn, FunctionRole, ReceiverKind,
 };
 use super::model::{
-    GeneratedAsset, GeneratedAssetOwner, GeneratedAssetPath, GeneratedModuleAssets,
-    LocalTypeContract, LocalTypeKind, ModuleDescriptor, ModuleIntrospection, ProjectedArgument,
-    ProjectedFunction, ProjectedTypeDef, ProjectedTypeKind, RegenerationClass,
+    CollectionMember, GeneratedAsset, GeneratedAssetOwner, GeneratedAssetPath,
+    GeneratedModuleAssets, LocalTypeContract, LocalTypeKind, ModuleDescriptor, ModuleIntrospection,
+    ProjectedArgument, ProjectedFunction, ProjectedTypeDef, ProjectedTypeKind, RegenerationClass,
     RegistrationProjection, RustSymbol, Sha256Digest, SourceCoordinate,
 };
 use super::source::{GeneratedTypeKind, ResolvedGeneratedType};
@@ -472,7 +472,8 @@ fn render_registration(
         let variable = format!("type_{}", ty.wire_name.as_str().to_ascii_lowercase());
         // Fields and functions are added after the definition. An enum's members are
         // part of it, so a type that gains neither is bound immutably.
-        let mutable = !ty.fields.is_empty()
+        let mutable = ty.collection
+            || !ty.fields.is_empty()
             || ty.functions.iter().any(|function| !function.constructor)
             || ty.wire_name.as_str() == root_wire_name;
         output.push_str(&format!(
@@ -480,6 +481,13 @@ fn render_registration(
             if mutable { "mut " } else { "" },
             render_type_definition(ty, alias)
         ));
+        // As the Go SDK does, a collection names only the members its author marked; the
+        // engine finds the others by their default names.
+        if ty.collection {
+            output.push_str(&format!(
+                "            {variable} = {variable}.with_collection();\n"
+            ));
+        }
         for field in &ty.fields {
             let options = render_field_options(field, alias);
             output.push_str(&format!(
@@ -487,6 +495,17 @@ fn render_registration(
                 field.wire_name.as_str(),
                 render_projected_type(&field.ty, descriptor, generated_types, alias)?
             ));
+            let member = match field.collection {
+                Some(CollectionMember::Keys) => Some("with_collection_keys"),
+                Some(CollectionMember::Delta) => Some("with_collection_delta"),
+                None => None,
+            };
+            if let Some(member) = member {
+                output.push_str(&format!(
+                    "            {variable} = {variable}.{member}({:?});\n",
+                    field.wire_name.as_str()
+                ));
+            }
         }
         for function in &ty.functions {
             if !function.constructor {
@@ -708,6 +727,11 @@ fn render_function(
     output.push_str(&format!(
         "            {owner} = {owner}.{attach}({variable});\n"
     ));
+    if function.collection_get && !constructor {
+        output.push_str(&format!(
+            "            {owner} = {owner}.with_collection_get({name:?});\n"
+        ));
+    }
     Ok(output)
 }
 
@@ -919,7 +943,16 @@ fn render_object_codec(
             field.wire_name.as_str()
         ));
     }
-    let values = (0..contract.fields.len())
+    // A collection's base follows its fields in the persistent state. An absent base makes
+    // the value its own base, and a fresh value's base is left out of its JSON.
+    let base_index = contract.fields.len();
+    if contract.collection.is_some() {
+        output.push_str(&format!(
+            "        let value_{base_index} = super::__private::decode_collection_base(object)?;\n"
+        ));
+    }
+    let state_len = base_index + usize::from(contract.collection.is_some());
+    let values = (0..state_len)
         .map(|index| format!("value_{index}"))
         .collect::<Vec<_>>();
     let state = tuple_expression(&values);
@@ -934,6 +967,11 @@ fn render_object_codec(
             "            object.insert({:?}.to_owned(), <{} as super::__private::ModuleOutputCodec>::encode_output(value_{index}, context).await?.into_json());\n",
             field.wire_name.as_str(),
             rust_type(&field.ty, generated_types)?
+        ));
+    }
+    if contract.collection.is_some() {
+        output.push_str(&format!(
+            "            super::__private::encode_collection_base(value_{base_index}, &mut object);\n"
         ));
     }
     output.push_str("            Ok(super::__private::ModuleJson::new(super::__private::serde_json::Value::Object(object)))\n        })\n    }\n}\n\n");

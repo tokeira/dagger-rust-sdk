@@ -553,6 +553,20 @@ pub enum ConstructionPolicy {
     Default,
 }
 
+/// The members a collection marks. The engine finds an unmarked keys field, get function,
+/// or delta field by its default name.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CollectionContract {
+    /// The Rust field that carries the collection's base, which follows the authored fields
+    /// in the persistent state.
+    pub base: String,
+    /// The wire name of the field marked `keys`.
+    pub keys: Option<WireName>,
+    /// The wire name of the field marked `delta`.
+    pub delta: Option<WireName>,
+}
+
 /// Complete local object state contract.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -563,6 +577,9 @@ pub struct ObjectContract {
     pub fields: Vec<ObjectFieldContract>,
     /// Root construction policy when this object is the module root.
     pub construction: Option<ConstructionPolicy>,
+    /// Collection members, when the object is a collection.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub collection: Option<CollectionContract>,
 }
 
 impl ObjectContract {
@@ -844,10 +861,20 @@ fn compile_object(
     discovery: &ModuleDiscovery,
     resolver: &TypeResolver<'_>,
 ) -> Result<ObjectContract, ModuleDiagnostic> {
+    let is_collection = declaration.metadata.contains_key("collection");
     let mut fields = Vec::new();
+    let mut base = None;
+    let mut keys = None;
+    let mut delta = None;
     for field in &declaration.fields {
-        if field.policy == super::authoring::AuthoringFieldPolicy::Transient {
-            continue;
+        match field.policy {
+            super::authoring::AuthoringFieldPolicy::Transient => continue,
+            super::authoring::AuthoringFieldPolicy::CollectionBase => {
+                base = Some(field.name.clone());
+                continue;
+            }
+            super::authoring::AuthoringFieldPolicy::Field
+            | super::authoring::AuthoringFieldPolicy::State => {}
         }
         let ty = resolver.resolve(
             &field.rust_type,
@@ -860,6 +887,22 @@ fn compile_object(
             &field.source,
             ModuleDiagnosticCode::StateShapeInvalid,
         )?;
+        for (marker, member) in [("keys", &mut keys), ("delta", &mut delta)] {
+            if !field.metadata.contains_key(marker) {
+                continue;
+            }
+            if !is_collection {
+                return Err(collection_member_outside(&field.source));
+            }
+            if member.replace(wire_name.clone()).is_some() {
+                return Err(diagnostic(
+                    ModuleDiagnosticCode::MetadataConflict,
+                    Some(field.source.clone()),
+                    "a collection marks one keys field and one delta field",
+                    "remove the extra `keys` or `delta` marker",
+                ));
+            }
+        }
         fields.push(ObjectFieldContract {
             rust_name: field.name.clone(),
             wire_name,
@@ -867,10 +910,42 @@ fn compile_object(
             mode: match field.policy {
                 super::authoring::AuthoringFieldPolicy::Field => ObjectFieldMode::Exposed,
                 super::authoring::AuthoringFieldPolicy::State => ObjectFieldMode::Persistent,
-                super::authoring::AuthoringFieldPolicy::Transient => unreachable!(),
+                super::authoring::AuthoringFieldPolicy::Transient
+                | super::authoring::AuthoringFieldPolicy::CollectionBase => unreachable!(),
             },
         });
     }
+    let gets = declaration
+        .functions
+        .iter()
+        .filter(|function| function.metadata.contains_key("get"))
+        .collect::<Vec<_>>();
+    if let Some(get) = gets.first()
+        && !is_collection
+    {
+        return Err(collection_member_outside(&get.source));
+    }
+    if let Some(extra) = gets.get(1) {
+        return Err(diagnostic(
+            ModuleDiagnosticCode::MetadataConflict,
+            Some(extra.source.clone()),
+            "a collection marks one get function",
+            "remove the extra `get` marker",
+        ));
+    }
+    let collection = if is_collection {
+        let base = base.ok_or_else(|| {
+            diagnostic(
+                ModuleDiagnosticCode::StateShapeInvalid,
+                Some(declaration.source.clone()),
+                "a collection declares one `CollectionBase` field",
+                "add a field such as `base: dagger_sdk::CollectionBase`",
+            )
+        })?;
+        Some(CollectionContract { base, keys, delta })
+    } else {
+        None
+    };
 
     let constructors = declaration
         .functions
@@ -913,9 +988,19 @@ fn compile_object(
         symbol: declaration.rust_symbol.clone(),
         fields,
         construction,
+        collection,
     };
     contract.validate(is_root)?;
     Ok(contract)
+}
+
+fn collection_member_outside(source: &SourceCoordinate) -> ModuleDiagnostic {
+    diagnostic(
+        ModuleDiagnosticCode::MetadataConflict,
+        Some(source.clone()),
+        "`keys`, `get` and `delta` mark members of a collection",
+        "mark the object `#[dagger_sdk::object(collection)]`, or remove the marker",
+    )
 }
 
 fn compile_interface(
@@ -1725,6 +1810,7 @@ mod tests {
                     },
                 ],
                 construction: Some(ConstructionPolicy::Explicit { fallible: false }),
+                collection: None,
             };
             contract.validate(true).unwrap();
             prop_assert_eq!(contract.exposed_fields().count(), usize::from(!private));

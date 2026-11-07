@@ -1,0 +1,5 @@
+error: a collection declares one `CollectionBase` field, which carries the collection it was derived from
+ --> tests/fixtures/module_authoring/fail/collection_without_base.rs:9:12
+  |
+9 | pub struct Items {
+  |            ^^^^^

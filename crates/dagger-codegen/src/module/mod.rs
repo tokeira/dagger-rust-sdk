@@ -50,8 +50,8 @@ pub use source::{
     ResolvedGeneratedType, ResolvedTypeAlias, SourceDiscovery, source_snapshot_digest,
 };
 pub use types::{
-    ConstructionPolicy, EnumContract, EnumVariantContract, InterfaceContract, InterfaceMethod,
-    ModuleValue, ModuleValueCodec, ObjectContract, ObjectFieldContract, ObjectFieldMode,
-    ProjectedType, RustModuleType, ScalarContract, TypeCatalog, TypePolicyDisposition,
-    TypePolicyRow, TypePosition, TypeResolver, rust_type_policy_manifest,
+    CollectionContract, ConstructionPolicy, EnumContract, EnumVariantContract, InterfaceContract,
+    InterfaceMethod, ModuleValue, ModuleValueCodec, ObjectContract, ObjectFieldContract,
+    ObjectFieldMode, ProjectedType, RustModuleType, ScalarContract, TypeCatalog,
+    TypePolicyDisposition, TypePolicyRow, TypePosition, TypeResolver, rust_type_policy_manifest,
 };

@@ -140,6 +140,9 @@ pub struct FunctionMetadata {
     pub cache: CachePolicy,
     /// Exact target function role.
     pub role: FunctionRole,
+    /// Whether the function is its collection's get function.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub collection_get: bool,
     /// Deprecation reason; an empty string represents bare deprecation.
     pub deprecation: Option<String>,
     /// Most specific authored coordinate.
@@ -530,6 +533,7 @@ fn function_metadata(
         documentation,
         cache,
         role,
+        collection_get: function.metadata.contains_key("get"),
         deprecation,
         source: function.source.clone(),
     })
