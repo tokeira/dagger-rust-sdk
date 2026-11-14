@@ -1,0 +1,7 @@
+kind: Dependencies
+body: |
+    The repository builds resolve `rustix` 1.1.6, which fixes RUSTSEC-2026-0486: its extended-attribute functions could mark unwritten bytes as initialized when given a zero-length buffer. The SDK never reaches those functions. Crates that depend on the SDK resolve their own `rustix` release, and `cargo update -p rustix` moves them to a fixed one.
+time: 2026-11-14T00:01:00Z
+custom:
+    Author: iw
+    PR: "48"
