@@ -1412,8 +1412,9 @@ checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
 
 [[package]]
 name = "tokeira-dagger-sdk"
-version = "0.5.0"
-source = "git+https://github.com/tokeira/dagger-rust-sdk?rev=1952444798971d5a4177dbacee100d8736817362#1952444798971d5a4177dbacee100d8736817362"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5f0c689f245eeb4cdad96c868455e64d10a3d47821d00e218f5dde30c9b430f0"
 dependencies = [
  "async-trait",
  "base64 0.21.7",
@@ -1442,8 +1443,9 @@ dependencies = [
 
 [[package]]
 name = "tokeira-dagger-sdk-macros"
-version = "0.5.0"
-source = "git+https://github.com/tokeira/dagger-rust-sdk?rev=1952444798971d5a4177dbacee100d8736817362#1952444798971d5a4177dbacee100d8736817362"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "920f3ede226c259aceafe214d575a0338997309910d00ac1be8ede02003ff4b0"
 dependencies = [
  "proc-macro2",
  "quote",
