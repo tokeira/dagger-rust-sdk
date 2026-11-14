@@ -1,5 +1,5 @@
 //! Generated bindings owned by the GraphQL `Workspace` type.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:4dfe7942ff12bd22554ccd2cb26a5427e3a9eeece22dbba9d8aa89e4590e97ff","target_revision":"a45241b20a5e07fbfc5954479ef0b61da843499c"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:9511bc82fb704520cdc632da73463fc7396b1bb081e0446b61665c30764a5e7c","target_revision":"400b82d6f3c09ef096d2f59b3e920267b5969bf4"}
 #[doc = "A Dagger workspace detected from the current working directory or constructed from a Directory."]
 #[derive(Clone)]
 pub struct Workspace {
@@ -544,7 +544,7 @@ impl WorkspaceWithResetOpts {
         self
     }
 }
-#[doc = "Owned optional arguments for GraphQL operation `Workspace.withSDK`; reuse does not mutate caller state."]
+#[doc = "Owned optional arguments for GraphQL operation `Workspace.withSdk`; reuse does not mutate caller state."]
 #[derive(Clone, Debug, Default)]
 #[non_exhaustive]
 pub struct WorkspaceWithSdkOpts {
@@ -712,7 +712,7 @@ impl WorkspaceWithoutModuleOpts {
         self
     }
 }
-#[doc = "Owned optional arguments for GraphQL operation `Workspace.withoutSDK`; reuse does not mutate caller state."]
+#[doc = "Owned optional arguments for GraphQL operation `Workspace.withoutSdk`; reuse does not mutate caller state."]
 #[derive(Clone, Debug, Default)]
 #[non_exhaustive]
 pub struct WorkspaceWithoutSdkOpts {
@@ -1781,24 +1781,24 @@ impl Workspace {
             selection: query,
         }
     }
-    #[doc = "Return this workspace with an SDK installed in its config.\n\nSelects GraphQL field `withSDK` on `Workspace`."]
+    #[doc = "Return this workspace with an SDK installed in its config.\n\nSelects GraphQL field `withSdk` on `Workspace`."]
     #[must_use]
     pub fn with_sdk(&self, r#ref: impl Into<String>) -> super::Workspace {
-        let query = self.selection.select("withSDK");
+        let query = self.selection.select("withSdk");
         let query = query.arg("ref", r#ref.into());
         super::Workspace {
             session: self.session.clone(),
             selection: query,
         }
     }
-    #[doc = "Executes GraphQL operation `withSDK` with a borrowed, reusable `WorkspaceWithSdkOpts` value."]
+    #[doc = "Executes GraphQL operation `withSdk` with a borrowed, reusable `WorkspaceWithSdkOpts` value."]
     #[must_use]
     pub fn with_sdk_opts(
         &self,
         r#ref: impl Into<String>,
         opts: &WorkspaceWithSdkOpts,
     ) -> super::Workspace {
-        let query = self.selection.select("withSDK");
+        let query = self.selection.select("withSdk");
         let query = if let Some(value) = &opts.as_sdk_name {
             query.arg("asSdkName", value)
         } else {
@@ -2110,24 +2110,24 @@ impl Workspace {
             selection: query,
         }
     }
-    #[doc = "Return this workspace with an SDK removed from its config.\n\nSelects GraphQL field `withoutSDK` on `Workspace`."]
+    #[doc = "Return this workspace with an SDK removed from its config.\n\nSelects GraphQL field `withoutSdk` on `Workspace`."]
     #[must_use]
     pub fn without_sdk(&self, name: impl Into<String>) -> super::Workspace {
-        let query = self.selection.select("withoutSDK");
+        let query = self.selection.select("withoutSdk");
         let query = query.arg("name", name.into());
         super::Workspace {
             session: self.session.clone(),
             selection: query,
         }
     }
-    #[doc = "Executes GraphQL operation `withoutSDK` with a borrowed, reusable `WorkspaceWithoutSdkOpts` value."]
+    #[doc = "Executes GraphQL operation `withoutSdk` with a borrowed, reusable `WorkspaceWithoutSdkOpts` value."]
     #[must_use]
     pub fn without_sdk_opts(
         &self,
         name: impl Into<String>,
         opts: &WorkspaceWithoutSdkOpts,
     ) -> super::Workspace {
-        let query = self.selection.select("withoutSDK");
+        let query = self.selection.select("withoutSdk");
         let query = if let Some(value) = &opts.here {
             query.arg("here", value)
         } else {

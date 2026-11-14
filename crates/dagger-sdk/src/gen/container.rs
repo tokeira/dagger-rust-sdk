@@ -1,5 +1,5 @@
 //! Generated bindings owned by the GraphQL `Container` type.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:4dfe7942ff12bd22554ccd2cb26a5427e3a9eeece22dbba9d8aa89e4590e97ff","target_revision":"a45241b20a5e07fbfc5954479ef0b61da843499c"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:9511bc82fb704520cdc632da73463fc7396b1bb081e0446b61665c30764a5e7c","target_revision":"400b82d6f3c09ef096d2f59b3e920267b5969bf4"}
 #[doc = "An OCI-compatible container, also known as a Docker container."]
 #[derive(Clone)]
 pub struct Container {
@@ -83,7 +83,7 @@ impl ContainerAsServiceOpts {
 pub struct ContainerAsTarballOpts {
     #[doc = "Force each layer of the image to use the specified compression algorithm.\n\nIf this is unset, then if a layer already has a compressed blob in the engine's cache, that will be used (this can result in a mix of compression algorithms for different layers). If this is unset and a layer has no compressed blob in the engine's cache, then it will be compressed using Gzip.\n\n`None` omits GraphQL field `forcedCompression`."]
     pub forced_compression: Option<super::ImageLayerCompression>,
-    #[doc = "Use the specified media types for the image's layers.\n\nDefaults to OCI, which is largely compatible with most recent container runtimes, but Docker may be needed for older runtimes without OCI support.\n\n`None` omits GraphQL field `mediaTypes` and preserves engine default `Enum(SchemaName(\"OCIMediaTypes\"))`."]
+    #[doc = "Use the specified media types for the image's layers.\n\nDefaults to OCI, which is largely compatible with most recent container runtimes, but Docker may be needed for older runtimes without OCI support.\n\n`None` omits GraphQL field `mediaTypes` and preserves engine default `Enum(SchemaName(\"OCI\"))`."]
     pub media_types: Option<super::ImageMediaTypes>,
     #[doc = "Identifiers for other platform specific containers.\n\nUsed for multi-platform images.\n\n`None` omits GraphQL field `platformVariants` and preserves engine default `List(\\[\\])`."]
     pub platform_variants: Option<Vec<crate::IdInput<super::Container>>>,
@@ -122,12 +122,20 @@ impl ContainerAsTarballOpts {
 pub struct ContainerDirectoryOpts {
     #[doc = "Replace \"${VAR}\" or \"$VAR\" in the value of path according to the current environment variables defined in the container (e.g. \"/$VAR/foo\").\n\n`None` omits GraphQL field `expand` and preserves engine default `Boolean(false)`."]
     pub expand: Option<bool>,
+    #[doc = "Repair symlinks that directory selection would break. Resolve targets across the root filesystem and directory or file mounts. Preserve working relative links and links that already have no target. Cache, volume, tmpfs, secret, and socket mounts cause an error if selection, a resolved link, or mount target resolution needs their contents.\n\n`None` omits GraphQL field `resolveBrokenSymlinks` and preserves engine default `Boolean(false)`."]
+    pub resolve_broken_symlinks: Option<bool>,
 }
 impl ContainerDirectoryOpts {
     #[doc = "Sets GraphQL argument `expand` to a concrete value instead of omitting it."]
     #[must_use]
     pub fn with_expand(mut self, value: bool) -> Self {
         self.expand = Some(value);
+        self
+    }
+    #[doc = "Sets GraphQL argument `resolveBrokenSymlinks` to a concrete value instead of omitting it."]
+    #[must_use]
+    pub fn with_resolve_broken_symlinks(mut self, value: bool) -> Self {
+        self.resolve_broken_symlinks = Some(value);
         self
     }
 }
@@ -170,7 +178,7 @@ pub struct ContainerExportOpts {
     pub expand: Option<bool>,
     #[doc = "Force each layer of the exported image to use the specified compression algorithm.\n\nIf this is unset, then if a layer already has a compressed blob in the engine's cache, that will be used (this can result in a mix of compression algorithms for different layers). If this is unset and a layer has no compressed blob in the engine's cache, then it will be compressed using Gzip.\n\n`None` omits GraphQL field `forcedCompression`."]
     pub forced_compression: Option<super::ImageLayerCompression>,
-    #[doc = "Use the specified media types for the exported image's layers.\n\nDefaults to OCI, which is largely compatible with most recent container runtimes, but Docker may be needed for older runtimes without OCI support.\n\n`None` omits GraphQL field `mediaTypes` and preserves engine default `Enum(SchemaName(\"OCIMediaTypes\"))`."]
+    #[doc = "Use the specified media types for the exported image's layers.\n\nDefaults to OCI, which is largely compatible with most recent container runtimes, but Docker may be needed for older runtimes without OCI support.\n\n`None` omits GraphQL field `mediaTypes` and preserves engine default `Enum(SchemaName(\"OCI\"))`."]
     pub media_types: Option<super::ImageMediaTypes>,
     #[doc = "Identifiers for other platform specific containers.\n\nUsed for multi-platform image.\n\n`None` omits GraphQL field `platformVariants` and preserves engine default `List(\\[\\])`."]
     pub platform_variants: Option<Vec<crate::IdInput<super::Container>>>,
@@ -215,7 +223,7 @@ impl ContainerExportOpts {
 pub struct ContainerExportImageOpts {
     #[doc = "Force each layer of the exported image to use the specified compression algorithm.\n\nIf this is unset, then if a layer already has a compressed blob in the engine's cache, that will be used (this can result in a mix of compression algorithms for different layers). If this is unset and a layer has no compressed blob in the engine's cache, then it will be compressed using Gzip.\n\n`None` omits GraphQL field `forcedCompression`."]
     pub forced_compression: Option<super::ImageLayerCompression>,
-    #[doc = "Use the specified media types for the exported image's layers.\n\nDefaults to OCI, which is largely compatible with most recent container runtimes, but Docker may be needed for older runtimes without OCI support.\n\n`None` omits GraphQL field `mediaTypes` and preserves engine default `Enum(SchemaName(\"OCIMediaTypes\"))`."]
+    #[doc = "Use the specified media types for the exported image's layers.\n\nDefaults to OCI, which is largely compatible with most recent container runtimes, but Docker may be needed for older runtimes without OCI support.\n\n`None` omits GraphQL field `mediaTypes` and preserves engine default `Enum(SchemaName(\"OCI\"))`."]
     pub media_types: Option<super::ImageMediaTypes>,
     #[doc = "Identifiers for other platform specific containers.\n\nUsed for multi-platform image.\n\n`None` omits GraphQL field `platformVariants` and preserves engine default `List(\\[\\])`."]
     pub platform_variants: Option<Vec<crate::IdInput<super::Container>>>,
@@ -267,7 +275,7 @@ impl ContainerFileOpts {
 #[derive(Clone, Debug, Default)]
 #[non_exhaustive]
 pub struct ContainerFromOpts {
-    #[doc = "Allow HTTPS registry communication without verifying the server certificate.\n\n`None` omits GraphQL field `insecureSkipTLSVerify` and preserves engine default `Boolean(false)`."]
+    #[doc = "Allow HTTPS registry communication without verifying the server certificate.\n\n`None` omits GraphQL field `insecureSkipTlsVerify` and preserves engine default `Boolean(false)`."]
     pub insecure_skip_tls_verify: Option<bool>,
     #[doc = "Ignore the workspace lockfile for this lookup.\n\n`None` omits GraphQL field `noLock` and preserves engine default `Boolean(false)`."]
     pub no_lock: Option<bool>,
@@ -279,7 +287,7 @@ pub struct ContainerFromOpts {
     pub version: Option<String>,
 }
 impl ContainerFromOpts {
-    #[doc = "Sets GraphQL argument `insecureSkipTLSVerify` to a concrete value instead of omitting it."]
+    #[doc = "Sets GraphQL argument `insecureSkipTlsVerify` to a concrete value instead of omitting it."]
     #[must_use]
     pub fn with_insecure_skip_tls_verify(mut self, value: bool) -> Self {
         self.insecure_skip_tls_verify = Some(value);
@@ -331,7 +339,7 @@ impl ContainerImportOpts {
 pub struct ContainerLayerOpts {
     #[doc = "Force each layer of the image to use the specified compression algorithm.\n\nIf this is unset, then if a layer already has a compressed blob in the engine's cache, that will be used (this can result in a mix of compression algorithms for different layers). If this is unset and a layer has no compressed blob in the engine's cache, then it will be compressed using Gzip.\n\n`None` omits GraphQL field `forcedCompression`."]
     pub forced_compression: Option<super::ImageLayerCompression>,
-    #[doc = "Media types to use for image layers. Defaults to OCI.\n\n`None` omits GraphQL field `mediaTypes` and preserves engine default `Enum(SchemaName(\"OCIMediaTypes\"))`."]
+    #[doc = "Media types to use for image layers. Defaults to OCI.\n\n`None` omits GraphQL field `mediaTypes` and preserves engine default `Enum(SchemaName(\"OCI\"))`."]
     pub media_types: Option<super::ImageMediaTypes>,
 }
 impl ContainerLayerOpts {
@@ -354,7 +362,7 @@ impl ContainerLayerOpts {
 pub struct ContainerManifestOpts {
     #[doc = "Force each layer of the image to use the specified compression algorithm.\n\nIf this is unset, then if a layer already has a compressed blob in the engine's cache, that will be used (this can result in a mix of compression algorithms for different layers). If this is unset and a layer has no compressed blob in the engine's cache, then it will be compressed using Gzip.\n\n`None` omits GraphQL field `forcedCompression`."]
     pub forced_compression: Option<super::ImageLayerCompression>,
-    #[doc = "Media types to use for image layers. Defaults to OCI.\n\n`None` omits GraphQL field `mediaTypes` and preserves engine default `Enum(SchemaName(\"OCIMediaTypes\"))`."]
+    #[doc = "Media types to use for image layers. Defaults to OCI.\n\n`None` omits GraphQL field `mediaTypes` and preserves engine default `Enum(SchemaName(\"OCI\"))`."]
     pub media_types: Option<super::ImageMediaTypes>,
 }
 impl ContainerManifestOpts {
@@ -377,9 +385,9 @@ impl ContainerManifestOpts {
 pub struct ContainerPublishOpts {
     #[doc = "Force each layer of the published image to use the specified compression algorithm.\n\nIf this is unset, then if a layer already has a compressed blob in the engine's cache, that will be used (this can result in a mix of compression algorithms for different layers). If this is unset and a layer has no compressed blob in the engine's cache, then it will be compressed using Gzip.\n\n`None` omits GraphQL field `forcedCompression`."]
     pub forced_compression: Option<super::ImageLayerCompression>,
-    #[doc = "Allow HTTPS registry communication without verifying the server certificate.\n\n`None` omits GraphQL field `insecureSkipTLSVerify` and preserves engine default `Boolean(false)`."]
+    #[doc = "Allow HTTPS registry communication without verifying the server certificate.\n\n`None` omits GraphQL field `insecureSkipTlsVerify` and preserves engine default `Boolean(false)`."]
     pub insecure_skip_tls_verify: Option<bool>,
-    #[doc = "Use the specified media types for the published image's layers.\n\nDefaults to \"OCI\", which is compatible with most recent registries, but \"Docker\" may be needed for older registries without OCI support.\n\n`None` omits GraphQL field `mediaTypes` and preserves engine default `Enum(SchemaName(\"OCIMediaTypes\"))`."]
+    #[doc = "Use the specified media types for the published image's layers.\n\nDefaults to \"OCI\", which is compatible with most recent registries, but \"Docker\" may be needed for older registries without OCI support.\n\n`None` omits GraphQL field `mediaTypes` and preserves engine default `Enum(SchemaName(\"OCI\"))`."]
     pub media_types: Option<super::ImageMediaTypes>,
     #[doc = "Identifiers for other platform specific containers.\n\nUsed for multi-platform image.\n\n`None` omits GraphQL field `platformVariants` and preserves engine default `List(\\[\\])`."]
     pub platform_variants: Option<Vec<crate::IdInput<super::Container>>>,
@@ -397,7 +405,7 @@ impl ContainerPublishOpts {
         self.forced_compression = Some(value);
         self
     }
-    #[doc = "Sets GraphQL argument `insecureSkipTLSVerify` to a concrete value instead of omitting it."]
+    #[doc = "Sets GraphQL argument `insecureSkipTlsVerify` to a concrete value instead of omitting it."]
     #[must_use]
     pub fn with_insecure_skip_tls_verify(mut self, value: bool) -> Self {
         self.insecure_skip_tls_verify = Some(value);
@@ -1668,6 +1676,11 @@ impl Container {
             query
         };
         let query = query.arg("path", path.into());
+        let query = if let Some(value) = &opts.resolve_broken_symlinks {
+            query.arg("resolveBrokenSymlinks", value)
+        } else {
+            query
+        };
         super::Directory {
             session: self.session.clone(),
             selection: query,
@@ -1744,21 +1757,21 @@ impl Container {
         let query = self.selection.select("exitCode");
         query.execute(&self.session).await
     }
-    #[doc = "Configures all available GPUs on the host to be accessible to this container.\n\nThis currently works for Nvidia devices only.\n\nSelects GraphQL field `experimentalWithAllGPUs` on `Container`.\n\n**Deprecated:** Use \"withGPU\" instead."]
-    #[deprecated(note = "Use \"withGPU\" instead.")]
+    #[doc = "Configures all available GPUs on the host to be accessible to this container.\n\nThis currently works for Nvidia devices only.\n\nSelects GraphQL field `experimentalWithAllGpus` on `Container`.\n\n**Deprecated:** Use \"withGpu\" instead."]
+    #[deprecated(note = "Use \"withGpu\" instead.")]
     #[must_use]
-    pub fn experimental_with_all_gp_us(&self) -> super::Container {
-        let query = self.selection.select("experimentalWithAllGPUs");
+    pub fn experimental_with_all_gpus(&self) -> super::Container {
+        let query = self.selection.select("experimentalWithAllGpus");
         super::Container {
             session: self.session.clone(),
             selection: query,
         }
     }
-    #[doc = "Configures the provided list of devices to be accessible to this container.\n\nThis currently works for Nvidia devices only.\n\nSelects GraphQL field `experimentalWithGPU` on `Container`.\n\n**Deprecated:** Use \"withGPU\" instead, which exposes all GPUs available on the host."]
-    #[deprecated(note = "Use \"withGPU\" instead, which exposes all GPUs available on the host.")]
+    #[doc = "Configures the provided list of devices to be accessible to this container.\n\nThis currently works for Nvidia devices only.\n\nSelects GraphQL field `experimentalWithGpu` on `Container`.\n\n**Deprecated:** Use \"withGpu\" instead, which exposes all GPUs available on the host."]
+    #[deprecated(note = "Use \"withGpu\" instead, which exposes all GPUs available on the host.")]
     #[must_use]
     pub fn experimental_with_gpu(&self, devices: Vec<impl Into<String>>) -> super::Container {
-        let query = self.selection.select("experimentalWithGPU");
+        let query = self.selection.select("experimentalWithGpu");
         let devices = devices.into_iter().map(Into::into).collect::<Vec<String>>();
         let query = query.arg("devices", devices);
         super::Container {
@@ -1896,7 +1909,7 @@ impl Container {
         let query = self.selection.select("from");
         let query = query.arg("address", address.into());
         let query = if let Some(value) = &opts.insecure_skip_tls_verify {
-            query.arg("insecureSkipTLSVerify", value)
+            query.arg("insecureSkipTlsVerify", value)
         } else {
             query
         };
@@ -2069,7 +2082,7 @@ impl Container {
             query
         };
         let query = if let Some(value) = &opts.insecure_skip_tls_verify {
-            query.arg("insecureSkipTLSVerify", value)
+            query.arg("insecureSkipTlsVerify", value)
         } else {
             query
         };
@@ -2798,10 +2811,10 @@ impl Container {
             selection: query,
         }
     }
-    #[doc = "Configures all GPUs available on the host to be accessible to this container.\n\nThis currently works with NVIDIA devices only, and requires the engine to run with GPU support enabled.\n\nSelects GraphQL field `withGPU` on `Container`."]
+    #[doc = "Configures all GPUs available on the host to be accessible to this container.\n\nThis currently works with NVIDIA devices only, and requires the engine to run with GPU support enabled.\n\nSelects GraphQL field `withGpu` on `Container`."]
     #[must_use]
     pub fn with_gpu(&self) -> super::Container {
-        let query = self.selection.select("withGPU");
+        let query = self.selection.select("withGpu");
         super::Container {
             session: self.session.clone(),
             selection: query,

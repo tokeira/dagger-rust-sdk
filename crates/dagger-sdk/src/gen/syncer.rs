@@ -1,5 +1,5 @@
 //! Generated bindings owned by the GraphQL `Syncer` type.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:4dfe7942ff12bd22554ccd2cb26a5427e3a9eeece22dbba9d8aa89e4590e97ff","target_revision":"a45241b20a5e07fbfc5954479ef0b61da843499c"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:9511bc82fb704520cdc632da73463fc7396b1bb081e0446b61665c30764a5e7c","target_revision":"400b82d6f3c09ef096d2f59b3e920267b5969bf4"}
 #[doc = "An object that can be force-evaluated.\n\nCalling sync ensures that the object's entire dependency DAG has been evaluated, returning the object's ID once complete."]
 pub trait Syncer: Clone + Send + Sync {
     #[doc = "Selects GraphQL field `id` on `Syncer`."]

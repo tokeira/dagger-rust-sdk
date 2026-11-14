@@ -880,8 +880,8 @@ fn generated_registry_runs_through_the_production_wrapper_without_an_engine() {
             assert_eq!(value, serde_json::json!(expected));
         }
 
-        // A Core enum or scalar crosses as one string. An absent argument takes its
-        // default, and an alias decodes to its member, which encodes canonically.
+        // A Core enum or scalar crosses as one string, and an absent argument takes its
+        // default.
         for (call_id, function, arguments, expected) in [
             ("protocol-default", "protocol", Vec::new(), serde_json::json!("UDP")),
             (
@@ -891,10 +891,10 @@ fn generated_registry_runs_through_the_production_wrapper_without_an_engine() {
                 serde_json::json!("TCP"),
             ),
             (
-                "compression-alias",
+                "compression",
                 "compression",
                 vec![("compression", serde_json::json!("GZIP"))],
-                serde_json::json!("Gzip"),
+                serde_json::json!("GZIP"),
             ),
             ("platform-default", "platform", Vec::new(), serde_json::json!("linux/arm64")),
             ("labels-default", "labels", Vec::new(), serde_json::json!("{\"a\":1}")),
@@ -1084,10 +1084,10 @@ fn compile_representative(source: &ModuleSourceSnapshot) -> ModuleCompilation {
                 "ImageLayerCompression",
                 GeneratedTypeKind::Enum,
                 &[
-                    ("EStarGz", "EStarGZ"),
-                    ("Gzip", "Gzip"),
-                    ("Uncompressed", "Uncompressed"),
-                    ("Zstd", "Zstd"),
+                    ("Estargz", "ESTARGZ"),
+                    ("Gzip", "GZIP"),
+                    ("Uncompressed", "UNCOMPRESSED"),
+                    ("Zstd", "ZSTD"),
                 ],
             ),
             binding(

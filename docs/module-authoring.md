@@ -33,12 +33,18 @@ module to a new SDK release:
    the new runtime.
 2. In the module's `dagger-module.toml`, set `[runtime] source` to the same reference by
    hand, because `dagger module update` leaves it unchanged, and set `engineVersion` to
-   the new SDK's target release, such as `"v1.0.0-beta.25"`.
+   the new SDK's target release, such as `"v1.0.0-beta.27"`.
 3. Change the module's `Cargo.toml` dependency to the SDK that `<ref>` names, as
    [engine-integration.md](engine-integration.md#sdk-content) describes, then run
    `cargo update -p tokeira-dagger-sdk` in the module.
 4. Run `dagger generate`, then build the module and adapt it to the API changes that the
    [changelog](../CHANGELOG.md) lists.
+
+From `v1.0.0-beta.26`, the engine names a module's types, functions, arguments, and enum
+members by new rules, as it does for every SDK, so a module that declares that release or a
+later one may need its callers to change some spellings. A struct `HttpClient` in a module
+`tiny` is `TinyHTTPClient` rather than `TinyHttpClient`, and an enum variant `GitHub` is the
+member `GITHUB` rather than `GIT_HUB`. The module's Rust code does not change.
 
 ## Authoring surface
 

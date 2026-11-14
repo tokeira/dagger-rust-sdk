@@ -1,5 +1,5 @@
 //! Generated bindings owned by the GraphQL `File` type.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:4dfe7942ff12bd22554ccd2cb26a5427e3a9eeece22dbba9d8aa89e4590e97ff","target_revision":"a45241b20a5e07fbfc5954479ef0b61da843499c"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:9511bc82fb704520cdc632da73463fc7396b1bb081e0446b61665c30764a5e7c","target_revision":"400b82d6f3c09ef096d2f59b3e920267b5969bf4"}
 #[doc = "A file."]
 #[derive(Clone)]
 pub struct File {
@@ -192,6 +192,21 @@ impl FileSearchOpts {
         self
     }
 }
+#[doc = "Owned optional arguments for GraphQL operation `File.sync`; reuse does not mutate caller state."]
+#[derive(Clone, Debug, Default)]
+#[non_exhaustive]
+pub struct FileSyncOpts {
+    #[doc = "Also key the file by its content, so that what consumes it is cached across any two recipes that produce the same file. This hashes the file unless it already has a content key.\n\n`None` omits GraphQL field `keyByContent` and preserves engine default `Boolean(false)`."]
+    pub key_by_content: Option<bool>,
+}
+impl FileSyncOpts {
+    #[doc = "Sets GraphQL argument `keyByContent` to a concrete value instead of omitting it."]
+    #[must_use]
+    pub fn with_key_by_content(mut self, value: bool) -> Self {
+        self.key_by_content = Some(value);
+        self
+    }
+}
 #[doc = "Owned optional arguments for GraphQL operation `File.withReplaced`; reuse does not mutate caller state."]
 #[derive(Clone, Debug, Default)]
 #[non_exhaustive]
@@ -288,10 +303,10 @@ impl File {
             selection: query,
         }
     }
-    #[doc = "Parse the file contents as JSON.\n\nSelects GraphQL field `asJSON` on `File`."]
+    #[doc = "Parse the file contents as JSON.\n\nSelects GraphQL field `asJson` on `File`."]
     #[must_use]
     pub fn as_json(&self) -> super::JsonValue {
-        let query = self.selection.select("asJSON");
+        let query = self.selection.select("asJson");
         super::JsonValue {
             session: self.session.clone(),
             selection: query,
@@ -500,6 +515,21 @@ impl File {
     #[doc = "Force evaluation in the engine.\n\nSelects GraphQL field `sync` on `File`."]
     pub async fn sync(&self) -> Result<super::File, crate::QueryError> {
         let query = self.selection.select("sync");
+        let id: crate::Id = query.execute(&self.session).await?;
+        Ok(crate::query::reenter::<super::File>(
+            &self.session,
+            id,
+            "File",
+        ))
+    }
+    #[doc = "Executes GraphQL operation `sync` with a borrowed, reusable `FileSyncOpts` value."]
+    pub async fn sync_opts(&self, opts: &FileSyncOpts) -> Result<super::File, crate::QueryError> {
+        let query = self.selection.select("sync");
+        let query = if let Some(value) = &opts.key_by_content {
+            query.arg("keyByContent", value)
+        } else {
+            query
+        };
         let id: crate::Id = query.execute(&self.session).await?;
         Ok(crate::query::reenter::<super::File>(
             &self.session,

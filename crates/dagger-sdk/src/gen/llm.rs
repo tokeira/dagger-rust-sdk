@@ -1,5 +1,5 @@
 //! Generated bindings owned by the GraphQL `LLM` type.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:4dfe7942ff12bd22554ccd2cb26a5427e3a9eeece22dbba9d8aa89e4590e97ff","target_revision":"a45241b20a5e07fbfc5954479ef0b61da843499c"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:9511bc82fb704520cdc632da73463fc7396b1bb081e0446b61665c30764a5e7c","target_revision":"400b82d6f3c09ef096d2f59b3e920267b5969bf4"}
 #[doc = "A conversation with a large language model (LLM): queue prompts, expose tools, and step the model until it completes its turn."]
 #[derive(Clone)]
 pub struct Llm {
@@ -601,14 +601,14 @@ impl Llm {
             selection: query,
         }
     }
-    #[doc = "Add an external MCP server to the LLM\n\nSelects GraphQL field `withMCPServer` on `LLM`."]
+    #[doc = "Add an external MCP server to the LLM\n\nSelects GraphQL field `withMcpServer` on `LLM`."]
     #[must_use]
     pub fn with_mcp_server(
         &self,
         name: impl Into<String>,
         service: impl Into<crate::IdInput<super::Service>>,
     ) -> super::Llm {
-        let query = self.selection.select("withMCPServer");
+        let query = self.selection.select("withMcpServer");
         let query = query.arg("name", name.into());
         let query = query.arg_id_input("service", service.into());
         super::Llm {

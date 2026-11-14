@@ -1,5 +1,5 @@
 //! Generated bindings owned by the GraphQL `GeneratedCode` type.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:4dfe7942ff12bd22554ccd2cb26a5427e3a9eeece22dbba9d8aa89e4590e97ff","target_revision":"a45241b20a5e07fbfc5954479ef0b61da843499c"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:9511bc82fb704520cdc632da73463fc7396b1bb081e0446b61665c30764a5e7c","target_revision":"400b82d6f3c09ef096d2f59b3e920267b5969bf4"}
 #[doc = "The result of running an SDK's codegen."]
 #[derive(Clone)]
 pub struct GeneratedCode {
@@ -61,10 +61,10 @@ impl GeneratedCode {
         let query = self.selection.select("vcsIgnoredPaths");
         query.execute(&self.session).await
     }
-    #[doc = "Set the list of paths to mark generated in version control.\n\nSelects GraphQL field `withVCSGeneratedPaths` on `GeneratedCode`."]
+    #[doc = "Set the list of paths to mark generated in version control.\n\nSelects GraphQL field `withVcsGeneratedPaths` on `GeneratedCode`."]
     #[must_use]
     pub fn with_vcs_generated_paths(&self, paths: Vec<impl Into<String>>) -> super::GeneratedCode {
-        let query = self.selection.select("withVCSGeneratedPaths");
+        let query = self.selection.select("withVcsGeneratedPaths");
         let paths = paths.into_iter().map(Into::into).collect::<Vec<String>>();
         let query = query.arg("paths", paths);
         super::GeneratedCode {
@@ -72,10 +72,10 @@ impl GeneratedCode {
             selection: query,
         }
     }
-    #[doc = "Set the list of paths to ignore in version control.\n\nSelects GraphQL field `withVCSIgnoredPaths` on `GeneratedCode`."]
+    #[doc = "Set the list of paths to ignore in version control.\n\nSelects GraphQL field `withVcsIgnoredPaths` on `GeneratedCode`."]
     #[must_use]
     pub fn with_vcs_ignored_paths(&self, paths: Vec<impl Into<String>>) -> super::GeneratedCode {
-        let query = self.selection.select("withVCSIgnoredPaths");
+        let query = self.selection.select("withVcsIgnoredPaths");
         let paths = paths.into_iter().map(Into::into).collect::<Vec<String>>();
         let query = query.arg("paths", paths);
         super::GeneratedCode {

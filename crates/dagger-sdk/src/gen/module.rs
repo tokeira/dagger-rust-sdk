@@ -1,5 +1,5 @@
 //! Generated bindings owned by the GraphQL `Module` type.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:4dfe7942ff12bd22554ccd2cb26a5427e3a9eeece22dbba9d8aa89e4590e97ff","target_revision":"a45241b20a5e07fbfc5954479ef0b61da843499c"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:9511bc82fb704520cdc632da73463fc7396b1bb081e0446b61665c30764a5e7c","target_revision":"400b82d6f3c09ef096d2f59b3e920267b5969bf4"}
 #[doc = "A Dagger module."]
 #[derive(Clone)]
 pub struct Module {
@@ -127,10 +127,10 @@ impl Module {
             .execute_reentry::<super::TypeDef, Vec<crate::Id>>(&self.session, "TypeDef")
             .await
     }
-    #[doc = "The introspection schema JSON file for this module.\n\nThis file represents the schema visible to the module's source code, including all core types and those from the dependencies.\n\nNote: this is in the context of a module, so some core types may be hidden.\n\nSelects GraphQL field `introspectionSchemaJSON` on `Module`."]
+    #[doc = "The introspection schema JSON file for this module.\n\nThis file represents the schema visible to the module's source code, including all core types and those from the dependencies.\n\nNote: this is in the context of a module, so some core types may be hidden.\n\nSelects GraphQL field `introspectionSchemaJson` on `Module`."]
     #[must_use]
     pub fn introspection_schema_json(&self) -> super::File {
-        let query = self.selection.select("introspectionSchemaJSON");
+        let query = self.selection.select("introspectionSchemaJson");
         super::File {
             session: self.session.clone(),
             selection: query,

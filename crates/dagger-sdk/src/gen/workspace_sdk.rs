@@ -1,5 +1,5 @@
 //! Generated bindings owned by the GraphQL `WorkspaceSDK` type.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:4dfe7942ff12bd22554ccd2cb26a5427e3a9eeece22dbba9d8aa89e4590e97ff","target_revision":"a45241b20a5e07fbfc5954479ef0b61da843499c"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:9511bc82fb704520cdc632da73463fc7396b1bb081e0446b61665c30764a5e7c","target_revision":"400b82d6f3c09ef096d2f59b3e920267b5969bf4"}
 #[doc = "An installed SDK: a module marked for scaffolding other modules and clients."]
 #[derive(Clone)]
 pub struct WorkspaceSdk {
@@ -82,6 +82,20 @@ impl WorkspaceSdk {
     pub async fn r#ref(&self) -> Result<String, crate::QueryError> {
         let query = self.selection.select("ref");
         query.execute(&self.session).await
+    }
+    #[doc = "The value a setting records in this SDK's scope settings, as a native JSON value.\n\nReads \\[sdks.&lt;name&gt;.scopes.\"&lt;scope&gt;\".settings\\] from the workspace config, in the scope whose key resolves to path. The setting key is matched without regard to case.\n\nNull when no scope resolves to path, or the scope records no such setting. Fails when the config is invalid, path escapes the workspace root, key matches several recorded settings, or the value cannot be represented as JSON.\n\nFails when this SDK is no longer installed in the workspace config, even if Workspace.sdk returned it earlier.\n\nSelects GraphQL field `scopeSetting` on `WorkspaceSDK`."]
+    pub async fn scope_setting(
+        &self,
+        key: impl Into<String>,
+        path: impl Into<String>,
+    ) -> Result<Option<super::JsonValue>, crate::QueryError> {
+        let query = self.selection.select("scopeSetting");
+        let query = query.arg("key", key.into());
+        let query = query.arg("path", path.into());
+        let query = query.select("id");
+        query
+            .execute_reentry::<super::JsonValue, Option<crate::Id>>(&self.session, "JSONValue")
+            .await
     }
 }
 impl super::Node for WorkspaceSdk {

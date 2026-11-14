@@ -539,15 +539,15 @@ mod tests {
         let decode = |value: serde_json::Value| ModuleJson::new(value);
 
         // An alias decodes to its member, which encodes as the canonical value.
-        let compression = <crate::ImageLayerCompression as ModuleInputCodec>::decode_input(
-            &decode(json!("GZIP")),
+        let file_type = <crate::FileType as ModuleInputCodec>::decode_input(
+            &decode(json!("REGULAR_TYPE")),
             &context,
         )
         .expect("an alias decodes");
-        assert_eq!(compression, crate::ImageLayerCompression::Gzip);
-        let encoded = futures::executor::block_on(compression.encode_output(&context))
+        assert_eq!(file_type, crate::FileType::Regular);
+        let encoded = futures::executor::block_on(file_type.encode_output(&context))
             .expect("a member encodes");
-        assert_eq!(encoded.as_json(), &json!("Gzip"));
+        assert_eq!(encoded.as_json(), &json!("REGULAR"));
         for value in [json!("SCTP"), json!(1), json!(null)] {
             assert!(
                 <crate::NetworkProtocol as ModuleInputCodec>::decode_input(

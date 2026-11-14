@@ -1,5 +1,5 @@
 //! Compile-only reachability proof for every generated public Rust symbol.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:4dfe7942ff12bd22554ccd2cb26a5427e3a9eeece22dbba9d8aa89e4590e97ff","target_revision":"a45241b20a5e07fbfc5954479ef0b61da843499c"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:9511bc82fb704520cdc632da73463fc7396b1bb081e0446b61665c30764a5e7c","target_revision":"400b82d6f3c09ef096d2f59b3e920267b5969bf4"}
 #![cfg(feature = "gen")]
 use dagger_sdk::*;
 fn generated_value<T>() -> T {
@@ -348,6 +348,8 @@ fn reach_container(value: &Container) {
     drop(value.directory_opts(String::new(), &opts));
     let _ = &opts.expand;
     drop(ContainerDirectoryOpts::default().with_expand(generated_value::<bool>()));
+    let _ = &opts.resolve_broken_symlinks;
+    drop(ContainerDirectoryOpts::default().with_resolve_broken_symlinks(generated_value::<bool>()));
     drop(value.docker_healthcheck());
     drop(value.entrypoint());
     drop(value.env_variable(String::new()));
@@ -362,7 +364,7 @@ fn reach_container(value: &Container) {
     let _ = &opts.expected_type;
     drop(ContainerExistsOpts::default().with_expected_type(generated_value::<ExistsType>()));
     drop(value.exit_code());
-    drop(value.experimental_with_all_gp_us());
+    drop(value.experimental_with_all_gpus());
     drop(value.experimental_with_gpu(generated_value::<Vec<String>>()));
     drop(value.export(String::new()));
     let opts = ContainerExportOpts::default();
@@ -884,6 +886,7 @@ fn reach_currentmodule(value: &CurrentModule) {
     drop(value.generated_context_directory());
     drop(value.id());
     drop(value.name());
+    drop(value.naming());
     drop(value.source());
     drop(value.source_subpath());
     drop(value.workdir(String::new()));
@@ -929,6 +932,10 @@ fn reach_directory(value: &Directory) {
     drop(value.diff(Id::from("generated-id")));
     drop(value.digest());
     drop(value.directory(String::new()));
+    let opts = DirectoryDirectoryOpts::default();
+    drop(value.directory_opts(String::new(), &opts));
+    let _ = &opts.resolve_broken_symlinks;
+    drop(DirectoryDirectoryOpts::default().with_resolve_broken_symlinks(generated_value::<bool>()));
     drop(value.docker_build());
     let opts = DirectoryDockerBuildOpts::default();
     drop(value.docker_build_opts(&opts));
@@ -1086,6 +1093,7 @@ fn reach_directory(value: &Directory) {
     drop(
         DirectoryWithPatchFileOpts::default().with_on_conflict(generated_value::<PatchConflict>()),
     );
+    drop(value.with_platform(generated_value::<dagger_sdk::Platform>()));
     drop(value.with_symlink(String::new(), String::new()));
     drop(value.with_timestamps(generated_value::<i64>()));
     drop(value.without_directory(String::new()));
@@ -1297,6 +1305,10 @@ fn reach_file(value: &File) {
     drop(value.size());
     drop(value.stat());
     drop(value.sync());
+    let opts = FileSyncOpts::default();
+    drop(value.sync_opts(&opts));
+    let _ = &opts.key_by_content;
+    drop(FileSyncOpts::default().with_key_by_content(generated_value::<bool>()));
     drop(value.with_name(String::new()));
     drop(value.with_replaced(String::new(), String::new()));
     let opts = FileWithReplacedOpts::default();
@@ -1401,7 +1413,7 @@ fn reach_gitbundle(value: &GitBundle) {
     drop(value.as_file());
     drop(value.id());
     drop(value.object_format());
-    drop(value.prerequisite_sh_as());
+    drop(value.prerequisite_shas());
     drop(value.refs());
     drop(value.validate());
     drop(value.version());
@@ -1994,11 +2006,28 @@ fn reach_moduleconfigclient(value: &ModuleConfigClient) {
     drop(value.id());
 }
 #[allow(deprecated)]
+fn reach_modulenaming(value: &ModuleNaming) {
+    drop(value.enum_member_names(generated_value::<Vec<String>>()));
+    drop(value.field_names(generated_value::<Vec<String>>()));
+    drop(value.id());
+    drop(value.main_object(generated_value::<Vec<String>>()));
+    drop(value.name());
+    drop(value.original_name());
+    drop(value.type_names(generated_value::<Vec<String>>()));
+    drop(value.version());
+}
+#[allow(deprecated)]
 fn reach_modulesource(value: &ModuleSource) {
     drop(value.as_module());
     drop(value.as_string());
     drop(value.blueprint());
     drop(value.client_schema_introspection_json());
+    let opts = ModuleSourceClientSchemaIntrospectionJsonOpts::default();
+    drop(value.client_schema_introspection_json_opts(&opts));
+    let _ = &opts.client_version;
+    drop(
+        ModuleSourceClientSchemaIntrospectionJsonOpts::default().with_client_version(String::new()),
+    );
     drop(value.clone_ref());
     drop(value.commit());
     drop(value.config_clients());
@@ -2019,6 +2048,7 @@ fn reach_modulesource(value: &ModuleSource) {
     drop(value.local_context_directory_path());
     drop(value.module_name());
     drop(value.module_original_name());
+    drop(value.naming());
     drop(value.original_subpath());
     drop(value.pin());
     drop(value.repo_root_path());
@@ -2055,6 +2085,30 @@ fn reach_modulesource(value: &ModuleSource) {
         ),
     );
     drop(value.without_toolchains(generated_value::<Vec<String>>()));
+}
+#[allow(deprecated)]
+fn reach_naming(value: &Naming) {
+    drop(value.dictionary());
+    drop(value.format_identifiers(
+        generated_value::<Casing>(),
+        generated_value::<Vec<String>>(),
+    ));
+    let opts = NamingFormatIdentifiersOpts::default();
+    drop(value.format_identifiers_opts(
+        generated_value::<Casing>(),
+        generated_value::<Vec<String>>(),
+        &opts,
+    ));
+    let _ = &opts.acronyms;
+    drop(NamingFormatIdentifiersOpts::default().with_acronyms(generated_value::<AcronymStyle>()));
+    drop(value.id());
+    drop(value.identifier(String::new()));
+    drop(value.module(String::new()));
+    let opts = NamingModuleOpts::default();
+    drop(value.module_opts(String::new(), &opts));
+    let _ = &opts.original_name;
+    drop(NamingModuleOpts::default().with_original_name(String::new()));
+    drop(value.version());
 }
 #[allow(deprecated)]
 fn reach_namingterm(value: &NamingTerm) {
@@ -2164,20 +2218,6 @@ fn reach_query(value: &Query) {
     drop(value.file_opts(String::new(), String::new(), &opts));
     let _ = &opts.permissions;
     drop(QueryFileOpts::default().with_permissions(generated_value::<i64>()));
-    drop(value.format_identifiers(
-        generated_value::<Casing>(),
-        generated_value::<Vec<String>>(),
-    ));
-    let opts = QueryFormatIdentifiersOpts::default();
-    drop(value.format_identifiers_opts(
-        generated_value::<Casing>(),
-        generated_value::<Vec<String>>(),
-        &opts,
-    ));
-    let _ = &opts.acronyms;
-    drop(QueryFormatIdentifiersOpts::default().with_acronyms(generated_value::<AcronymStyle>()));
-    let _ = &opts.version;
-    drop(QueryFormatIdentifiersOpts::default().with_version(String::new()));
     drop(value.function(String::new(), Id::from("generated-id")));
     drop(value.generated_code(Id::from("generated-id")));
     drop(value.git(String::new()));
@@ -2212,7 +2252,6 @@ fn reach_query(value: &Query) {
     let _ = &opts.permissions;
     drop(QueryHttpOpts::default().with_permissions(generated_value::<i64>()));
     drop(value.id());
-    drop(value.identifier(String::new()));
     drop(value.json());
     drop(value.llm());
     let opts = QueryLlmOpts::default();
@@ -2236,7 +2275,11 @@ fn reach_query(value: &Query) {
     drop(QueryModuleSourceOpts::default().with_require_kind(generated_value::<ModuleSourceKind>()));
     let _ = &opts.version;
     drop(QueryModuleSourceOpts::default().with_version(String::new()));
-    drop(value.naming_dictionary());
+    drop(value.naming());
+    let opts = QueryNamingOpts::default();
+    drop(value.naming_opts(&opts));
+    let _ = &opts.version;
+    drop(QueryNamingOpts::default().with_version(String::new()));
     drop(value.node(generated_value::<dagger_sdk::Id>()));
     drop(value.schema(generated_value::<dagger_sdk::Json>()));
     drop(value.secret(String::new()));
@@ -2808,6 +2851,7 @@ fn reach_workspacesdk(value: &WorkspaceSdk) {
     drop(value.modules());
     drop(value.name());
     drop(value.r#ref());
+    drop(value.scope_setting(String::new(), String::new()));
 }
 #[test]
 fn generated_public_reachability() {
@@ -3038,7 +3082,7 @@ fn generated_public_reachability() {
     let _ = IdentifierWordKind::Word;
     let _ = core::mem::size_of::<ImageLayerCompression>();
     #[allow(deprecated)]
-    let _ = ImageLayerCompression::EStarGz;
+    let _ = ImageLayerCompression::Estargz;
     #[allow(deprecated)]
     let _ = ImageLayerCompression::Gzip;
     #[allow(deprecated)]
@@ -3047,9 +3091,9 @@ fn generated_public_reachability() {
     let _ = ImageLayerCompression::Zstd;
     let _ = core::mem::size_of::<ImageMediaTypes>();
     #[allow(deprecated)]
-    let _ = ImageMediaTypes::DockerMediaTypes;
+    let _ = ImageMediaTypes::Docker;
     #[allow(deprecated)]
-    let _ = ImageMediaTypes::OciMediaTypes;
+    let _ = ImageMediaTypes::Oci;
     let _ = core::mem::size_of::<InputTypeDef>();
     let _ = reach_inputtypedef as fn(&InputTypeDef);
     let _ = core::mem::size_of::<InterfaceTypeDef>();
@@ -3112,6 +3156,8 @@ fn generated_public_reachability() {
     let _ = reach_module as fn(&Module);
     let _ = core::mem::size_of::<ModuleConfigClient>();
     let _ = reach_moduleconfigclient as fn(&ModuleConfigClient);
+    let _ = core::mem::size_of::<ModuleNaming>();
+    let _ = reach_modulenaming as fn(&ModuleNaming);
     let _ = core::mem::size_of::<ModuleSource>();
     let _ = reach_modulesource as fn(&ModuleSource);
     let _ = core::mem::size_of::<ModuleSourceExperimentalFeature>();
@@ -3124,6 +3170,8 @@ fn generated_public_reachability() {
     let _ = ModuleSourceKind::GitSource;
     #[allow(deprecated)]
     let _ = ModuleSourceKind::LocalSource;
+    let _ = core::mem::size_of::<Naming>();
+    let _ = reach_naming as fn(&Naming);
     let _ = core::mem::size_of::<NamingTerm>();
     let _ = reach_namingterm as fn(&NamingTerm);
     let _ = core::mem::size_of::<NetworkProtocol>();

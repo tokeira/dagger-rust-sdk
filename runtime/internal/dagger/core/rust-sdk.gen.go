@@ -54,6 +54,12 @@ func (r *RustSDK) WithGraphQLQuery(q *querybuilder.Selection) *RustSDK {
 	}
 }
 
+// withLoadedID is the RustSDK that q, a query of the node whose
+// ID is id, selects, knowing that ID (Loaded).
+func (r *RustSDK) withLoadedID(q *querybuilder.Selection, id ID) *RustSDK {
+	return &RustSDK{query: q, id: &id}
+}
+
 // Codegen compiles the engine-visible schema into the scoped module context and
 // returns the Rust-owned VCS policy emitted by the same operation plan. The engine
 // writes that policy into the module's own .gitattributes and .gitignore, so its

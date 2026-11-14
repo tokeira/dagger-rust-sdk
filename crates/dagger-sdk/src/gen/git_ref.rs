@@ -1,5 +1,5 @@
 //! Generated bindings owned by the GraphQL `GitRef` type.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:4dfe7942ff12bd22554ccd2cb26a5427e3a9eeece22dbba9d8aa89e4590e97ff","target_revision":"a45241b20a5e07fbfc5954479ef0b61da843499c"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:9511bc82fb704520cdc632da73463fc7396b1bb081e0446b61665c30764a5e7c","target_revision":"400b82d6f3c09ef096d2f59b3e920267b5969bf4"}
 #[doc = "A git ref (tag, branch, or commit)."]
 #[derive(Clone)]
 pub struct GitRef {
@@ -58,7 +58,7 @@ impl GitRefLogOpts {
 pub struct GitRefPushOpts {
     #[doc = "Destination branch; a refs/ prefix is used verbatim. Defaults to this ref's branch name. Required for detached and non-branch refs.\n\n`None` omits GraphQL field `branch` and preserves engine default `String(\"\")`."]
     pub branch: Option<String>,
-    #[doc = "Optional lease: a full lowercase object ID allows replacement only if the remote ref still has that value. Checked even for up-to-date pushes. Empty or omitted uses normal non-force rules, creating the ref if it does not exist.\n\n`None` omits GraphQL field `expectedRemoteSHA` and preserves engine default `String(\"\")`."]
+    #[doc = "Optional lease: a full lowercase object ID allows replacement only if the remote ref still has that value. Checked even for up-to-date pushes. Empty or omitted uses normal non-force rules, creating the ref if it does not exist.\n\n`None` omits GraphQL field `expectedRemoteSha` and preserves engine default `String(\"\")`."]
     pub expected_remote_sha: Option<String>,
     #[doc = "Name of a registered remote to push to (see GitRepository.withRemote). Defaults to origin. The remote's push URLs, or its URL, become the destination; more than one push URL requires an explicit to instead.\n\n`None` omits GraphQL field `remote` and preserves engine default `String(\"\")`."]
     pub remote: Option<String>,
@@ -72,7 +72,7 @@ impl GitRefPushOpts {
         self.branch = Some(value.into());
         self
     }
-    #[doc = "Sets GraphQL argument `expectedRemoteSHA` to a concrete value instead of omitting it."]
+    #[doc = "Sets GraphQL argument `expectedRemoteSha` to a concrete value instead of omitting it."]
     #[must_use]
     pub fn with_expected_remote_sha(mut self, value: impl Into<String>) -> Self {
         self.expected_remote_sha = Some(value.into());
@@ -232,15 +232,15 @@ impl GitRef {
             selection: query,
         }
     }
-    #[doc = "The resolved commit id at this ref.\n\nSelects GraphQL field `commit` on `GitRef`.\n\n**Deprecated:** Use \"commitSHA\" instead."]
-    #[deprecated(note = "Use \"commitSHA\" instead.")]
+    #[doc = "The resolved commit id at this ref.\n\nSelects GraphQL field `commit` on `GitRef`.\n\n**Deprecated:** Use \"commitSha\" instead."]
+    #[deprecated(note = "Use \"commitSha\" instead.")]
     pub async fn commit(&self) -> Result<String, crate::QueryError> {
         let query = self.selection.select("commit");
         query.execute(&self.session).await
     }
-    #[doc = "The resolved commit SHA at this ref.\n\nSelects GraphQL field `commitSHA` on `GitRef`."]
+    #[doc = "The resolved commit SHA at this ref.\n\nSelects GraphQL field `commitSha` on `GitRef`."]
     pub async fn commit_sha(&self) -> Result<String, crate::QueryError> {
-        let query = self.selection.select("commitSHA");
+        let query = self.selection.select("commitSha");
         query.execute(&self.session).await
     }
     #[doc = "Find the best common ancestor between this ref and another ref.\n\nSelects GraphQL field `commonAncestor` on `GitRef`."]
@@ -328,7 +328,7 @@ impl GitRef {
             query
         };
         let query = if let Some(value) = &opts.expected_remote_sha {
-            query.arg("expectedRemoteSHA", value)
+            query.arg("expectedRemoteSha", value)
         } else {
             query
         };

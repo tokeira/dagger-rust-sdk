@@ -1,5 +1,5 @@
 //! Generated bindings owned by GraphQL coordinate `MinimalConfig`.
-// @generated {"format":"dagger-rust-standalone-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:506c57349967eeaceb1235a4465193229f99ff7b15c2a58a4e8fd04be3d5008f","target_revision":"a45241b20a5e07fbfc5954479ef0b61da843499c"}
+// @generated {"format":"dagger-rust-standalone-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:af5c520c5d560afb009cab87b651624ea148759019adbac1610ddcefcc3cee49","target_revision":"400b82d6f3c09ef096d2f59b3e920267b5969bf4"}
 #[doc = "Client fixture input MinimalConfig."]
 #[derive(Clone, Debug, dagger_sdk::__private::serde::Serialize)]
 #[serde(crate = "dagger_sdk::__private::serde")]

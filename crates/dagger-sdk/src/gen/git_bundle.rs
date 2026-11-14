@@ -1,5 +1,5 @@
 //! Generated bindings owned by the GraphQL `GitBundle` type.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:4dfe7942ff12bd22554ccd2cb26a5427e3a9eeece22dbba9d8aa89e4590e97ff","target_revision":"a45241b20a5e07fbfc5954479ef0b61da843499c"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:9511bc82fb704520cdc632da73463fc7396b1bb081e0446b61665c30764a5e7c","target_revision":"400b82d6f3c09ef096d2f59b3e920267b5969bf4"}
 #[doc = "A Git bundle: a self-describing container of refs and the objects needed to reconstruct them, optionally rooted at prerequisite commits."]
 #[derive(Clone)]
 pub struct GitBundle {
@@ -56,9 +56,9 @@ impl GitBundle {
         let query = self.selection.select("objectFormat");
         query.execute(&self.session).await
     }
-    #[doc = "Commits that must already exist wherever this bundle is applied.\n\nSelects GraphQL field `prerequisiteSHAs` on `GitBundle`."]
-    pub async fn prerequisite_sh_as(&self) -> Result<Vec<String>, crate::QueryError> {
-        let query = self.selection.select("prerequisiteSHAs");
+    #[doc = "Commits that must already exist wherever this bundle is applied.\n\nSelects GraphQL field `prerequisiteShas` on `GitBundle`."]
+    pub async fn prerequisite_shas(&self) -> Result<Vec<String>, crate::QueryError> {
+        let query = self.selection.select("prerequisiteShas");
         query.execute(&self.session).await
     }
     #[doc = "Refs advertised by the bundle and the object IDs they resolve to.\n\nSelects GraphQL field `refs` on `GitBundle`."]

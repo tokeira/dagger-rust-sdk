@@ -1,5 +1,5 @@
 //! Generated Dagger core-schema bindings and stable public re-exports.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:4dfe7942ff12bd22554ccd2cb26a5427e3a9eeece22dbba9d8aa89e4590e97ff","target_revision":"a45241b20a5e07fbfc5954479ef0b61da843499c"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:9511bc82fb704520cdc632da73463fc7396b1bb081e0446b61665c30764a5e7c","target_revision":"400b82d6f3c09ef096d2f59b3e920267b5969bf4"}
 #[path = "acronym_style.rs"]
 mod acronym_style;
 #[path = "address.rs"]
@@ -178,12 +178,16 @@ mod llm_token_usage;
 mod module;
 #[path = "module_config_client.rs"]
 mod module_config_client;
+#[path = "module_naming.rs"]
+mod module_naming;
 #[path = "module_source.rs"]
 mod module_source;
 #[path = "module_source_experimental_feature.rs"]
 mod module_source_experimental_feature;
 #[path = "module_source_kind.rs"]
 mod module_source_kind;
+#[path = "naming.rs"]
+mod naming;
 #[path = "naming_term.rs"]
 mod naming_term;
 #[path = "network_protocol.rs"]
@@ -347,9 +351,11 @@ pub use llm_skill::*;
 pub use llm_token_usage::*;
 pub use module::*;
 pub use module_config_client::*;
+pub use module_naming::*;
 pub use module_source::*;
 pub use module_source_experimental_feature::*;
 pub use module_source_kind::*;
+pub use naming::*;
 pub use naming_term::*;
 pub use network_protocol::*;
 pub use node::*;

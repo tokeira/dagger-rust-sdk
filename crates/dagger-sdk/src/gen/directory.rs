@@ -1,5 +1,5 @@
 //! Generated bindings owned by the GraphQL `Directory` type.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:4dfe7942ff12bd22554ccd2cb26a5427e3a9eeece22dbba9d8aa89e4590e97ff","target_revision":"a45241b20a5e07fbfc5954479ef0b61da843499c"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:9511bc82fb704520cdc632da73463fc7396b1bb081e0446b61665c30764a5e7c","target_revision":"400b82d6f3c09ef096d2f59b3e920267b5969bf4"}
 #[doc = "A directory."]
 #[derive(Clone)]
 pub struct Directory {
@@ -48,6 +48,21 @@ impl DirectoryAsWorkspaceOpts {
     #[must_use]
     pub fn with_cwd(mut self, value: impl Into<String>) -> Self {
         self.cwd = Some(value.into());
+        self
+    }
+}
+#[doc = "Owned optional arguments for GraphQL operation `Directory.directory`; reuse does not mutate caller state."]
+#[derive(Clone, Debug, Default)]
+#[non_exhaustive]
+pub struct DirectoryDirectoryOpts {
+    #[doc = "Repair symlinks that directory selection would break. Copy targets from this directory into the result. Preserve working relative links and links that already have no target.\n\n`None` omits GraphQL field `resolveBrokenSymlinks` and preserves engine default `Boolean(false)`."]
+    pub resolve_broken_symlinks: Option<bool>,
+}
+impl DirectoryDirectoryOpts {
+    #[doc = "Sets GraphQL argument `resolveBrokenSymlinks` to a concrete value instead of omitting it."]
+    #[must_use]
+    pub fn with_resolve_broken_symlinks(mut self, value: bool) -> Self {
+        self.resolve_broken_symlinks = Some(value);
         self
     }
 }
@@ -652,6 +667,25 @@ impl Directory {
     pub fn directory(&self, path: impl Into<String>) -> super::Directory {
         let query = self.selection.select("directory");
         let query = query.arg("path", path.into());
+        super::Directory {
+            session: self.session.clone(),
+            selection: query,
+        }
+    }
+    #[doc = "Executes GraphQL operation `directory` with a borrowed, reusable `DirectoryDirectoryOpts` value."]
+    #[must_use]
+    pub fn directory_opts(
+        &self,
+        path: impl Into<String>,
+        opts: &DirectoryDirectoryOpts,
+    ) -> super::Directory {
+        let query = self.selection.select("directory");
+        let query = query.arg("path", path.into());
+        let query = if let Some(value) = &opts.resolve_broken_symlinks {
+            query.arg("resolveBrokenSymlinks", value)
+        } else {
+            query
+        };
         super::Directory {
             session: self.session.clone(),
             selection: query,
@@ -1280,6 +1314,16 @@ impl Directory {
             query
         };
         let query = query.arg_id_input("patch", patch.into());
+        super::Directory {
+            session: self.session.clone(),
+            selection: query,
+        }
+    }
+    #[doc = "Retrieves this directory, declared as made for the given platform.\n\nDeclare a result whose contents are the same whichever platform made them, such as a Go package compiled for a platform by any platform's Go toolchain. An engine of another platform that makes the same directory for the same platform then finds this one, and the other way around.\n\nThe contents are not checked: a declared result that depends on the platform it was made on can be found where it doesn't belong.\n\nSelects GraphQL field `withPlatform` on `Directory`."]
+    #[must_use]
+    pub fn with_platform(&self, platform: crate::Platform) -> super::Directory {
+        let query = self.selection.select("withPlatform");
+        let query = query.arg("platform", platform);
         super::Directory {
             session: self.session.clone(),
             selection: query,

@@ -1,19 +1,19 @@
 //! Generated bindings owned by the GraphQL `ImageLayerCompression` type.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:4dfe7942ff12bd22554ccd2cb26a5427e3a9eeece22dbba9d8aa89e4590e97ff","target_revision":"a45241b20a5e07fbfc5954479ef0b61da843499c"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:9511bc82fb704520cdc632da73463fc7396b1bb081e0446b61665c30764a5e7c","target_revision":"400b82d6f3c09ef096d2f59b3e920267b5969bf4"}
 #[doc = "Compression algorithm to use for image layers."]
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, serde :: Deserialize, serde :: Serialize)]
 pub enum ImageLayerCompression {
-    #[doc = "GraphQL enum value `EStarGZ`."]
-    #[serde(rename = "EStarGZ", alias = "ESTARGZ")]
-    EStarGz,
-    #[doc = "GraphQL enum value `Gzip`."]
-    #[serde(rename = "Gzip", alias = "GZIP")]
+    #[doc = "GraphQL enum value `ESTARGZ`."]
+    #[serde(rename = "ESTARGZ")]
+    Estargz,
+    #[doc = "GraphQL enum value `GZIP`."]
+    #[serde(rename = "GZIP")]
     Gzip,
-    #[doc = "GraphQL enum value `Uncompressed`."]
-    #[serde(rename = "Uncompressed", alias = "UNCOMPRESSED")]
+    #[doc = "GraphQL enum value `UNCOMPRESSED`."]
+    #[serde(rename = "UNCOMPRESSED")]
     Uncompressed,
-    #[doc = "GraphQL enum value `Zstd`."]
-    #[serde(rename = "Zstd", alias = "ZSTD")]
+    #[doc = "GraphQL enum value `ZSTD`."]
+    #[serde(rename = "ZSTD")]
     Zstd,
 }
 impl crate::__private::ModuleInputCodec for ImageLayerCompression {

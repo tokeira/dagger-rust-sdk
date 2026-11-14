@@ -1,10 +1,25 @@
 //! Generated bindings owned by the GraphQL `ModuleSource` type.
-// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:4dfe7942ff12bd22554ccd2cb26a5427e3a9eeece22dbba9d8aa89e4590e97ff","target_revision":"a45241b20a5e07fbfc5954479ef0b61da843499c"}
+// @generated {"format":"dagger-rust-client-v1","ownership":"dagger-codegen","schema_digest":"sha256:9511bc82fb704520cdc632da73463fc7396b1bb081e0446b61665c30764a5e7c","target_revision":"400b82d6f3c09ef096d2f59b3e920267b5969bf4"}
 #[doc = "The source needed to load and run a module, along with any metadata about the source such as versions/urls/etc."]
 #[derive(Clone)]
 pub struct ModuleSource {
     pub(crate) session: crate::lifecycle::SessionHandle,
     pub(crate) selection: crate::query::Selection,
+}
+#[doc = "Owned optional arguments for GraphQL operation `ModuleSource.clientSchemaIntrospectionJson`; reuse does not mutate caller state."]
+#[derive(Clone, Debug, Default)]
+#[non_exhaustive]
+pub struct ModuleSourceClientSchemaIntrospectionJsonOpts {
+    #[doc = "The engine version of the client the schema is generated for, e.g. the engineVersion of the module that depends on this one: core is described as that client sees it, capped at this engine's version.\n\nThis module is still loaded at the engine version it declares, and so named by its own naming rules, as the engine serves it to such a client. Defaults to this module's own engine version.\n\nUse this rather than withEngineVersion, which makes this module declare another version and so changes its names.\n\n`None` omits GraphQL field `clientVersion` and preserves engine default `String(\"\")`."]
+    pub client_version: Option<String>,
+}
+impl ModuleSourceClientSchemaIntrospectionJsonOpts {
+    #[doc = "Sets GraphQL argument `clientVersion` to a concrete value instead of omitting it."]
+    #[must_use]
+    pub fn with_client_version(mut self, value: impl Into<String>) -> Self {
+        self.client_version = Some(value.into());
+        self
+    }
 }
 impl crate::IntoID<crate::Id> for ModuleSource {
     fn into_id(
@@ -68,10 +83,27 @@ impl ModuleSource {
             selection: query,
         }
     }
-    #[doc = "The client-facing introspection schema JSON file for this module source.\n\nThis is the schema consumed by client codegen: unlike introspectionSchemaJSON (the module-facing schema), it hides no core types and installs this module (reached via dag.&lt;moduleName&gt;) so a generated client can bind it. The module's dependencies are excluded: a client is generated for a single module plus core, not its dependency graph.\n\nSelects GraphQL field `clientSchemaIntrospectionJSON` on `ModuleSource`."]
+    #[doc = "The client-facing introspection schema JSON file for this module source.\n\nThis is the schema consumed by client codegen: unlike introspectionSchemaJson (the module-facing schema), it hides no core types and installs this module (reached via dag.&lt;moduleName&gt;) so a generated client can bind it. The module's dependencies are excluded: a client is generated for a single module plus core, not its dependency graph.\n\nSelects GraphQL field `clientSchemaIntrospectionJson` on `ModuleSource`."]
     #[must_use]
     pub fn client_schema_introspection_json(&self) -> super::File {
-        let query = self.selection.select("clientSchemaIntrospectionJSON");
+        let query = self.selection.select("clientSchemaIntrospectionJson");
+        super::File {
+            session: self.session.clone(),
+            selection: query,
+        }
+    }
+    #[doc = "Executes GraphQL operation `clientSchemaIntrospectionJson` with a borrowed, reusable `ModuleSourceClientSchemaIntrospectionJsonOpts` value."]
+    #[must_use]
+    pub fn client_schema_introspection_json_opts(
+        &self,
+        opts: &ModuleSourceClientSchemaIntrospectionJsonOpts,
+    ) -> super::File {
+        let query = self.selection.select("clientSchemaIntrospectionJson");
+        let query = if let Some(value) = &opts.client_version {
+            query.arg("clientVersion", value)
+        } else {
+            query
+        };
         super::File {
             session: self.session.clone(),
             selection: query,
@@ -173,14 +205,14 @@ impl ModuleSource {
             selection: query,
         }
     }
-    #[doc = "The URL to access the web view of the repository (e.g., GitHub, GitLab, Bitbucket).\n\nSelects GraphQL field `htmlRepoURL` on `ModuleSource`."]
+    #[doc = "The URL to access the web view of the repository (e.g., GitHub, GitLab, Bitbucket).\n\nSelects GraphQL field `htmlRepoUrl` on `ModuleSource`."]
     pub async fn html_repo_url(&self) -> Result<String, crate::QueryError> {
-        let query = self.selection.select("htmlRepoURL");
+        let query = self.selection.select("htmlRepoUrl");
         query.execute(&self.session).await
     }
-    #[doc = "The URL to the source's git repo in a web browser. Only valid for git sources.\n\nSelects GraphQL field `htmlURL` on `ModuleSource`."]
+    #[doc = "The URL to the source's git repo in a web browser. Only valid for git sources.\n\nSelects GraphQL field `htmlUrl` on `ModuleSource`."]
     pub async fn html_url(&self) -> Result<String, crate::QueryError> {
-        let query = self.selection.select("htmlURL");
+        let query = self.selection.select("htmlUrl");
         query.execute(&self.session).await
     }
     #[doc = "A unique identifier for this ModuleSource.\n\nSelects GraphQL field `id` on `ModuleSource`."]
@@ -188,10 +220,10 @@ impl ModuleSource {
         let query = self.selection.select("id");
         query.execute(&self.session).await
     }
-    #[doc = "The introspection schema JSON file for this module source.\n\nThis file represents the schema visible to the module's source code, including all core types and those from the dependencies.\n\nNote: this is in the context of a module, so some core types may be hidden.\n\nSelects GraphQL field `introspectionSchemaJSON` on `ModuleSource`."]
+    #[doc = "The introspection schema JSON file for this module source.\n\nThis file represents the schema visible to the module's source code, including all core types and those from the dependencies.\n\nNote: this is in the context of a module, so some core types may be hidden.\n\nSelects GraphQL field `introspectionSchemaJson` on `ModuleSource`."]
     #[must_use]
     pub fn introspection_schema_json(&self) -> super::File {
-        let query = self.selection.select("introspectionSchemaJSON");
+        let query = self.selection.select("introspectionSchemaJson");
         super::File {
             session: self.session.clone(),
             selection: query,
@@ -216,6 +248,15 @@ impl ModuleSource {
     pub async fn module_original_name(&self) -> Result<String, crate::QueryError> {
         let query = self.selection.select("moduleOriginalName");
         query.execute(&self.session).await
+    }
+    #[doc = "The names the engine gives this module's own declarations, by the naming rules of the version the module is named by: its engine version, capped at the engine's own.\n\nModules declaring a version before the identifier casing cut get the legacy strcase names; later ones get the engine's identifier naming rules.\n\nFor SDK codegen, which must reproduce these names before the module is loaded: this reads only the source's name, original name and engine version, so it answers before the module's entrypoint is generated.\n\nIt answers for the module under its own name (moduleName). A workspace or toolchain that loads the module under another name namespaces its types under that name instead, which this doesn't reflect.\n\nSelects GraphQL field `naming` on `ModuleSource`.\n\n**Experimental:** Identifier casing APIs are likely to change."]
+    #[must_use]
+    pub fn naming(&self) -> super::ModuleNaming {
+        let query = self.selection.select("naming");
+        super::ModuleNaming {
+            session: self.session.clone(),
+            selection: query,
+        }
     }
     #[doc = "The original subpath used when instantiating this module source, relative to the context directory.\n\nSelects GraphQL field `originalSubpath` on `ModuleSource`."]
     pub async fn original_subpath(&self) -> Result<String, crate::QueryError> {
@@ -385,10 +426,10 @@ impl ModuleSource {
             selection: query,
         }
     }
-    #[doc = "Update the module source with a new SDK.\n\nSelects GraphQL field `withSDK` on `ModuleSource`."]
+    #[doc = "Update the module source with a new SDK.\n\nSelects GraphQL field `withSdk` on `ModuleSource`."]
     #[must_use]
     pub fn with_sdk(&self, source: impl Into<String>) -> super::ModuleSource {
-        let query = self.selection.select("withSDK");
+        let query = self.selection.select("withSdk");
         let query = query.arg("source", source.into());
         super::ModuleSource {
             session: self.session.clone(),
