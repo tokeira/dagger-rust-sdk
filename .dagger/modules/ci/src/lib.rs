@@ -30,7 +30,7 @@ const GATES_PASSED: &str = "cargo fmt, check, clippy, doc, test (all and no defa
 /// The repository the acceptance installs the runtime from and builds the client against.
 const REPOSITORY: &str = "github.com/tokeira/dagger-rust-sdk";
 /// The release of the CLI the acceptance drives the engine with: the one the SDK targets.
-const DAGGER_VERSION: &str = "1.0.0-beta.25";
+const DAGGER_VERSION: &str = "1.0.0-beta.27";
 /// The description of the acceptance's gate module: the crate documentation of
 /// `acceptance/gate.rs`.
 const GATE_DESCRIPTION: &str = "Release-gate module authored after initialization.\n\n\
@@ -382,11 +382,11 @@ async fn dagger_cli(dag: &Query) -> Result<Container, ModuleError> {
     let (platform, sha256) = match dag.default_platform().await?.as_str() {
         "linux/amd64" => (
             "linux_amd64",
-            "32405fd37daa95d9444e9faf66b9d6bd1ddd1580916f145fa2fc6f3cec6e7b69",
+            "de2a3ca569c3a955d5ce98d2c4879b67a4459c394a7e1684261ba7152bdb6865",
         ),
         "linux/arm64" => (
             "linux_arm64",
-            "0f5abed7003cfaa2b6bcbb85286c802d0119336a805f54589f3859c9a4f02b0a",
+            "1ef003a4522d4f39c862d6dd360bc2916a605f87aad3dce4988c01f4bcd73358",
         ),
         other => {
             return Err(ModuleError::new(format!(
@@ -1738,7 +1738,7 @@ fn release_sums(sums: &str) -> Result<ReleaseSums, ModuleError> {
 }
 
 /// A Git repository at `path` that commits whatever the container already holds there, as
-/// beta.25's workspaces require. The engine caches the directories a session syncs by path
+/// beta.27's workspaces require. The engine caches the directories a session syncs by path
 /// and by the client ID that the first `dagger` command stores in the container, so
 /// sessions that run at once and sync different contents each need a repository of their
 /// own.
