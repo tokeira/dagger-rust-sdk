@@ -161,7 +161,7 @@ fn project_visible_schema_with_manifest(
             "visible schema could not be fingerprinted",
         ))
     })?;
-    let projected = crate::projection::project(&canonical)?;
+    let projected = crate::projection::project(&canonical, Some(manifest))?;
     let projection = ProjectionPlan {
         target: target.clone(),
         schema: canonical.clone(),

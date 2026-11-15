@@ -1,0 +1,7 @@
+kind: Fixed
+body: |
+    Generation no longer fails for a module whose dependency gives an argument a default path, ignore patterns or a default address, sets a function's cache policy, marks a function as an agent or for `dagger up`, or exports a collection. The engine describes these on the dependency's functions, arguments and types with its module-authoring directives: `@defaultPath`, `@ignorePatterns`, `@defaultAddress`, `@cache`, `@agent`, `@up`, `@collection`, `@keys`, `@get` and `@delta`. 0.7.0 refused every use of them, so `dagger generate` failed with `TARGET_INACTIVE_DIRECTIVE_CHANGED` at the dependency's coordinate, such as `Greeter.entries(source:)`, and the module could not load. The directives tell the engine how to fill in or schedule the dependency's function and change nothing that a caller sends, so they are now accepted on a dependency's coordinates. On a coordinate of the SDK's reviewed Core API they are still refused.
+time: 2026-11-15T00:06:00Z
+custom:
+    Author: iw
+    PR: "54"

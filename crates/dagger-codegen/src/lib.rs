@@ -132,7 +132,7 @@ impl RenderedCandidate {
 /// Validates exact target identity and compiles raw introspection into an ordered model.
 pub fn project_core(request: CoreProjectionRequest<'_>) -> Result<ProjectionPlan, DiagnosticSet> {
     let schema = schema::decode_and_validate(request.target, request.schema_json)?;
-    let projection = projection::project(&schema)?;
+    let projection = projection::project(&schema, None)?;
     Ok(ProjectionPlan {
         target: request.target.clone(),
         schema,

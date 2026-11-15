@@ -10,6 +10,7 @@ use serde::Serialize;
 use crate::diagnostic::{Diagnostic, DiagnosticCode, DiagnosticCoordinate, DiagnosticSet};
 use crate::directive::{DirectiveProjection, project_directives};
 use crate::naming::{NameContext, NameRegistry, RustNameMap};
+use crate::schema::CoreCoordinateManifest;
 use crate::schema::canonical::{CanonicalSchema, SchemaCoordinate, SchemaName, TypeDefinition};
 
 pub mod catalog;
@@ -39,8 +40,13 @@ pub struct SemanticProjection {
     pub catalog: ProjectionCatalog,
 }
 
-pub(crate) fn project(schema: &CanonicalSchema) -> Result<SemanticProjection, DiagnosticSet> {
-    let directives = project_directives(schema)?;
+/// Projects `schema`. `core` is the reviewed Core API a visible schema was verified
+/// against; without one, the whole schema is reviewed Core.
+pub(crate) fn project(
+    schema: &CanonicalSchema,
+    core: Option<&CoreCoordinateManifest>,
+) -> Result<SemanticProjection, DiagnosticSet> {
+    let directives = project_directives(schema, core)?;
     let names = build_name_map(schema, &directives)?;
     let (named_types, implementations) = project_named_types(schema, &names, &directives)?;
     let fields = project_fields(schema, &names, &directives)?;

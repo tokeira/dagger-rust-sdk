@@ -85,6 +85,7 @@ fn directive_projection_accounts_for_active_aliases_and_inactive_definitions() {
     let mut source_maps = 0;
     let mut reevaluations = 0;
     let mut workflow_roles = 0;
+    let mut module_authoring = 0;
     let mut inactive = 0;
     for record in plan.directives().records().values() {
         if record.policy == DirectivePolicy::TargetInactive {
@@ -106,6 +107,7 @@ fn directive_projection_accounts_for_active_aliases_and_inactive_definitions() {
                 DirectiveApplicationPolicy::SourceMap { .. } => source_maps += 1,
                 DirectiveApplicationPolicy::Reevaluate => reevaluations += 1,
                 DirectiveApplicationPolicy::WorkflowRole { .. } => workflow_roles += 1,
+                DirectiveApplicationPolicy::ModuleAuthoring { .. } => module_authoring += 1,
             }
         }
     }
@@ -118,6 +120,8 @@ fn directive_projection_accounts_for_active_aliases_and_inactive_definitions() {
     assert_eq!(source_maps, 0);
     assert_eq!(reevaluations, 39);
     assert_eq!(workflow_roles, 2);
+    // No reviewed Core coordinate applies a module-authoring directive.
+    assert_eq!(module_authoring, 0);
     assert_eq!(inactive, 10);
 }
 

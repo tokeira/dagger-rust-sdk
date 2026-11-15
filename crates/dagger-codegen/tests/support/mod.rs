@@ -618,6 +618,95 @@ pub(crate) fn add_dependency_extension(schema: &[u8]) -> Vec<u8> {
     serde_json::to_vec(&document).expect("extended schema fixture must encode")
 }
 
+/// One directive application as introspection serves it: the directive's name and its
+/// arguments as encoded literals.
+pub(crate) fn directive_application(name: &str, arguments: &[(&str, &str)]) -> Value {
+    json!({
+        "name": name,
+        "args": arguments
+            .iter()
+            .map(|(name, value)| json!({"name": name, "value": value}))
+            .collect::<Vec<_>>()
+    })
+}
+
+/// Adds a module dependency the way the engine serves one to the module that depends on
+/// it: the object type `Greeter`, its function `entries(source:)`, which takes a
+/// directory, and the `Query.greeter` constructor. The engine describes how it fills in
+/// and schedules the dependency's functions with module-authoring directives, which the
+/// caller applies to the type, the function and the argument.
+pub(crate) fn add_dependency_with_directives(
+    schema: &[u8],
+    on_type: &[Value],
+    on_function: &[Value],
+    on_argument: &[Value],
+) -> Vec<u8> {
+    let mut document: Value = serde_json::from_slice(schema).expect("schema fixture must decode");
+    let mut source = typed_id_argument("source", "Directory", true);
+    extend_directives(&mut source, on_argument);
+    let mut entries = object_field(
+        "entries",
+        list_type(scalar_type("String", false), false),
+        vec![source],
+    );
+    extend_directives(&mut entries, on_function);
+    add_object_type(
+        &mut document,
+        "Greeter",
+        vec![
+            object_field("id", scalar_type("ID", false), vec![]),
+            entries,
+        ],
+    );
+    let greeter = schema_array_mut(&mut document, "types")
+        .last_mut()
+        .expect("the dependency type was just added");
+    extend_directives(greeter, on_type);
+    add_query_object_field(&mut document, "greeter", "Greeter");
+    serde_json::to_vec(&document).expect("extended schema fixture must encode")
+}
+
+/// Applies a directive to a field of the schema, or to one of the field's arguments.
+pub(crate) fn apply_field_directive(
+    schema: &[u8],
+    owner: &str,
+    field: &str,
+    argument: Option<&str>,
+    directive: Value,
+) -> Vec<u8> {
+    let mut document: Value = serde_json::from_slice(schema).expect("schema fixture must decode");
+    let field = core_field_mut(&mut document, owner, field);
+    let site = match argument {
+        Some(argument) => field["args"]
+            .as_array_mut()
+            .expect("field arguments must be an array")
+            .iter_mut()
+            .find(|candidate| candidate["name"] == argument)
+            .expect("the field must contain the argument"),
+        None => field,
+    };
+    extend_directives(site, &[directive]);
+    serde_json::to_vec(&document).expect("changed schema fixture must encode")
+}
+
+/// Applies a directive to a named type of the schema.
+pub(crate) fn apply_type_directive(schema: &[u8], owner: &str, directive: Value) -> Vec<u8> {
+    let mut document: Value = serde_json::from_slice(schema).expect("schema fixture must decode");
+    let definition = schema_array_mut(&mut document, "types")
+        .iter_mut()
+        .find(|definition| definition["name"] == owner)
+        .expect("the schema must contain the type");
+    extend_directives(definition, &[directive]);
+    serde_json::to_vec(&document).expect("changed schema fixture must encode")
+}
+
+fn extend_directives(site: &mut Value, directives: &[Value]) {
+    site["directives"]
+        .as_array_mut()
+        .expect("a schema coordinate lists its directives")
+        .extend(directives.iter().cloned());
+}
+
 /// A reviewed field that becomes nullable changes what every caller must accept, so it
 /// changes the wire contract the bindings were compiled for.
 fn make_container_platform_nullable(document: &mut Value) {

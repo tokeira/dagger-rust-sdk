@@ -3,6 +3,13 @@
 //! A directive is never ignored because it is unfamiliar to the renderer. Active
 //! applications become typed policy data, while inactive definitions remain pinned by
 //! fingerprints and fail as soon as the target gives them client-visible semantics.
+//!
+//! The engine also serves coordinates outside the reviewed Core API: those of the
+//! modules a module depends on. It applies the module-authoring directives to them, as
+//! it does to any module's functions, arguments and collections. There they say how the
+//! engine fills in or schedules another module's function, which changes nothing a
+//! caller sends, so they are recorded and accepted. On a reviewed Core coordinate they
+//! stay refused.
 
 use std::collections::BTreeMap;
 
@@ -10,6 +17,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::diagnostic::{Diagnostic, DiagnosticCode, DiagnosticCoordinate, DiagnosticSet};
 use crate::projection::catalog::SemanticDigest;
+use crate::schema::CoreCoordinateManifest;
 use crate::schema::canonical::{
     CanonicalSchema, DirectiveApplication, EnumDefinition, SchemaCoordinate, SchemaName,
     TypeDefinition,
@@ -37,12 +45,14 @@ pub enum DirectivePolicy {
     /// tells the engine's artifact discovery which fields `dagger check` and
     /// `dagger generate` run, and gives a client call no different semantics.
     WorkflowRole,
-    /// Definition-only metadata contained by the exact target.
+    /// Module-authoring metadata that no reviewed Core coordinate applies. The engine
+    /// applies it only to a module's own coordinates, which a schema carries for the
+    /// modules a module depends on.
     TargetInactive,
 }
 
 impl DirectivePolicy {
-    /// Returns whether checked-target applications are legal for this policy.
+    /// Returns whether a reviewed Core coordinate may apply a directive of this policy.
     #[must_use]
     pub const fn accepts_applications(&self) -> bool {
         !matches!(self, Self::TargetInactive)
@@ -67,6 +77,10 @@ pub enum DirectiveApplicationPolicy {
     Reevaluate,
     /// The workflow role (`check` or `generate`) the engine assigns the field.
     WorkflowRole { role: SchemaName },
+    /// A module-authoring directive the engine applies to a coordinate outside the
+    /// reviewed Core API, where it tells the engine how to fill in or schedule another
+    /// module's function and gives a client call no different semantics.
+    ModuleAuthoring { directive: SchemaName },
 }
 
 /// One definition and all of its validated target applications.
@@ -156,9 +170,15 @@ impl DirectiveProjection {
     }
 }
 
+/// Projects every directive definition and application of `schema`. `core` is the
+/// reviewed Core API the schema was verified against, whose coordinates may not apply a
+/// module-authoring directive; without one, the whole schema is reviewed Core.
 pub(crate) fn project_directives(
     schema: &CanonicalSchema,
+    core: Option<&CoreCoordinateManifest>,
 ) -> Result<DirectiveProjection, DiagnosticSet> {
+    let is_reviewed_core =
+        |coordinate: &SchemaCoordinate| core.is_none_or(|core| core.contains(coordinate));
     let sites = application_sites(schema);
     let mut records = BTreeMap::new();
     let mut applications = BTreeMap::<SchemaCoordinate, Vec<DirectiveApplicationPolicy>>::new();
@@ -178,9 +198,12 @@ pub(crate) fn project_directives(
             // "agent" (v1.0.0-beta.11): marks module functions as agent middleware.
             // "collection", "delta", "get", "keys" (v1.0.0-beta.18): module collection
             // authoring markers. All are definition-only at the exact target — no
-            // core-schema coordinate applies them — so an application appearing in a
-            // future target fails closed via TargetInactiveDirectiveChanged until its
-            // client semantics are decided.
+            // core-schema coordinate applies them — so an application appearing on a
+            // core coordinate in a future target fails closed via
+            // TargetInactiveDirectiveChanged until its client semantics are decided.
+            // The engine applies them to the coordinates of a module's dependencies
+            // (`Function.Directives` and `FunctionArg.Directives` in core/typedef.go,
+            // `ModuleObject.TypeDefinition` in core/object.go), where they are accepted.
             "agent" | "cache" | "collection" | "defaultAddress" | "defaultPath" | "delta"
             | "get" | "ignorePatterns" | "keys" | "up" => DirectivePolicy::TargetInactive,
             _ => {
@@ -205,7 +228,7 @@ pub(crate) fn project_directives(
         };
         let mut typed = BTreeMap::new();
         for site in sites.iter().filter(|site| site.application.name == *name) {
-            if !policy.accepts_applications() {
+            if !policy.accepts_applications() && is_reviewed_core(&site.coordinate) {
                 diagnostics.push(diagnostic(
                     DiagnosticCode::TargetInactiveDirectiveChanged,
                     &site.coordinate,
@@ -421,11 +444,11 @@ fn project_application(
         DirectivePolicy::WorkflowRole => Ok(DirectiveApplicationPolicy::WorkflowRole {
             role: site.application.name.clone(),
         }),
-        DirectivePolicy::TargetInactive => Err(diagnostic(
-            DiagnosticCode::TargetInactiveDirectiveChanged,
-            &site.coordinate,
-            "target-inactive directive gained an application",
-        )),
+        // The caller refuses these on a reviewed Core coordinate, so the site belongs to
+        // another module.
+        DirectivePolicy::TargetInactive => Ok(DirectiveApplicationPolicy::ModuleAuthoring {
+            directive: site.application.name.clone(),
+        }),
     }
 }
 
@@ -467,4 +490,118 @@ fn diagnostic(code: DiagnosticCode, coordinate: &SchemaCoordinate, message: &str
         Some(DiagnosticCoordinate::new(coordinate.as_str())),
         message,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::{Value, json};
+
+    use super::project_directives;
+    use crate::diagnostic::DiagnosticCode;
+    use crate::schema::{CoreCoordinateManifest, decode_and_validate, decode_and_validate_visible};
+    use crate::target::CodegenTarget;
+
+    const TARGET: &[u8] = include_bytes!("../../../codegen/target.json");
+    const CORE_SCHEMA: &[u8] = include_bytes!("../../../codegen/schema.json");
+
+    /// The checked schema with one more object type, as a module dependency adds one,
+    /// that applies a module-authoring directive to itself, to a field and to an
+    /// argument.
+    fn schema_with_a_directed_extension() -> Vec<u8> {
+        let mut document: Value =
+            serde_json::from_slice(CORE_SCHEMA).expect("checked schema must decode");
+        let directive = |name: &str, arguments: Value| json!([{"name": name, "args": arguments}]);
+        document["__schema"]["types"]
+            .as_array_mut()
+            .expect("schema types must be an array")
+            .push(json!({
+                "kind": "OBJECT",
+                "name": "Greeter",
+                "description": null,
+                "fields": [{
+                    "name": "entries",
+                    "description": null,
+                    "type": {"kind": "SCALAR", "name": "String"},
+                    "args": [{
+                        "name": "source",
+                        "description": null,
+                        "type": {"kind": "SCALAR", "name": "String"},
+                        "defaultValue": null,
+                        "isDeprecated": false,
+                        "deprecationReason": null,
+                        "directives": directive(
+                            "defaultPath",
+                            json!([{"name": "path", "value": "\"/\""}])
+                        )
+                    }],
+                    "isDeprecated": false,
+                    "deprecationReason": null,
+                    "directives": directive("up", json!([]))
+                }],
+                "inputFields": [],
+                "interfaces": [],
+                "enumValues": [],
+                "possibleTypes": [],
+                "directives": directive("collection", json!([]))
+            }));
+        serde_json::to_vec(&document).expect("extended schema must encode")
+    }
+
+    // A visible schema never reaches the projection with a module-authoring directive on
+    // a reviewed Core coordinate, since verification refuses it first. The projection
+    // decides by the reviewed coordinates all the same: the same applications are
+    // accepted outside them and refused when the whole schema is reviewed Core.
+    #[test]
+    fn module_authoring_directives_are_accepted_only_outside_reviewed_core() {
+        let target = CodegenTarget::decode_exact(TARGET).expect("checked target must decode");
+        let reviewed = decode_and_validate(&target, CORE_SCHEMA).expect("checked schema is valid");
+        let core = CoreCoordinateManifest::from_checked_schema(&reviewed)
+            .expect("checked schema has a manifest");
+        let visible =
+            decode_and_validate_visible(&target, &schema_with_a_directed_extension(), &core, None)
+                .expect("the extension leaves reviewed Core alone");
+
+        let accepted = project_directives(&visible, Some(&core))
+            .expect("the directives sit outside reviewed Core");
+        for (name, coordinate) in [
+            ("collection", "Greeter"),
+            ("up", "Greeter.entries"),
+            ("defaultPath", "Greeter.entries(source:)"),
+        ] {
+            let record = accepted
+                .records()
+                .values()
+                .find(|record| record.name.as_str() == name)
+                .expect("the target defines the directive");
+            let sites = record
+                .applications
+                .keys()
+                .map(|coordinate| coordinate.as_str())
+                .collect::<Vec<_>>();
+            assert_eq!(sites, [coordinate]);
+        }
+
+        let refused = project_directives(&visible, None)
+            .expect_err("reviewed Core may not apply a module-authoring directive");
+        let coordinates = refused
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| {
+                assert_eq!(
+                    diagnostic.code,
+                    DiagnosticCode::TargetInactiveDirectiveChanged
+                );
+                diagnostic
+                    .coordinate
+                    .as_ref()
+                    .expect("the refusal names its coordinate")
+                    .as_str()
+                    .to_owned()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            coordinates,
+            ["Greeter", "Greeter.entries", "Greeter.entries(source:)"]
+        );
+    }
 }
