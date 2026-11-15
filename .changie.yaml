@@ -33,7 +33,7 @@ kinds:
   - label: Security
   - label: Dependencies
 headerFormat: |-
-  This release targets stock Dagger `{{.Env.ENGINE_VERSION}}` engines and CLIs. Applications depend on `tokeira-dagger-sdk = "{{.Version}}"` from crates.io, which brings `tokeira-dagger-sdk-macros` at the same version, and modules install the runtime from `github.com/tokeira/dagger-rust-sdk/runtime@v{{.Version}}`.
+  This release targets the Dagger `{{.Env.ENGINE_VERSION}}` API view and runs on stock `{{.Env.ENGINE_VERSION}}` engines and on later 1.x engines that serve that view. Applications depend on `tokeira-dagger-sdk = "{{.Version}}"` from crates.io, which brings `tokeira-dagger-sdk-macros` at the same version, and modules install the runtime from `github.com/tokeira/dagger-rust-sdk/runtime@v{{.Version}}`.
 footerFormat: |-
   {{- $contributorSet := dict }}
   {{- $maintainers := list "dependabot[bot]" "iw" }}

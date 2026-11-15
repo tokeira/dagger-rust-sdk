@@ -139,6 +139,36 @@ list* in the same change. Then run the
 [stock-engine acceptance](engine-integration.md#stock-engine-acceptance) against the new
 target.
 
+### Later engines and retargeting
+
+The target is the oldest Dagger release the SDK accepts, and the API view it requires of
+every engine, as [engine-integration.md](engine-integration.md#engine-compatibility)
+describes. A later release needs no refresh while it serves that view as the target does.
+To see what a later release changes in the view, capture the target's view from the later
+release's tree, as in step 1 but from the later checkout, with `--version` still naming
+the target, and compare it with the committed schema:
+
+```console
+LATER="$(mktemp -d)/dagger"
+git clone --depth 1 --branch <later release> https://github.com/dagger/dagger "$LATER"
+docker run --rm -v "$LATER:/src:ro" -w /src -e CGO_ENABLED=0 golang:<its Go release> \
+  go run ./cmd/introspect introspect --version v1.0.0-beta.27 > later-view.json
+diff <(jq -S . codegen/schema.json) <(jq -S . later-view.json)
+```
+
+Reworded documentation, new deprecations, and fields and optional arguments the SDK does
+not bind need nothing. Generation refuses a change to anything the SDK binds; it needs an
+SDK release that handles it, or a fix in Dagger.
+`crates/dagger-codegen/tests/later_engine_compatibility.rs` keeps the changes such a
+comparison found as a fixture, and checks each kind of change. The acceptance's
+later-engine step runs the runtime and a client on the target release's engine reporting
+a later release. Changes that a later release makes outside the schema, such as to how it
+loads and runs modules, show only on that release's own engine.
+
+Retargeting raises the floor: once released, the SDK refuses engines older than the new
+target. Retarget only when the engines that run CI and the SDK's users' modules already
+run the new release or a later one, and the SDK needs the new release's API.
+
 ## 4. Recover or roll back as one unit
 
 A validation, formatting, or cancellation failure leaves the previous generated set

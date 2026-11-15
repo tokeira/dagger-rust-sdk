@@ -744,6 +744,15 @@ module/dependency coordinates still pass the same reference resolution, wrapper,
 default, directive, naming, collision, documentation, and deterministic ordering
 checks.
 
+> **Superseded in part.** A core coordinate is no longer held to its exact semantic
+> fingerprint. It is compared with the target's by its wire contract: its type,
+> nullability, arguments and defaults, input fields, and enum values. Documentation,
+> deprecations, and fields and optional arguments the SDK does not bind take no part.
+> The operation then consumes the target's reviewed core definitions, and the operation
+> manifest records the identity of the schema it consumed rather than that of the bytes
+> the engine sent. [Engine compatibility](../../../docs/engine-integration.md#engine-compatibility)
+> states the current rule.
+
 The target's dynamic schema merger has one authoritative directive-shape exception.
 `dagql/server.go:412-457` and `core/schema/module.go:41-86` declare all five
 `sourceMap` arguments non-null, while `core/schematool.go:207-220 @ Target_Revision`

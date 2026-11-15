@@ -5,15 +5,16 @@
 [![docs.rs](https://img.shields.io/docsrs/tokeira-dagger-sdk)](https://docs.rs/tokeira-dagger-sdk)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![MSRV 1.99.1](https://img.shields.io/badge/MSRV-1.99.1-orange?logo=rust)](Cargo.toml)
-[![Dagger v1.0.0-beta.27](https://img.shields.io/badge/Dagger-v1.0.0--beta.27-informational)](https://github.com/dagger/dagger/tree/v1.0.0-beta.27)
+[![Dagger v1.0.0-beta.27 or later](https://img.shields.io/badge/Dagger-v1.0.0--beta.27%20or%20later-informational)](https://github.com/dagger/dagger/tree/v1.0.0-beta.27)
 [![Built with Codex & Claude](https://img.shields.io/badge/built%20with-Codex%20%26%20Claude-blueviolet)](#built-with-claude)
 
 Rust SDK for [Dagger](https://dagger.io), maintained by Tokeira. Not affiliated with
 Dagger, Inc.
 
 This workspace contains the SDK, its code generator, module-authoring runtime,
-standalone-client generator, and engine integration. The current SDK version is `0.6.0`
-and targets the Dagger `v1.0.0-beta.27` engine contract.
+standalone-client generator, and engine integration. The current SDK version is `0.6.0`.
+Its bindings target the Dagger `v1.0.0-beta.27` API, and it runs on a `v1.0.0-beta.27` or
+a later 1.x engine, as [Engine compatibility](#engine-compatibility) describes.
 
 Application users normally depend on [`tokeira-dagger-sdk`](crates/dagger-sdk). The client is
 owned and asynchronous: it supports generated and raw GraphQL operations,
@@ -320,6 +321,38 @@ the agent role is experimental in Dagger.
 
 The standalone application examples under [`examples`](examples) each have their own
 manifest; their exact commands are listed in [`examples/README.md`](examples/README.md).
+
+## Engine compatibility
+
+Each SDK release compiles its bindings against the API view of one Dagger release, its
+target, which for this one is `v1.0.0-beta.27`. From `v1.0.0-beta.22`, each Dagger release
+has an API view of its own and keeps serving the views of earlier releases, so the SDK
+runs on an engine of its target release and on any later 1.x engine that serves the
+target's view.
+
+- A module selects its view with `engineVersion` in its `dagger-module.toml`.
+  `dagger module init` writes the SDK's target, `engineVersion = "v1.0.0-beta.27"`, and
+  the module keeps it until it moves to an SDK release with another target.
+- A client gets the view of the Dagger CLI release that opened its session. The CLI that
+  the SDK provisions is always its target release. Under `dagger run`, it is the CLI
+  running the command, which must therefore be the target release too.
+- Before it uses a session, the SDK asks the engine for its release and for the view it
+  serves. It refuses an engine older than the target with `EngineTooOld`, an engine of
+  another major version with `VersionMismatch`, and another view with `ViewMismatch`,
+  whose message says how a module and a client select their view. An engine whose release
+  carries no clean revision is `Unverified`, which `allow_unverified_compatibility`
+  waives; nothing waives the other three.
+- `dagger generate` refuses a schema that states another view, and names the
+  `engineVersion` to declare, or, on an engine older than the target, the release to
+  upgrade to. A later engine's copy of the target's view can reword documentation, add
+  deprecations, and add fields and optional arguments that the SDK does not bind: the
+  generated files stay current. Generation refuses a change to anything the SDK binds,
+  such as a removed or retyped field, a changed default, or a new enum value.
+
+The acceptance runs on a stock `v1.0.0-beta.27` engine, and on that engine reporting
+itself as `v1.0.0-beta.28` while it serves the `v1.0.0-beta.27` view, as
+[`docs/ci.md`](docs/ci.md) describes. Changes that a later release makes outside the API
+view, such as to how it runs modules, show only on that release's own engine.
 
 ## Development and releases
 

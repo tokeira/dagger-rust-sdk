@@ -127,6 +127,12 @@ Preserve:
 - focused engine tests; and
 - the manual, directly authorized GitHub Release boundary.
 
+> **Superseded in part.** Exact target compatibility has been replaced: the target is
+> the oldest engine release the SDK accepts, and the SDK runs on that release or a later
+> release with the same major version that serves the target's API view.
+> [Engine compatibility](../../../docs/engine-integration.md#engine-compatibility) states the
+> current rule.
+
 ## Data Boundaries
 
 | Boundary | Inputs | Outputs | Side effects |

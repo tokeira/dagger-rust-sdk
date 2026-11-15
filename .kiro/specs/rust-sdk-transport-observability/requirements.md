@@ -828,6 +828,15 @@ partial GraphQL results.
 
 ### Requirement 12: Exact Target Compatibility Response
 
+> **Superseded.** The SDK no longer requires its exact target. Before it returns an
+> implicit connection, it queries `version` and `__schemaVersion`, and it accepts an
+> engine of the target release, or of a later release with the same major version, that
+> serves the target's API view. An older engine fails with `EngineTooOld`, another major
+> version with `VersionMismatch`, and another view with `ViewMismatch`. The revision is
+> checked for its form only, and `allow_unverified_compatibility` still waives only
+> missing evidence. [Engine compatibility](../../../docs/engine-integration.md#engine-compatibility)
+> states the current rule; the criteria below record the rule as first specified.
+
 **User Story:** As a Rust SDK consumer, I want an explicit response when an implicit
 engine is outside the declared target, so that the exact compatibility claim is true at
 runtime rather than only in release metadata.

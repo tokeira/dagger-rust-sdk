@@ -302,6 +302,13 @@ authority rows.
 | `outputDir` | Normalized requested client root | Reject absolute, escaping, symlinked, or overlapping ownership | Candidate writes remain confined beneath the root |
 | Published SDK dependency | Exact registry version or immutable Git URL and full revision | Reject path, wildcard, tag-only, or branch-only sources | Exact descriptor is emitted into Cargo metadata and manifest |
 
+> **Superseded in part.** The schema may come from any engine that serves the target's
+> API view. A changed Core coordinate now means a change to its wire contract rather than
+> to its documentation or deprecation, and the manifest records the identity of the
+> schema the client consumed rather than that of the bytes the engine sent.
+> [Engine compatibility](../../../docs/engine-integration.md#engine-compatibility) states the
+> current rule.
+
 ### Client-Visible Schema Surface
 
 | Surface | Required projection | Invalid state | Runtime impact |

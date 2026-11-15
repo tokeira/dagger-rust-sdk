@@ -552,6 +552,11 @@ formatting does not append command output.
 
 ### Property 25: Compatibility accepts exactly the declared target
 
+> **Superseded.** The property now accepts the target release, or a later release with
+> the same major version, when the engine serves the target's API view, as the note on
+> Requirement 12 describes. Its test is
+> `property_25_compatibility_accepts_target_floor_and_pinned_view`.
+
 For arbitrary version response shapes and Dagger version strings, an implicit
 connection succeeds only when semantic version and clean VCS provenance prove the
 generated exact target. Known mismatch and unprovable identity are distinct, safely

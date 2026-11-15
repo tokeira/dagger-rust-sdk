@@ -96,6 +96,42 @@ runtime from a tag or a commit. A runtime whose commit has
 `runtime/assets/sdk-dependency.json`, such as 0.1.0's, instead builds its content from the
 commit that file names, and its modules depend on that commit.
 
+## Engine compatibility
+
+The SDK's bindings, and the code generated for modules, are compiled against the target
+release's API view, so the SDK accepts an engine that serves that view and is no older
+than the target. Before an implicit session is used, the SDK sends
+`query { version __schemaVersion }` and decides in this order:
+
+1. A release older than the target fails with `EngineTooOld`, and a release of another
+   major version with `VersionMismatch`. Build metadata takes no part in either
+   comparison.
+2. A stated view other than the target's fails with `ViewMismatch`. Its message says that
+   a module selects its view with `engineVersion`, and that a client gets the view of the
+   Dagger CLI release that opened its session.
+3. Evidence the engine does not give fails with `Unverified`: a missing or malformed
+   version, a missing view, or a release whose build metadata is not a clean revision of
+   eight hexadecimal digits, such as one marked `dirty`. `allow_unverified_compatibility`
+   waives only this kind.
+
+An engine that rejects `__schemaVersion` is asked for `version` alone, which still
+refuses a release older than the target. The revision is checked for its form, not
+compared with the target's, so the SDK does not report `RevisionMismatch`.
+
+Generation applies the same view rule to the schema it is given. A schema that states
+another view fails with `TARGET_IDENTITY_INVALID`. The runtime passes the engine's release
+to the generator, which uses it only for advice: on an engine older than the target, the
+message says to run the module on the target release or a later one, and otherwise it
+names the `engineVersion` to declare. A later engine's copy of the target's view is
+compared with the SDK's reviewed Core API by its wire contract: the types, nullability,
+arguments and defaults, input fields, and enum values of every coordinate the SDK binds.
+Documentation, deprecations, and fields and optional arguments the SDK does not bind take
+no part. A removed coordinate fails with `SCHEMA_CORE_COORDINATE_MISSING`, and a changed
+one, a new enum value, a new required argument, or a new required input field with
+`SCHEMA_CORE_COORDINATE_INCOMPATIBLE`. The operation manifest records the identity of the
+schema the SDK consumed rather than the bytes the engine sent, so generated files stay
+current on such an engine.
+
 ## Stock-engine acceptance
 
 `dagger call ci acceptance --commit <commit>` performs every step below for a commit
