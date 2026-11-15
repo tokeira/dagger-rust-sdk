@@ -56,9 +56,9 @@
     "engine_source_digest": "sha256:f99540430b55e942184530f8848f3983ba0d7c3c5ba8890202b07d88c384ffec",
     "version": "0.7.0"
   },
-  "input_digest": "sha256:4700f68eb41cee020e39ab00eaf3f8455256dbaae6179b051f8aa4b3cd0d861e",
+  "input_digest": "sha256:d99b11355a9565eace169acbb238d4101686275abfc298ecc91124ca3ac4b183",
   "mode": "checked-generated",
-  "module_source_digest": "sha256:85c86fe742c590d620bd3408d63afc25490df316d72599947946e8e84ae1abc9",
+  "module_source_digest": "sha256:e35ef9921c03c0cdce4926033cb0139e0c98347109fad50bfd126b90d64c34e2",
   "operation": "generate-module",
   "output_root": "workspace/.dagger/modules/ci",
   "post_work": [

@@ -166,8 +166,10 @@ needs a Git workspace:
 3. Author exports that take and return Core types: objects, enums, and scalars, with
    defaults, an agent function, and a collection. Give the module a dependency on a Dang
    module in the workspace, declared under `[[dependencies]]` in its
-   `dagger-module.toml`. Loading the module before regeneration fails with a diagnostic
-   that names `dagger generate`.
+   `dagger-module.toml`. One of the dependency's functions takes a directory that the
+   engine fills in when a call omits it, so the engine serves the function's argument
+   with `@defaultPath` and `@ignorePatterns`. Loading the module before regeneration
+   fails with a diagnostic that names `dagger generate`.
 4. `dagger generate` regenerates, and the generated files bind the dependency's object
    type. A second run changes nothing, and the module's `.gitattributes` stays scoped to
    the module.

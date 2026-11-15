@@ -5,4 +5,11 @@ type Greeter {
   hello(name: String!): String! {
     "hello, " + name
   }
+
+  """
+  Lists the entries at the root of a directory.
+  """
+  entries(source: Directory! @defaultPath(path: "/") @ignorePatterns(patterns: ["*.md"])): [String!]! {
+    source.entries
+  }
 }
