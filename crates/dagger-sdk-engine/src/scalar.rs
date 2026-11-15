@@ -249,6 +249,23 @@ fn validate_rust_target(value: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn validate_engine_release(value: &str) -> Result<(), String> {
+    if value.is_empty() || value.len() > MAX_ENGINE_RELEASE_LEN {
+        return Err(format!(
+            "must be between 1 and {MAX_ENGINE_RELEASE_LEN} bytes"
+        ));
+    }
+    if !value
+        .bytes()
+        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'+' | b'-'))
+    {
+        return Err("must contain only ASCII letters, digits, '.', '+' and '-'".to_owned());
+    }
+    Ok(())
+}
+
+const MAX_ENGINE_RELEASE_LEN: usize = 128;
+
 validated_string!(
     Sha256Digest,
     "SHA-256 digest",
@@ -302,6 +319,12 @@ validated_string!(
     "Rust target",
     validate_rust_target,
     "A canonical lowercase Rust compilation target triple."
+);
+validated_string!(
+    EngineRelease,
+    "engine release",
+    validate_engine_release,
+    "The release an engine states for itself, as reported, which selects diagnostic advice only."
 );
 
 /// A normalized, non-empty path relative to an explicit operation-root capability.

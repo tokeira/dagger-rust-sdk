@@ -117,13 +117,7 @@ pub(crate) fn client_visible_schema(case: ClientSchemaCase, permutation: u16) ->
     add_client_module_types(&mut document);
     match case {
         ClientSchemaCase::CoreOnly | ClientSchemaCase::Valid => {}
-        ClientSchemaCase::CoreMutation => {
-            let container = schema_array_mut(&mut document, "types")
-                .iter_mut()
-                .find(|definition| definition["name"] == "Container")
-                .expect("checked schema must contain Container");
-            container["description"] = json!("incompatible checked-Core mutation");
-        }
+        ClientSchemaCase::CoreMutation => make_container_platform_nullable(&mut document),
         ClientSchemaCase::CoreOmission => {
             let query = schema_array_mut(&mut document, "types")
                 .iter_mut()
@@ -533,14 +527,7 @@ pub(crate) fn visible_schema(case: VisibleSchemaCase, permutation: u16) -> Vec<u
         VisibleSchemaCase::EngineModuleExtension => {
             add_extension(&mut document, "RustMode", true, Some("rust-probe"))
         }
-        VisibleSchemaCase::CoreMutation => {
-            let types = schema_array_mut(&mut document, "types");
-            let container = types
-                .iter_mut()
-                .find(|definition| definition["name"] == "Container")
-                .expect("checked schema must contain Container");
-            container["description"] = json!("incompatible reviewed core mutation");
-        }
+        VisibleSchemaCase::CoreMutation => make_container_platform_nullable(&mut document),
         VisibleSchemaCase::CoreOmission => {
             let query = schema_array_mut(&mut document, "types")
                 .iter_mut()
@@ -591,6 +578,68 @@ pub(crate) fn module_visible_schema(permutation: u16) -> Vec<u8> {
     }
     permute_schema(&mut document, permutation);
     serde_json::to_vec(&document).expect("module-visible schema fixture must encode")
+}
+
+/// Rewords reviewed core documentation the way a later engine's copy of the same API
+/// view does, leaving every wire contract alone.
+pub(crate) fn reword_core_documentation(schema: &[u8]) -> Vec<u8> {
+    let mut document: Value = serde_json::from_slice(schema).expect("schema fixture must decode");
+    schema_array_mut(&mut document, "types")
+        .iter_mut()
+        .find(|definition| definition["name"] == "Container")
+        .expect("checked schema must contain Container")["description"] =
+        json!("A container, as a later engine documents it.");
+    core_field_mut(&mut document, "Container", "platform")["description"] =
+        json!("The platform, as a later engine documents it.");
+    serde_json::to_vec(&document).expect("reworded schema fixture must encode")
+}
+
+/// Adds a field a later engine serves on a reviewed core object, naming only reviewed
+/// core types, which no binding compiled for the target consumes.
+pub(crate) fn add_later_core_field(schema: &[u8]) -> Vec<u8> {
+    let mut document: Value = serde_json::from_slice(schema).expect("schema fixture must decode");
+    add_object_field_to_type(
+        &mut document,
+        "Container",
+        object_field(
+            "withLaterOption",
+            object_type("Container", false),
+            vec![argument("enabled", scalar_type("Boolean", true), None)],
+        ),
+    );
+    serde_json::to_vec(&document).expect("extended schema fixture must encode")
+}
+
+/// Adds an operation-scoped enum and the query field that returns it, as a module
+/// dependency contributes them.
+pub(crate) fn add_dependency_extension(schema: &[u8]) -> Vec<u8> {
+    let mut document: Value = serde_json::from_slice(schema).expect("schema fixture must decode");
+    add_extension(&mut document, "RustMode", true, None);
+    serde_json::to_vec(&document).expect("extended schema fixture must encode")
+}
+
+/// A reviewed field that becomes nullable changes what every caller must accept, so it
+/// changes the wire contract the bindings were compiled for.
+fn make_container_platform_nullable(document: &mut Value) {
+    let platform = core_field_mut(document, "Container", "platform");
+    let non_null = platform["type"].clone();
+    assert_eq!(
+        non_null["kind"], "NON_NULL",
+        "Container.platform must be required"
+    );
+    platform["type"] = non_null["ofType"].clone();
+}
+
+fn core_field_mut<'a>(document: &'a mut Value, owner: &str, field: &str) -> &'a mut Value {
+    schema_array_mut(document, "types")
+        .iter_mut()
+        .find(|definition| definition["name"] == owner)
+        .unwrap_or_else(|| panic!("checked schema must contain {owner}"))["fields"]
+        .as_array_mut()
+        .unwrap_or_else(|| panic!("{owner} fields must be an array"))
+        .iter_mut()
+        .find(|candidate| candidate["name"] == field)
+        .unwrap_or_else(|| panic!("checked {owner} must have {field}"))
 }
 
 fn scrub_type(document: &mut Value, hidden: &str) {

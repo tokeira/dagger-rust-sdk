@@ -2,8 +2,8 @@
 
 // Shared schema-fixture DSL, compiled into this crate a second time: its
 // include_bytes! paths are file-relative and its proptest regression paths resolve
-// per consuming crate, both intended. Only one item is consumed here, so the rest of
-// the DSL is expectedly unused.
+// per consuming crate, both intended. Only a few items are consumed here, so the rest
+// of the DSL is expectedly unused.
 #[path = "../../dagger-codegen/tests/support/mod.rs"]
 mod codegen_support;
 
@@ -12,15 +12,18 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-use codegen_support::module_visible_schema;
+use codegen_support::{
+    add_dependency_extension, add_later_core_field, module_visible_schema,
+    reword_core_documentation,
+};
 use dagger_sdk_engine::initialization::{InitializationInputs, plan_initialization};
 use dagger_sdk_engine::post_work::{Cancellation, ProcessOutcome};
 use dagger_sdk_engine::{
-    CanonicalRegistry, CanonicalRepositoryUrl, EngineSourceDescriptor, ExactRustToolchain,
-    ExactVersion, FormatVersion, FullRevision, ModuleConfigFormat, ModuleOperationInput,
-    OperationKind, OperationPostWork, OperationRequest, OperationRoot, PostWorkPlan,
-    PublishedSdkDependency, RelativeOperationPath, SchemaInput, SdkPackageName, Sha256Digest,
-    StableCoordinate, TargetIdentity, ToolchainSelection,
+    CanonicalRegistry, CanonicalRepositoryUrl, EngineRelease, EngineSourceDescriptor,
+    ExactRustToolchain, ExactVersion, FormatVersion, FullRevision, ModuleConfigFormat,
+    ModuleOperationInput, OperationKind, OperationPostWork, OperationRequest, OperationRoot,
+    PostWorkPlan, PublishedSdkDependency, RelativeOperationPath, SchemaInput, SdkPackageName,
+    Sha256Digest, StableCoordinate, TargetIdentity, ToolchainSelection,
 };
 use sha2::{Digest as _, Sha256};
 
@@ -170,6 +173,85 @@ async fn regeneration_from_a_git_reference_changes_nothing() {
     assert_eq!(snapshot(temporary.path()), generated);
 }
 
+// A later engine serves the module the target's API view with reworded documentation
+// and a core field no binding consumes, and states its own release. The manifest
+// records what generation consumed rather than the engine's schema bytes, so
+// regenerating on that engine changes nothing.
+#[tokio::test]
+async fn regeneration_on_a_later_engine_serving_the_target_view_changes_nothing() {
+    let temporary = tempfile::tempdir().unwrap();
+    let authored = initialize(temporary.path());
+    let root = OperationRoot::open(temporary.path()).unwrap();
+    let schema = module_visible_schema(0);
+
+    let first = execute(
+        &root,
+        &request(&schema, authored.as_bytes(), dependency()),
+        &schema,
+        &descriptor(),
+    )
+    .await;
+    assert!(!first.is_empty());
+    let generated = snapshot(temporary.path());
+
+    let later = add_later_core_field(&reword_core_documentation(&schema));
+    assert_ne!(hash(&later), hash(&schema));
+    let mut on_later_engine = request(&later, authored.as_bytes(), dependency());
+    on_later_engine.engine_version = Some(EngineRelease::new("v1.0.0-beta.28+1a2b3c4d").unwrap());
+    let replay = execute(&root, &on_later_engine, &later, &descriptor()).await;
+    assert!(replay.is_empty(), "the later engine touched {replay:?}");
+    assert_eq!(snapshot(temporary.path()), generated);
+}
+
+// The manifest still binds every definition generation consumed: a dependency that
+// contributes a type changes both recorded digests, and the replay converges.
+#[tokio::test]
+async fn regeneration_after_a_consumed_schema_change_rewrites_the_manifest() {
+    let temporary = tempfile::tempdir().unwrap();
+    let authored = initialize(temporary.path());
+    let root = OperationRoot::open(temporary.path()).unwrap();
+    let manifest = temporary
+        .path()
+        .join(MODULE_ROOT)
+        .join(".dagger/rust/operation-manifest.json");
+    let schema = module_visible_schema(0);
+
+    let first = execute(
+        &root,
+        &request(&schema, authored.as_bytes(), dependency()),
+        &schema,
+        &descriptor(),
+    )
+    .await;
+    assert!(!first.is_empty());
+    let before = recorded_digests(&manifest);
+
+    let extended = add_dependency_extension(&schema);
+    let dependent = request(&extended, authored.as_bytes(), dependency());
+    let touched = execute(&root, &dependent, &extended, &descriptor()).await;
+    assert!(
+        touched
+            .iter()
+            .any(|path| path.ends_with(".dagger/rust/operation-manifest.json")),
+        "a consumed schema change left the manifest alone: {touched:?}"
+    );
+    let after = recorded_digests(&manifest);
+    assert_ne!(
+        before.0, after.0,
+        "the input digest ignored a consumed change"
+    );
+    assert_ne!(
+        before.1, after.1,
+        "the schema digest ignored a consumed change"
+    );
+
+    let converged = execute(&root, &dependent, &extended, &descriptor()).await;
+    assert!(
+        converged.is_empty(),
+        "converged replay touched {converged:?}"
+    );
+}
+
 // A runtime upgrade seals newer SDK content, so the generator changes. Regeneration
 // replaces exactly the files the prior manifest owns, then converges under the new
 // generator; authored source is untouched.
@@ -294,6 +376,7 @@ fn request(
         }),
         sdk_dependency,
         output_root: RelativeOperationPath::parse(MODULE_ROOT).unwrap(),
+        engine_version: None,
     }
 }
 
@@ -339,6 +422,18 @@ fn pinned_dependency() -> PublishedSdkDependency {
         revision: FullRevision::new("1e6e0d5c7ccfe1c712c692c229fe2c0b35d55a4b").unwrap(),
         package: SdkPackageName::new("tokeira-dagger-sdk").unwrap(),
     }
+}
+
+/// Reads the input and visible-schema digests an operation manifest records.
+fn recorded_digests(manifest: &Path) -> (String, String) {
+    let document: serde_json::Value = serde_json::from_slice(&fs::read(manifest).unwrap()).unwrap();
+    (
+        document["input_digest"].as_str().unwrap().to_owned(),
+        document["visible_schema_digest"]
+            .as_str()
+            .unwrap()
+            .to_owned(),
+    )
 }
 
 fn hash(bytes: &[u8]) -> Sha256Digest {

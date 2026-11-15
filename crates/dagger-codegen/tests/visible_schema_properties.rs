@@ -41,6 +41,7 @@ fn project(
         output: &output,
         sdk_dependency: &dependency,
         authoring: None,
+        engine_version: None,
     })
 }
 

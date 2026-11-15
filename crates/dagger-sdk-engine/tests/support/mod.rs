@@ -136,6 +136,7 @@ fn build_corpus(seed: u8, use_registry: bool, operation: u8, content: Vec<u8>) -
         module: Some(module.clone()),
         sdk_dependency: dependency.clone(),
         output_root: output_root.clone(),
+        engine_version: None,
     };
     let candidate = CandidateArtifact {
         kind: ArtifactKind::RustSource,

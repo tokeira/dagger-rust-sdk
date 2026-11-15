@@ -1,0 +1,27 @@
+[
+  {
+    "coordinate": "GitRepository.ref(name:)",
+    "before": "Ref's name (can be a commit identifier, a tag name, a branch name, or a fully-qualified ref).\n\nCommit identifiers may be abbreviated: an unambiguous hex prefix (4-40 characters) of a commit SHA resolves like git rev-parse, with named refs taking precedence. Abbreviated SHAs resolve against locally available objects, so remote repositories (resolved via ls-remote) can only expand prefixes of already-fetched commits; use the full SHA or a named ref otherwise.\n\nThe name may be followed by git revision suffixes, applied left to right: `~N` follows first parents N times and `^N` selects the Nth parent (`~` and `^` mean 1, `^0` is the commit itself), e.g. `HEAD~3`, `main^2` or `abc1234~2`. The result is a detached ref of the resulting commit; remote repositories fetch the history the walk needs. Other git revision syntax (`^{...}`, `@{...}`, `:path`, ranges) is not supported.\n\nA repository derived from a remote one (e.g. a workspace's history after a snapshot or commit) resolves names and commits it does not contain itself through that remote, with its authentication. Its branches and tags listings include the remote's.",
+    "after": "Ref's name (can be a commit identifier, a tag name, a branch name, or a fully-qualified ref).\n\nCommit identifiers may be abbreviated: an unambiguous hex prefix (4-40 characters) of a commit SHA resolves like git rev-parse, with named refs taking precedence, to the full SHA. A remote repository that has not fetched the commit yet fetches the history of the refs it advertises to find it, so only commits reachable from those refs can be abbreviated.\n\nThe name may be followed by git revision suffixes, applied left to right: `~N` follows first parents N times and `^N` selects the Nth parent (`~` and `^` mean 1, `^0` is the commit itself), e.g. `HEAD~3`, `main^2` or `abc1234~2`. The result is a detached ref of the resulting commit; remote repositories fetch the history the walk needs. Other git revision syntax (`^{...}`, `@{...}`, `:path`, ranges) is not supported.\n\nA repository derived from a remote one (e.g. a workspace's history after a snapshot or commit) resolves names and commits it does not contain itself through that remote, with its authentication. Its branches and tags listings include the remote's."
+  },
+  {
+    "coordinate": "GitRepository.commit(id:)",
+    "before": "Identifier of the commit (e.g., \"b6315d8f2810962c601af73f86831f6866ea798b\").\n\nMay be abbreviated to an unambiguous hex prefix (4-40 characters), which is expanded against locally available objects. Remote repositories (resolved via ls-remote) can only expand prefixes of already-fetched commits; use the full SHA otherwise.",
+    "after": "Identifier of the commit (e.g., \"b6315d8f2810962c601af73f86831f6866ea798b\").\n\nMay be abbreviated to an unambiguous hex prefix (4-40 characters), which is expanded to the full SHA. A remote repository that has not fetched the commit yet fetches the history of the refs it advertises to find it."
+  },
+  {
+    "coordinate": "Workspace.withPatchFile",
+    "before": "Return this workspace with the given Git-compatible patch file applied, without mutating the source.\n\nPaths in the patch are relative to the workspace root, whatever its cwd, as `git diff` writes them. Patching a path at or under a mount is an error.",
+    "after": "Return this workspace with the given Git-compatible patch file applied, without mutating the source.\n\nPaths in the patch are relative to the workspace root, whatever its cwd, as `git diff` writes them. Sections for paths in a mount apply to the mounted content; a section cannot move a file across a mount boundary or delete a mount point."
+  },
+  {
+    "coordinate": "Workspace.withMountedDirectory",
+    "before": "Return this workspace with a directory mounted read-only at the given path, without mutating the source.\n\nMounted content is readable through the normal workspace file tools but shadows the source at the mount path and stays out of the pending changeset: it never appears in changes, is never exported, and cannot be modified.",
+    "after": "Return this workspace with a directory mounted at the given path, without mutating the source.\n\nMounted content is readable and editable through the normal workspace file tools but shadows the source at the mount path and stays out of the pending changeset: neither it nor edits to it appear in changes or are exported. Use withoutMount to remove the mount."
+  },
+  {
+    "coordinate": "Workspace.withMountedFile",
+    "before": "Return this workspace with a file mounted read-only at the given path, without mutating the source.\n\nMounted content is readable through the normal workspace file tools but shadows the source at the mount path and stays out of the pending changeset: it never appears in changes, is never exported, and cannot be modified.",
+    "after": "Return this workspace with a file mounted at the given path, without mutating the source.\n\nMounted content is readable and editable through the normal workspace file tools but shadows the source at the mount path and stays out of the pending changeset: neither it nor edits to it appear in changes or are exported. Use withoutMount to remove the mount."
+  }
+]

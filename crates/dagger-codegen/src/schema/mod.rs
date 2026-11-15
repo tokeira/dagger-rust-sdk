@@ -11,4 +11,6 @@ pub mod raw;
 mod validate;
 
 pub use compatibility::{CoreCoordinateManifest, SchemaCompatibilityMode};
-pub use validate::{decode_and_validate, decode_and_validate_with_mode};
+pub use validate::{
+    decode_and_validate, decode_and_validate_visible, decode_and_validate_with_mode,
+};

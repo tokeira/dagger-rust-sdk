@@ -432,6 +432,7 @@ fn operation_adapter_uses_the_standalone_content_domain() {
         output: &output,
         sdk_dependency: &dependency,
         authoring: None,
+        engine_version: None,
     })
     .expect("production client operation must render");
     assert_eq!(plan.content_domain(), ContentDomain::StandaloneClient);

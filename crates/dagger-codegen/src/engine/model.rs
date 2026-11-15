@@ -178,6 +178,9 @@ pub struct OperationProjectionRequest<'a> {
     pub sdk_dependency: &'a PublishedSdkDependency,
     /// Rust-owned authoring input for module and entrypoint generation.
     pub authoring: Option<&'a ModuleAuthoringInput>,
+    /// The serving engine's release as the caller observed it. It only selects advice
+    /// for a schema that states another API view; it takes no part in generation.
+    pub engine_version: Option<&'a str>,
 }
 
 /// Class of one pure candidate artifact.

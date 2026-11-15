@@ -1,4 +1,8 @@
 //! One checked visible-schema plan shared by every operation renderer.
+//!
+//! An engine-visible schema is verified against the reviewed core contract and then
+//! consumed through the reviewed core definitions, so every engine that serves the
+//! target's API view produces the same plan, bindings and schema identity.
 
 use std::collections::BTreeSet;
 use std::sync::OnceLock;
@@ -7,20 +11,22 @@ use crate::ProjectionPlan;
 use crate::diagnostic::{Diagnostic, DiagnosticCode, DiagnosticCoordinate, DiagnosticSet};
 use crate::projection::catalog::SemanticDigest;
 use crate::schema::canonical::{CanonicalSchema, SchemaCoordinate};
-use crate::schema::{
-    CoreCoordinateManifest, SchemaCompatibilityMode, decode_and_validate,
-    decode_and_validate_with_mode,
-};
+use crate::schema::{CoreCoordinateManifest, decode_and_validate, decode_and_validate_visible};
 use crate::target::CodegenTarget;
 
 use super::OperationKind;
 
 const CHECKED_CORE_SCHEMA: &[u8] = include_bytes!("../../../../codegen/schema.json");
 
-static CHECKED_CORE_MANIFEST: OnceLock<Result<CoreCoordinateManifest, DiagnosticSet>> =
-    OnceLock::new();
-static CHECKED_MODULE_MANIFEST: OnceLock<Result<CoreCoordinateManifest, DiagnosticSet>> =
-    OnceLock::new();
+static CHECKED_CORE: OnceLock<Result<CheckedCore, DiagnosticSet>> = OnceLock::new();
+
+/// The reviewed core schema and the coordinate manifests derived from it.
+#[derive(Debug)]
+struct CheckedCore {
+    schema: CanonicalSchema,
+    core: CoreCoordinateManifest,
+    module: CoreCoordinateManifest,
+}
 
 // These are the exact module-introspection exclusions selected by core/moddeps.go and
 // core/env.go at the checked target. ID types are scrubbed beside each raw type by the
@@ -45,7 +51,7 @@ const MODULE_HIDDEN_FIELDS: &[&str] = &[
     "Address.volume",
 ];
 
-/// Complete compatible visible schema and its single semantic projection.
+/// Complete compatible schema an operation consumes and its single semantic projection.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VisibleSchemaPlan {
     canonical: CanonicalSchema,
@@ -56,7 +62,9 @@ pub struct VisibleSchemaPlan {
 }
 
 impl VisibleSchemaPlan {
-    /// Returns the complete canonical visible schema.
+    /// Returns the complete schema the operation consumes: the reviewed core
+    /// definitions, as far as the visible schema has them, plus the visible schema's
+    /// operation-scoped extensions.
     #[must_use]
     pub const fn canonical(&self) -> &CanonicalSchema {
         &self.canonical
@@ -74,7 +82,9 @@ impl VisibleSchemaPlan {
         &self.extension_coordinates
     }
 
-    /// Returns the order-independent semantic identity of the complete visible schema.
+    /// Returns the order-independent semantic identity of the consumed schema. Engines
+    /// that serve the same reviewed core contract and the same extensions give the same
+    /// identity, whatever documentation or unconsumed additions they serve beside it.
     #[must_use]
     pub const fn digest(&self) -> &SemanticDigest {
         &self.digest
@@ -99,35 +109,37 @@ pub fn project_visible_schema(
     target: &CodegenTarget,
     input: &[u8],
 ) -> Result<VisibleSchemaPlan, DiagnosticSet> {
-    project_visible_schema_with_manifest(target, input, checked_core_manifest(target)?)
+    let checked = checked_core(target)?;
+    project_visible_schema_with_manifest(target, input, checked, &checked.core, None)
 }
 
 pub(super) fn project_operation_visible_schema(
     target: &CodegenTarget,
     operation: OperationKind,
     input: &[u8],
+    engine_version: Option<&str>,
 ) -> Result<VisibleSchemaPlan, DiagnosticSet> {
+    let checked = checked_core(target)?;
     let manifest = if matches!(
         operation,
         OperationKind::GenerateModule | OperationKind::GenerateEntrypoint
     ) {
-        checked_module_manifest(target)?
+        &checked.module
     } else {
-        checked_core_manifest(target)?
+        &checked.core
     };
-    project_visible_schema_with_manifest(target, input, manifest)
+    project_visible_schema_with_manifest(target, input, checked, manifest, engine_version)
 }
 
 fn project_visible_schema_with_manifest(
     target: &CodegenTarget,
     input: &[u8],
-    manifest: CoreCoordinateManifest,
+    checked: &CheckedCore,
+    manifest: &CoreCoordinateManifest,
+    engine_version: Option<&str>,
 ) -> Result<VisibleSchemaPlan, DiagnosticSet> {
-    let canonical = decode_and_validate_with_mode(
-        target,
-        input,
-        SchemaCompatibilityMode::ExactCoreWithExtensions(&manifest),
-    )?;
+    let visible = decode_and_validate_visible(target, input, manifest, engine_version)?;
+    let canonical = manifest.consumed_schema(&checked.schema, &visible);
     let all_coordinates = CoreCoordinateManifest::from_checked_schema(&canonical)?;
     let core_coordinates = manifest.coordinates().keys().cloned().collect();
     let extension_coordinates = all_coordinates
@@ -169,26 +181,22 @@ fn project_visible_schema_with_manifest(
     })
 }
 
-fn checked_core_manifest(target: &CodegenTarget) -> Result<CoreCoordinateManifest, DiagnosticSet> {
-    CHECKED_CORE_MANIFEST
+fn checked_core(target: &CodegenTarget) -> Result<&'static CheckedCore, DiagnosticSet> {
+    CHECKED_CORE
         .get_or_init(|| {
             let schema = decode_and_validate(target, CHECKED_CORE_SCHEMA)?;
-            CoreCoordinateManifest::from_checked_schema(&schema)
-        })
-        .clone()
-}
-
-fn checked_module_manifest(
-    target: &CodegenTarget,
-) -> Result<CoreCoordinateManifest, DiagnosticSet> {
-    CHECKED_MODULE_MANIFEST
-        .get_or_init(|| {
-            let schema = decode_and_validate(target, CHECKED_CORE_SCHEMA)?;
-            CoreCoordinateManifest::from_checked_schema_with_scrub(
+            let core = CoreCoordinateManifest::from_checked_schema(&schema)?;
+            let module = CoreCoordinateManifest::from_checked_schema_with_scrub(
                 &schema,
                 MODULE_HIDDEN_TYPES,
                 MODULE_HIDDEN_FIELDS,
-            )
+            )?;
+            Ok(CheckedCore {
+                schema,
+                core,
+                module,
+            })
         })
-        .clone()
+        .as_ref()
+        .map_err(Clone::clone)
 }

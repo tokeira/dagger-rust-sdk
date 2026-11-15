@@ -1,6 +1,9 @@
 //! Rejection-atomic conversion from bounded introspection input to canonical schema.
 
+use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
+
+use semver::Version;
 
 use crate::diagnostic::{
     Diagnostic, DiagnosticCode, DiagnosticCoordinate, DiagnosticSet, RelatedCoordinate,
@@ -60,6 +63,35 @@ pub fn decode_and_validate_with_mode(
     schema_bytes: &[u8],
     mode: SchemaCompatibilityMode<'_>,
 ) -> Result<CanonicalSchema, DiagnosticSet> {
+    decode_with(target, schema_bytes, mode, None)
+}
+
+/// Decodes an engine-visible schema under manifest-backed extension policy. The
+/// engine's release, when the caller observed one, selects the advice for a schema that
+/// states another API view: an engine older than the target cannot serve the target's
+/// view, while a later one serves it to a module that declares the target release.
+pub fn decode_and_validate_visible(
+    target: &CodegenTarget,
+    schema_bytes: &[u8],
+    manifest: &super::CoreCoordinateManifest,
+    engine_version: Option<&str>,
+) -> Result<CanonicalSchema, DiagnosticSet> {
+    let engine = engine_version
+        .and_then(|version| Version::parse(version.strip_prefix('v').unwrap_or(version)).ok());
+    decode_with(
+        target,
+        schema_bytes,
+        SchemaCompatibilityMode::ExactCoreWithExtensions(manifest),
+        engine.as_ref(),
+    )
+}
+
+fn decode_with(
+    target: &CodegenTarget,
+    schema_bytes: &[u8],
+    mode: SchemaCompatibilityMode<'_>,
+    engine: Option<&Version>,
+) -> Result<CanonicalSchema, DiagnosticSet> {
     match mode {
         SchemaCompatibilityMode::ExactTarget => target.verify_schema(schema_bytes)?,
         SchemaCompatibilityMode::ExactCoreWithExtensions(_) => {
@@ -89,6 +121,7 @@ pub fn decode_and_validate_with_mode(
         &response,
         matches!(mode, SchemaCompatibilityMode::ExactTarget),
         compatibility,
+        engine,
     )?;
     if let SchemaCompatibilityMode::ExactCoreWithExtensions(manifest) = mode {
         manifest.verify(&schema)?;
@@ -101,7 +134,7 @@ fn validate_response(
     target: &CodegenTarget,
     response: &IntrospectionResponse,
 ) -> Result<CanonicalSchema, DiagnosticSet> {
-    validate_response_mode(target, response, true, None)
+    validate_response_mode(target, response, true, None, None)
 }
 
 fn validate_response_mode(
@@ -109,6 +142,7 @@ fn validate_response_mode(
     response: &IntrospectionResponse,
     exact_inventory: bool,
     compatibility: Option<&super::CoreCoordinateManifest>,
+    engine: Option<&Version>,
 ) -> Result<CanonicalSchema, DiagnosticSet> {
     let mut diagnostics = Vec::new();
     let container = match response {
@@ -131,7 +165,10 @@ fn validate_response_mode(
             schema_version_mismatch(
                 container.schema_version.as_deref(),
                 &expected_schema_version,
-                compatibility.is_some(),
+                compatibility.is_some().then_some(ObservedEngine {
+                    release: engine,
+                    target: target.engine_version(),
+                }),
             ),
         ));
     }
@@ -182,24 +219,46 @@ fn validate_response_mode(
     ))
 }
 
+/// The engine that served a visible schema, as far as the caller observed it.
+#[derive(Clone, Copy)]
+struct ObservedEngine<'a> {
+    release: Option<&'a Version>,
+    target: &'a Version,
+}
+
 /// Names the API view a schema states and the one the target requires. From
 /// v1.0.0-beta.22 each release serves an API view of its own, and the engine gives a
-/// module the view of the release its `engineVersion` declares, so a module made for an
-/// earlier release reaches this check until it declares the target release.
-fn schema_version_mismatch(stated: Option<&str>, required: &str, engine_visible: bool) -> String {
+/// module the view of the release its `engineVersion` declares, capped at the engine's
+/// own release. An engine older than the target therefore cannot serve the target's
+/// view; on any other engine, a module made for another release reaches this check until
+/// it declares the target release.
+fn schema_version_mismatch(
+    stated: Option<&str>,
+    required: &str,
+    engine: Option<ObservedEngine<'_>>,
+) -> String {
     let stated = match stated {
         Some(view) if is_view_name(view) => format!("states the {view} API view"),
         Some(_) => "states an API view that names no release".to_owned(),
         None => "does not state its API view".to_owned(),
     };
-    if engine_visible {
-        format!(
+    let Some(engine) = engine else {
+        return format!(
+            "the schema {stated}, and the reviewed target requires the {required} view"
+        );
+    };
+    match engine.release {
+        Some(release) if release.cmp_precedence(engine.target) == Ordering::Less => format!(
+            "the engine is v{release}, older than v{target}, the earliest Dagger release this \
+             SDK supports, and its schema {stated}; run the module on a v{target} or later \
+             engine",
+            target = engine.target
+        ),
+        _ => format!(
             "the engine's schema {stated}, and this SDK requires the {required} view; a module \
              selects its view with engineVersion, so set engineVersion = \"{required}\" in its \
              dagger-module.toml"
-        )
-    } else {
-        format!("the schema {stated}, and the reviewed target requires the {required} view")
+        ),
     }
 }
 
@@ -1647,7 +1706,7 @@ fn validate_interface_consistency(
     }
 }
 
-fn inventory(
+pub(super) fn inventory(
     types: &BTreeMap<SchemaName, TypeDefinition>,
     directives: &BTreeMap<SchemaName, DirectiveDefinition>,
     has_query: bool,

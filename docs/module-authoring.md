@@ -206,11 +206,15 @@ are projections of that descriptor. Procedural macros emit only typed crate-loca
 access and invocation bridges, so authors never maintain a parallel schema or switch
 statement.
 
-Generated assets carry exact target, source, visible-schema, generator, descriptor,
-and content identities. Checked mode compares committed assets directly. Regeneration
-is permitted only when one of those owning inputs changes, selects only the affected
-asset domain, and replaces or removes only paths proven by the prior compatible
-manifest. User-owned or unknown bytes are preserved and diagnosed.
+Generated assets carry exact target, source, generator, descriptor, and content
+identities, and the identity of the schema they consume: the SDK's reviewed definitions
+of its target's Core API, and the types the engine adds for the module's dependencies.
+Documentation that a later engine's copy of the target's view rewords, and fields and
+optional arguments it adds that the SDK does not bind, leave that identity unchanged, so
+the committed assets stay current on that engine. Checked mode compares committed assets
+directly. Regeneration is permitted only when one of those owning inputs changes, selects
+only the affected asset domain, and replaces or removes only paths proven by the prior
+compatible manifest. User-owned or unknown bytes are preserved and diagnosed.
 
 The generator's identity is the SDK source and toolchain the runtime seals, not the
 platform its tools were built for, so files generated on one engine platform are

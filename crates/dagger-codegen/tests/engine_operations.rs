@@ -86,6 +86,7 @@ fn production_renderers_emit_bounded_operation_specific_artifacts() {
             output: &output,
             sdk_dependency: &dependency,
             authoring: selected_authoring,
+            engine_version: None,
         })
         .expect("valid operation fixture must render");
 
@@ -231,6 +232,7 @@ fn source_map_required_argument_compatibility_is_engine_specific() {
         output: &output,
         sdk_dependency: &dependency,
         authoring: None,
+        engine_version: None,
     })
     .expect("engine-authored module-only source maps must project");
 
@@ -267,6 +269,7 @@ fn source_map_required_argument_compatibility_is_engine_specific() {
             output: &output,
             sdk_dependency: &dependency,
             authoring: None,
+            engine_version: None,
         })
         .expect_err("required directive arguments outside the engine exception must fail");
         assert!(diagnostics.contains(DiagnosticCode::SchemaDirectiveArgumentInvalid));
@@ -289,6 +292,7 @@ fn module_visibility_accepts_only_the_target_introspection_scrub() {
         output: &output,
         sdk_dependency: &dependency,
         authoring: Some(&module_authoring_input()),
+        engine_version: None,
     })
     .expect("the exact target module scrub must remain compatible");
     for (path, artifact) in plan.artifacts() {
@@ -337,6 +341,7 @@ fn module_visibility_accepts_only_the_target_introspection_scrub() {
         output: &output,
         sdk_dependency: &dependency,
         authoring: None,
+        engine_version: None,
     })
     .expect_err("client generation requires the complete client-visible core");
     assert!(
@@ -365,6 +370,7 @@ fn module_visibility_accepts_only_the_target_introspection_scrub() {
         output: &output,
         sdk_dependency: &dependency,
         authoring: Some(&module_authoring_input()),
+        engine_version: None,
     })
     .expect_err("an unrelated module-schema omission must remain incompatible");
     assert!(diagnostics.contains(DiagnosticCode::SchemaCoreCoordinateMissing));
@@ -415,6 +421,7 @@ fn operation_matrix_rejects_missing_and_forbidden_inputs_before_rendering() {
                 output: &output,
                 sdk_dependency: &dependency,
                 authoring,
+                engine_version: None,
             },
         )
         .expect_err("invalid operation matrix entry must fail");
@@ -452,6 +459,7 @@ impl FixtureRoot {
         output: &output,
         sdk_dependency: &dependency,
         authoring: Some(&authoring),
+        engine_version: None,
     })
     .expect_err("an unsupported exported type must fail authoring");
     let primary = &diagnostics.diagnostics()[0];

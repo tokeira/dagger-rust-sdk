@@ -571,7 +571,36 @@ func (sdk *RustSDK) generationRequest(
 		return nil, nil, fmt.Errorf("read visible schema: %w", err)
 	}
 	schemaBytes := []byte(contents)
-	return generationRequestDocument(descriptor, operation, module, schemaBytes, outputRoot), schemaBytes, nil
+	// The engine's stated release only selects the advice Rust gives when it refuses
+	// the visible schema, so a release that cannot be read or is not shaped like one
+	// is left out rather than failing generation.
+	engineRelease, err := dag.Version(ctx)
+	if err != nil || !admissibleEngineRelease(engineRelease) {
+		engineRelease = ""
+	}
+	return generationRequestDocument(descriptor, operation, module, schemaBytes, outputRoot, engineRelease), schemaBytes, nil
+}
+
+// maxEngineReleaseLength bounds the stated release Rust accepts in a request.
+const maxEngineReleaseLength = 128
+
+// admissibleEngineRelease reports whether a stated engine release has the shape
+// the Rust request model accepts: ASCII letters, digits, '.', '+' and '-'.
+func admissibleEngineRelease(release string) bool {
+	if release == "" || len(release) > maxEngineReleaseLength {
+		return false
+	}
+	for _, character := range []byte(release) {
+		switch {
+		case character >= 'a' && character <= 'z',
+			character >= 'A' && character <= 'Z',
+			character >= '0' && character <= '9',
+			character == '.', character == '+', character == '-':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // generationRequestDocument is deliberately data-only: Rust owns source discovery,
@@ -582,6 +611,7 @@ func generationRequestDocument(
 	module scopedModuleIdentity,
 	schemaBytes []byte,
 	outputRoot string,
+	engineRelease string,
 ) map[string]any {
 	moduleDocument := map[string]any{
 		"name":           module.Name,
@@ -593,20 +623,24 @@ func generationRequestDocument(
 	if module.ResolvedPin != "" {
 		moduleDocument["resolved_pin"] = module.ResolvedPin
 	}
+	request := map[string]any{
+		"format_version": 1,
+		"operation":      operation,
+		"target":         targetIdentity(descriptor),
+		"visible_schema": map[string]any{
+			"path":   "schema.json",
+			"digest": metadata.DigestBytes(schemaBytes),
+		},
+		"module":         moduleDocument,
+		"sdk_dependency": descriptor.SDKDependency,
+		"output_root":    outputRoot,
+	}
+	if engineRelease != "" {
+		request["engine_version"] = engineRelease
+	}
 	return map[string]any{
 		"request_kind": "generate",
-		"request": map[string]any{
-			"format_version": 1,
-			"operation":      operation,
-			"target":         targetIdentity(descriptor),
-			"visible_schema": map[string]any{
-				"path":   "schema.json",
-				"digest": metadata.DigestBytes(schemaBytes),
-			},
-			"module":         moduleDocument,
-			"sdk_dependency": descriptor.SDKDependency,
-			"output_root":    outputRoot,
-		},
+		"request":      request,
 	}
 }
 

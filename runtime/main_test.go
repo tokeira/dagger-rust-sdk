@@ -44,6 +44,7 @@ func TestGenerationRequestKeepsAuthoringSemanticsInRust(t *testing.T) {
 		},
 		[]byte(`{"__schema":{"types":[]}}`),
 		"workspace/module",
+		"",
 	)
 	body := request["request"].(map[string]any)
 	for _, forbidden := range []string{
@@ -89,9 +90,9 @@ func TestProperty19ModernLegacyGenerationSemanticallyConverge(t *testing.T) {
 			ConfigFormat:  "current", ResolvedPin: pin,
 		}
 		schema := []byte(fmt.Sprintf(`{"fixture":%d}`, seed))
-		modern := generationRequestDocument(descriptor, "generate-client", identity, schema, "workspace/client")
+		modern := generationRequestDocument(descriptor, "generate-client", identity, schema, "workspace/client", "")
 		identity.ConfigFormat = "legacy"
-		legacy := generationRequestDocument(descriptor, "generate-client", identity, schema, "workspace/client")
+		legacy := generationRequestDocument(descriptor, "generate-client", identity, schema, "workspace/client", "")
 		if reflect.DeepEqual(modern, legacy) {
 			t.Fatalf("adapter variants did not exercise their control-path distinction for seed %d", seed)
 		}
@@ -172,6 +173,53 @@ func TestNewModuleManifestQuotesEveryValue(t *testing.T) {
 		"  source = \"github.com/acme/sdk/\\\"rust\\\"\\\\runtime@" + strings.Repeat("a", 40) + "\\u0001\"\n"
 	if got != want {
 		t.Fatalf("moduleManifest rendered\n%s\nwant\n%s", got, want)
+	}
+}
+
+func TestGenerationRequestForwardsOnlyAnAdmissibleEngineRelease(t *testing.T) {
+	descriptor := metadata.EngineSource{
+		FormatVersion: 1, Repository: "https://github.com/dagger/dagger",
+		DaggerRevision: strings.Repeat("a", 40), EngineVersion: "1.0.0-beta.27",
+		RustSDKVersion: "1.0.0-beta.11.rust.5", RustToolchain: "1.99.1",
+		CoreSchemaDigest: "sha256:" + strings.Repeat("b", 64),
+		SDKDependency: metadata.PublishedSDKDependency{
+			Source: "registry", Registry: "crates-io", Package: "tokeira-dagger-sdk", ExactVersion: "1.0.0-beta.11.rust.5",
+		},
+	}
+	identity := scopedModuleIdentity{
+		Name: "fixture", OriginalName: "Fixture", SourceSubpath: "workspace/module",
+		SourceDigest: metadata.DigestModuleSource("fixture"), ConfigFormat: "current",
+	}
+	schema := []byte(`{"__schema":{"types":[]}}`)
+	stated := generationRequestDocument(descriptor, "generate-module", identity, schema, "workspace/module", "v1.0.0-beta.28+1a2b3c4d")
+	if got := stated["request"].(map[string]any)["engine_version"]; got != "v1.0.0-beta.28+1a2b3c4d" {
+		t.Fatalf("stated engine release was not forwarded: %#v", got)
+	}
+	unstated := generationRequestDocument(descriptor, "generate-module", identity, schema, "workspace/module", "")
+	if _, exists := unstated["request"].(map[string]any)["engine_version"]; exists {
+		t.Fatalf("an unstated engine release must be omitted from the request")
+	}
+
+	for _, test := range []struct {
+		release    string
+		admissible bool
+	}{
+		{"v1.0.0-beta.27+400b82d6", true},
+		{"v1.0.0-beta.28", true},
+		{"v1.0.0", true},
+		{"devel", true},
+		{strings.Repeat("a", maxEngineReleaseLength), true},
+		{"", false},
+		{strings.Repeat("a", maxEngineReleaseLength+1), false},
+		{"v1.0.0 beta", false},
+		{"v1.0.0\n", false},
+		{"v1.0.0_dirty", false},
+		{"v1.0.0-<beta>", false},
+		{"v1.0.0-bêta", false},
+	} {
+		if got := admissibleEngineRelease(test.release); got != test.admissible {
+			t.Fatalf("admissibleEngineRelease(%q) = %v, want %v", test.release, got, test.admissible)
+		}
 	}
 }
 

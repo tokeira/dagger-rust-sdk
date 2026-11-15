@@ -182,6 +182,7 @@ pub fn project_operation_with<R: OperationRenderer>(
         request.target,
         request.operation,
         request.visible_schema_json,
+        request.engine_version,
     )?;
     dispatch_prepared_operation(
         renderer,

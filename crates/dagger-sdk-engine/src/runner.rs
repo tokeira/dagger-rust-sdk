@@ -26,10 +26,11 @@ use crate::publication::{OperationCandidate, publish, verify_ownership};
 use crate::root::validate_path_sets;
 use crate::{
     AmendmentRecord, ArtifactKind, ArtifactOwnership, ArtifactRecord, CandidateArtifact,
-    ClientManifestRecord, ClientNamespaceRecord, EngineSourceDescriptor, ExactVersion,
-    ExecutionResult, ExecutionResultKind, FormatVersion, GenerationMode, GeneratorIdentity,
-    ModuleConfigFormat, OperationManifest, OperationRequest, OperationRoot, PostWorkPlan,
-    PostWorkRecord, PublishedSdkDependency, RelativeOperationPath, Sha256Digest, StableCoordinate,
+    ClientManifestRecord, ClientNamespaceRecord, EngineRelease, EngineSourceDescriptor,
+    ExactVersion, ExecutionResult, ExecutionResultKind, FormatVersion, GenerationMode,
+    GeneratorIdentity, ModuleConfigFormat, OperationManifest, OperationRequest, OperationRoot,
+    PostWorkPlan, PostWorkRecord, PublishedSdkDependency, RelativeOperationPath, Sha256Digest,
+    StableCoordinate,
 };
 
 const TARGET_DESCRIPTOR: &[u8] = include_bytes!("../../../codegen/target.json");
@@ -154,6 +155,7 @@ pub async fn execute_operation_with_post_work<P: OperationPostWork>(
         output: &output,
         sdk_dependency: &dependency,
         authoring: authoring.as_ref(),
+        engine_version: request.engine_version.as_ref().map(EngineRelease::as_str),
     };
     let projected = if let Some(identity) = &client_identity {
         compiler::project_operation_with(
@@ -175,6 +177,12 @@ pub async fn execute_operation_with_post_work<P: OperationPostWork>(
         compiler::project_operation(projection_request)
     }
     .map_err(compiler_diagnostic)?;
+    let consumed_schema_digest: Sha256Digest = projected
+        .schema()
+        .digest()
+        .as_str()
+        .parse()
+        .map_err(|_| generation_failed())?;
     let mut vcs_generated = projected
         .vcs_generated()
         .iter()
@@ -392,8 +400,8 @@ pub async fn execute_operation_with_post_work<P: OperationPostWork>(
             GenerationMode::CheckedGenerated
         },
         target: request.target.clone(),
-        input_digest: manifest_input_digest(request)?,
-        visible_schema_digest: request.visible_schema.digest.clone(),
+        input_digest: manifest_input_digest(request, &consumed_schema_digest)?,
+        visible_schema_digest: consumed_schema_digest,
         module_source_digest: request
             .module
             .as_ref()
@@ -445,27 +453,33 @@ pub async fn execute_operation_with_post_work<P: OperationPostWork>(
     })
 }
 
-/// The request digest an operation manifest records. A module's resolved pin names
-/// the commit the engine loaded its source from, so it is set for a workspace loaded
-/// from a Git reference and absent for a checkout of the same commit, while the
-/// module's source digest already binds what generation read. Only client
-/// generation keeps the pin: a standalone client is bound to the remote module
-/// revision it was generated for.
-fn manifest_input_digest(request: &OperationRequest) -> Result<Sha256Digest, EngineDiagnostic> {
-    let pinned = request
-        .module
-        .as_ref()
-        .is_some_and(|module| module.resolved_pin.is_some());
-    let digest = if pinned && request.operation != compiler::OperationKind::GenerateClient {
-        let mut unpinned = request.clone();
-        if let Some(module) = unpinned.module.as_mut() {
-            module.resolved_pin = None;
-        }
-        canonical_digest(DigestDomain::OperationRequest, &unpinned)
-    } else {
-        canonical_digest(DigestDomain::OperationRequest, request)
-    };
-    digest.map_err(|_| generation_failed())
+/// The request digest an operation manifest records, taken over what generation
+/// consumed rather than over what the engine sent.
+///
+/// The schema is identified by the consumed schema's semantic identity, not by the
+/// engine's schema bytes: a later engine that serves the same reviewed core contract
+/// with reworded documentation or unconsumed additions yields the same digest, so
+/// regenerating on it leaves the manifest unchanged. The engine's stated release only
+/// selects diagnostic advice and is left out.
+///
+/// A module's resolved pin names the commit the engine loaded its source from, so it
+/// is set for a workspace loaded from a Git reference and absent for a checkout of the
+/// same commit, while the module's source digest already binds what generation read.
+/// Only client generation keeps the pin: a standalone client is bound to the remote
+/// module revision it was generated for.
+fn manifest_input_digest(
+    request: &OperationRequest,
+    consumed_schema_digest: &Sha256Digest,
+) -> Result<Sha256Digest, EngineDiagnostic> {
+    let mut consumed = request.clone();
+    consumed.visible_schema.digest = consumed_schema_digest.clone();
+    consumed.engine_version = None;
+    if consumed.operation != compiler::OperationKind::GenerateClient
+        && let Some(module) = consumed.module.as_mut()
+    {
+        module.resolved_pin = None;
+    }
+    canonical_digest(DigestDomain::OperationRequest, &consumed).map_err(|_| generation_failed())
 }
 
 fn client_manifest_record(
@@ -512,6 +526,17 @@ fn client_manifest_record(
     })
 }
 
+/// The input digest a standalone-client hook baseline recorded. Those baselines
+/// predate both the consumed-schema identity and the engine's stated release, so the
+/// digest is taken over the request as the engine sent it, without the release.
+fn hook_baseline_input_digest(
+    request: &OperationRequest,
+) -> Result<Sha256Digest, EngineDiagnostic> {
+    let mut baseline = request.clone();
+    baseline.engine_version = None;
+    canonical_digest(DigestDomain::OperationRequest, &baseline).map_err(|_| generation_failed())
+}
+
 fn authenticate_hook_baseline(
     previous: &OperationManifest,
     root: &OperationRoot,
@@ -528,9 +553,7 @@ fn authenticate_hook_baseline(
                 .map(|module| module.source_digest.clone())
         || previous.sdk_dependency != request.sdk_dependency
         || previous.output_root != request.output_root
-        || previous.input_digest
-            != canonical_digest(DigestDomain::OperationRequest, request)
-                .map_err(|_| generation_failed())?
+        || previous.input_digest != hook_baseline_input_digest(request)?
         || !previous.amendments.is_empty()
     {
         return Err(stale_baseline("operation-manifest"));
@@ -1078,6 +1101,7 @@ mod tests {
             module: Some(module.clone()),
             sdk_dependency: dependency.clone(),
             output_root: client.clone(),
+            engine_version: None,
         };
         let cargo = format!(
             "[package]\nname = \"dagger-rust-client\"\nversion = \"0.0.0\"\npublish = false\nedition = \"2024\"\nrust-version = \"1.99.1\"\n\n[package.metadata.dagger]\ncontent-domain = \"engine-hook-baseline\"\nvisible-schema-digest = \"{}\"\nmodule-source-digest = \"{}\"\n\n[dependencies]\ndagger-sdk = {{ package = \"tokeira-dagger-sdk\", version = \"=1.0.0-beta.11.rust.5\" }}\n",

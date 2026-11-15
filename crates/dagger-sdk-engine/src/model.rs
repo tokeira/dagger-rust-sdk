@@ -13,8 +13,8 @@ use dagger_codegen::client::{CargoPackageName, RustIdentifier};
 pub use dagger_codegen::engine::OperationKind;
 
 use crate::scalar::{
-    CanonicalRegistry, CanonicalRepositoryUrl, ExactRustToolchain, ExactVersion, FormatVersion,
-    FullRevision, RelativeOperationPath, RustTarget, SdkPackageName, Sha256Digest,
+    CanonicalRegistry, CanonicalRepositoryUrl, EngineRelease, ExactRustToolchain, ExactVersion,
+    FormatVersion, FullRevision, RelativeOperationPath, RustTarget, SdkPackageName, Sha256Digest,
     StableCoordinate,
 };
 
@@ -180,6 +180,10 @@ pub struct OperationRequest {
     pub sdk_dependency: PublishedSdkDependency,
     /// Engine-selected output subtree.
     pub output_root: RelativeOperationPath,
+    /// Release the engine states for itself. It only selects the advice given when the
+    /// visible schema is refused, so it takes no part in the manifest's input digest.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub engine_version: Option<EngineRelease>,
 }
 
 /// Complete semantic input to Rust-owned project initialization.
@@ -575,9 +579,10 @@ pub struct OperationManifest {
     pub mode: GenerationMode,
     /// Exact target identity.
     pub target: TargetIdentity,
-    /// Digest of the semantic operation request.
+    /// Digest of the semantic operation request, taken over the consumed schema's
+    /// identity rather than the engine's schema bytes.
     pub input_digest: Sha256Digest,
-    /// Digest of the complete visible schema.
+    /// Semantic identity of the visible schema definitions the operation consumed.
     pub visible_schema_digest: Sha256Digest,
     /// Digest of selected module source when applicable.
     pub module_source_digest: Option<Sha256Digest>,

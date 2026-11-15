@@ -1,10 +1,17 @@
 //! Manifest-backed compatibility for engine-visible schemas.
 //!
-//! The checked core schema is reduced to coordinate-level semantic fingerprints.
-//! Visible schemas may add operation-scoped coordinates. Module operations may also
-//! omit only the target's reviewed introspection scrub closure; every other core
-//! coordinate must remain present and byte-independent semantic equality must hold.
-//! No name prefix is trusted as an ownership boundary.
+//! The checked core schema is reduced to coordinate-level wire-contract fingerprints:
+//! what a client sends and what it receives, without descriptions, deprecation notes or
+//! other documentation. Visible schemas may add operation-scoped coordinates, and a
+//! later engine serving the target's API view may reword documentation. Every reviewed
+//! core coordinate must stay present and keep its wire contract; module operations may
+//! omit only the target's reviewed introspection scrub closure. An addition that would
+//! change a reviewed core call, such as a new value on a core enum or a new required
+//! argument, is refused. No name prefix is trusted as an ownership boundary.
+//!
+//! Generation then consumes the reviewed core definitions themselves, so documentation
+//! drift and harmless engine additions neither reach rendered bindings nor change the
+//! consumed schema's identity.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -14,9 +21,23 @@ use crate::diagnostic::{Diagnostic, DiagnosticCode, DiagnosticCoordinate, Diagno
 use crate::projection::catalog::SemanticDigest;
 
 use super::canonical::{
-    CanonicalSchema, DirectiveDefinition, EnumDefinition, InputObjectDefinition,
-    InterfaceDefinition, ObjectDefinition, SchemaCoordinate, TypeDefinition,
+    ArgumentDefinition, CanonicalSchema, DirectiveApplication, DirectiveDefinition, EnumDefinition,
+    FieldDefinition, InputObjectDefinition, InterfaceDefinition, ObjectDefinition,
+    SchemaCoordinate, SchemaName, TypeDefinition, TypeShape, TypeUse,
 };
+use super::defaults::ConstValue;
+
+/// Directive applications that document a coordinate, classify it for engine workflows,
+/// or are satisfied by construction in generated handles. None of them changes what a
+/// client sends or receives, so they take no part in the wire contract.
+const DOCUMENTATION_DIRECTIVES: &[&str] = &[
+    "check",
+    "deprecated",
+    "experimental",
+    "generate",
+    "reevaluate",
+    "sourceMap",
+];
 
 /// Validation policy selected before canonical schema projection.
 #[derive(Clone, Copy, Debug)]
@@ -32,15 +53,17 @@ pub enum SchemaCompatibilityMode<'a> {
 pub struct CoreCoordinateManifest {
     coordinates: BTreeMap<SchemaCoordinate, SemanticDigest>,
     permitted_omissions: BTreeSet<SchemaCoordinate>,
+    types: BTreeSet<SchemaName>,
 }
 
 impl CoreCoordinateManifest {
     /// Derives the manifest from a schema that already passed exact-target validation.
     pub fn from_checked_schema(schema: &CanonicalSchema) -> Result<Self, DiagnosticSet> {
-        let coordinates = coordinate_fingerprints(schema)?;
+        let coordinates = coordinate_fingerprints(schema, None)?;
         Ok(Self {
             coordinates,
             permitted_omissions: BTreeSet::new(),
+            types: schema.types().keys().cloned().collect(),
         })
     }
 
@@ -51,11 +74,12 @@ impl CoreCoordinateManifest {
         hidden_types: &[&str],
         hidden_fields: &[&str],
     ) -> Result<Self, DiagnosticSet> {
-        let coordinates = coordinate_fingerprints(schema)?;
+        let coordinates = coordinate_fingerprints(schema, None)?;
         let permitted_omissions = scrubbed_coordinates(schema, hidden_types, hidden_fields);
         Ok(Self {
             coordinates,
             permitted_omissions,
+            types: schema.types().keys().cloned().collect(),
         })
     }
 
@@ -77,7 +101,7 @@ impl CoreCoordinateManifest {
     }
 
     pub(super) fn verify(&self, schema: &CanonicalSchema) -> Result<(), DiagnosticSet> {
-        let actual = coordinate_fingerprints(schema)?;
+        let actual = coordinate_fingerprints(schema, Some(&self.types))?;
         let mut diagnostics = Vec::new();
         for (coordinate, expected) in &self.coordinates {
             match actual.get(coordinate) {
@@ -90,16 +114,255 @@ impl CoreCoordinateManifest {
                 Some(candidate) if candidate != expected => diagnostics.push(Diagnostic::new(
                     DiagnosticCode::SchemaCoreCoordinateIncompatible,
                     Some(DiagnosticCoordinate::new(coordinate.as_str())),
-                    "visible schema redefines a reviewed core coordinate",
+                    "visible schema changes the wire contract of a reviewed core coordinate",
                 )),
                 Some(_) => {}
             }
         }
+        self.refuse_breaking_additions(schema, &mut diagnostics);
         match DiagnosticSet::new(diagnostics) {
             Some(diagnostics) => Err(diagnostics),
             None => Ok(()),
         }
     }
+
+    /// Refuses additions to reviewed core definitions that change a reviewed call: the
+    /// precompiled bindings decode core enums exhaustively and never send an argument
+    /// or input field they do not know.
+    fn refuse_breaking_additions(
+        &self,
+        schema: &CanonicalSchema,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        for definition in schema.types().values() {
+            if !self.contains(&SchemaCoordinate::named_type(definition.name())) {
+                continue;
+            }
+            match definition {
+                TypeDefinition::Scalar(_) => {}
+                TypeDefinition::Object(definition) => {
+                    self.refuse_required_arguments(&definition.fields, diagnostics);
+                }
+                TypeDefinition::Interface(definition) => {
+                    self.refuse_required_arguments(&definition.fields, diagnostics);
+                }
+                TypeDefinition::Enum(definition) => {
+                    for value in definition.values.values() {
+                        if !self.contains(&value.coordinate) {
+                            diagnostics.push(addition(
+                                &value.coordinate,
+                                "visible schema adds a value to a reviewed core enum",
+                            ));
+                        }
+                    }
+                }
+                TypeDefinition::InputObject(definition) => {
+                    for field in definition.fields.values() {
+                        if !self.contains(&field.coordinate)
+                            && is_required(&field.type_use, field.default.as_ref())
+                        {
+                            diagnostics.push(addition(
+                                &field.coordinate,
+                                "visible schema adds a required field to a reviewed core input object",
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn refuse_required_arguments(
+        &self,
+        fields: &BTreeMap<SchemaName, FieldDefinition>,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        for field in fields
+            .values()
+            .filter(|field| self.contains(&field.coordinate))
+        {
+            for argument in field.arguments.values() {
+                if !self.contains(&argument.coordinate)
+                    && is_required(&argument.type_use, argument.default.as_ref())
+                {
+                    diagnostics.push(addition(
+                        &argument.coordinate,
+                        "visible schema adds a required argument to a reviewed core field",
+                    ));
+                }
+            }
+        }
+    }
+
+    /// Rebuilds a verified visible schema from the reviewed core definitions.
+    ///
+    /// Reviewed core coordinates take their checked definitions, documentation
+    /// included, so documentation drift reaches neither bindings nor the consumed
+    /// schema's identity. Coordinates an operation adds, such as a module's types and
+    /// its constructor on `Query`, are kept as the engine states them. A field a later
+    /// engine adds to a core type, with no operation-scoped type in its signature, and
+    /// an optional argument or input field it adds to a core definition, are not
+    /// consumed: the precompiled bindings never select or send them.
+    pub(crate) fn consumed_schema(
+        &self,
+        reviewed: &CanonicalSchema,
+        visible: &CanonicalSchema,
+    ) -> CanonicalSchema {
+        let types = visible
+            .types()
+            .iter()
+            .map(|(name, definition)| {
+                let consumed = reviewed
+                    .types()
+                    .get(name)
+                    .filter(|reviewed| {
+                        self.contains(&SchemaCoordinate::named_type(reviewed.name()))
+                    })
+                    .map_or_else(
+                        || definition.clone(),
+                        |reviewed| self.consumed_type(reviewed, definition),
+                    );
+                (name.clone(), consumed)
+            })
+            .collect::<BTreeMap<_, _>>();
+        let directives = visible
+            .directives()
+            .iter()
+            .map(|(name, definition)| {
+                let consumed = reviewed
+                    .directives()
+                    .get(name)
+                    .filter(|reviewed| self.contains(&reviewed.coordinate))
+                    .unwrap_or(definition)
+                    .clone();
+                (name.clone(), consumed)
+            })
+            .collect::<BTreeMap<_, _>>();
+        let inventory = super::validate::inventory(&types, &directives, true);
+        CanonicalSchema::new(
+            visible.target().clone(),
+            visible.query().clone(),
+            types,
+            directives,
+            inventory,
+        )
+    }
+
+    fn consumed_type(&self, reviewed: &TypeDefinition, visible: &TypeDefinition) -> TypeDefinition {
+        match (reviewed, visible) {
+            (TypeDefinition::Scalar(reviewed), TypeDefinition::Scalar(_)) => {
+                TypeDefinition::Scalar(reviewed.clone())
+            }
+            // An object's interface set and an interface's possible types keep the
+            // operation's own types beside the verified core ones.
+            (TypeDefinition::Object(reviewed), TypeDefinition::Object(visible)) => {
+                TypeDefinition::Object(ObjectDefinition {
+                    name: reviewed.name.clone(),
+                    coordinate: reviewed.coordinate.clone(),
+                    description: reviewed.description.clone(),
+                    fields: self.consumed_fields(&reviewed.fields, &visible.fields),
+                    interfaces: visible.interfaces.clone(),
+                    directives: reviewed.directives.clone(),
+                })
+            }
+            (TypeDefinition::Interface(reviewed), TypeDefinition::Interface(visible)) => {
+                TypeDefinition::Interface(InterfaceDefinition {
+                    name: reviewed.name.clone(),
+                    coordinate: reviewed.coordinate.clone(),
+                    description: reviewed.description.clone(),
+                    fields: self.consumed_fields(&reviewed.fields, &visible.fields),
+                    interfaces: visible.interfaces.clone(),
+                    possible_types: visible.possible_types.clone(),
+                    directives: reviewed.directives.clone(),
+                })
+            }
+            (TypeDefinition::Enum(reviewed), TypeDefinition::Enum(visible)) => {
+                TypeDefinition::Enum(EnumDefinition {
+                    name: reviewed.name.clone(),
+                    coordinate: reviewed.coordinate.clone(),
+                    description: reviewed.description.clone(),
+                    values: present(&reviewed.values, &visible.values),
+                    directives: reviewed.directives.clone(),
+                })
+            }
+            (TypeDefinition::InputObject(reviewed), TypeDefinition::InputObject(visible)) => {
+                TypeDefinition::InputObject(InputObjectDefinition {
+                    name: reviewed.name.clone(),
+                    coordinate: reviewed.coordinate.clone(),
+                    description: reviewed.description.clone(),
+                    fields: present(&reviewed.fields, &visible.fields),
+                    directives: reviewed.directives.clone(),
+                })
+            }
+            // Verification refuses a changed definition kind at the type coordinate.
+            _ => visible.clone(),
+        }
+    }
+
+    fn consumed_fields(
+        &self,
+        reviewed: &BTreeMap<SchemaName, FieldDefinition>,
+        visible: &BTreeMap<SchemaName, FieldDefinition>,
+    ) -> BTreeMap<SchemaName, FieldDefinition> {
+        visible
+            .iter()
+            .filter_map(|(name, field)| {
+                match reviewed
+                    .get(name)
+                    .filter(|reviewed| self.contains(&reviewed.coordinate))
+                {
+                    Some(reviewed) => Some((
+                        name.clone(),
+                        FieldDefinition {
+                            arguments: present(&reviewed.arguments, &field.arguments),
+                            ..reviewed.clone()
+                        },
+                    )),
+                    None if self.names_only_reviewed_types(field) => None,
+                    None => Some((name.clone(), field.clone())),
+                }
+            })
+            .collect()
+    }
+
+    fn names_only_reviewed_types(&self, field: &FieldDefinition) -> bool {
+        self.types.contains(leaf_type(&field.type_use))
+            && field
+                .arguments
+                .values()
+                .all(|argument| self.types.contains(leaf_type(&argument.type_use)))
+    }
+}
+
+/// Keeps the reviewed members the visible definition still has.
+fn present<T: Clone>(
+    reviewed: &BTreeMap<SchemaName, T>,
+    visible: &BTreeMap<SchemaName, T>,
+) -> BTreeMap<SchemaName, T> {
+    reviewed
+        .iter()
+        .filter(|(name, _)| visible.contains_key(*name))
+        .map(|(name, member)| (name.clone(), member.clone()))
+        .collect()
+}
+
+fn leaf_type(type_use: &TypeUse) -> &SchemaName {
+    match &type_use.shape {
+        TypeShape::Named(name) => name,
+        TypeShape::List(element) => leaf_type(element),
+    }
+}
+
+fn is_required(type_use: &TypeUse, default: Option<&ConstValue>) -> bool {
+    !type_use.nullable && default.is_none()
+}
+
+fn addition(coordinate: &SchemaCoordinate, message: &str) -> Diagnostic {
+    Diagnostic::new(
+        DiagnosticCode::SchemaCoreCoordinateIncompatible,
+        Some(DiagnosticCoordinate::new(coordinate.as_str())),
+        message,
+    )
 }
 
 fn scrubbed_coordinates(
@@ -298,29 +561,78 @@ fn add_field_coordinates(
     }
 }
 
+/// The wire contract of one coordinate: names, types, defaults and the directive
+/// applications that change what a client sends or receives.
 #[derive(Serialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
-enum TypeSemantics<'a> {
-    Scalar(&'a super::canonical::ScalarDefinition),
+enum WireContract<'a> {
+    Scalar {
+        name: &'a SchemaName,
+        directives: Vec<&'a DirectiveApplication>,
+    },
     Object {
-        name: &'a super::canonical::SchemaName,
-        description: &'a Option<String>,
-        interfaces: &'a BTreeSet<super::canonical::SchemaName>,
-        directives: &'a [super::canonical::DirectiveApplication],
+        name: &'a SchemaName,
+        interfaces: BTreeSet<&'a SchemaName>,
+        directives: Vec<&'a DirectiveApplication>,
     },
     Interface {
-        name: &'a super::canonical::SchemaName,
-        description: &'a Option<String>,
-        interfaces: &'a BTreeSet<super::canonical::SchemaName>,
-        possible_types: &'a BTreeSet<super::canonical::SchemaName>,
-        directives: &'a [super::canonical::DirectiveApplication],
+        name: &'a SchemaName,
+        interfaces: BTreeSet<&'a SchemaName>,
+        possible_types: BTreeSet<&'a SchemaName>,
+        directives: Vec<&'a DirectiveApplication>,
     },
-    Enum(&'a EnumDefinition),
-    InputObject(&'a InputObjectDefinition),
+    Enum {
+        name: &'a SchemaName,
+        directives: Vec<&'a DirectiveApplication>,
+    },
+    InputObject {
+        name: &'a SchemaName,
+        directives: Vec<&'a DirectiveApplication>,
+    },
+    Field {
+        name: &'a SchemaName,
+        type_use: &'a TypeUse,
+        directives: Vec<&'a DirectiveApplication>,
+    },
+    Argument {
+        name: &'a SchemaName,
+        type_use: &'a TypeUse,
+        default: Option<&'a ConstValue>,
+        directives: Vec<&'a DirectiveApplication>,
+    },
+    EnumValue {
+        name: &'a SchemaName,
+        directives: Vec<&'a DirectiveApplication>,
+    },
+    Directive {
+        name: &'a SchemaName,
+        locations: &'a BTreeSet<String>,
+    },
+}
+
+fn wire_directives(directives: &[DirectiveApplication]) -> Vec<&DirectiveApplication> {
+    directives
+        .iter()
+        .filter(|directive| !DOCUMENTATION_DIRECTIVES.contains(&directive.name.as_str()))
+        .collect()
+}
+
+/// Restricts a set of type names to the reviewed core types, when a scope is given. An
+/// operation's own types may implement a core interface, and a core object may
+/// structurally satisfy an operation's interface; neither changes a core contract.
+fn scoped<'a>(
+    names: &'a BTreeSet<SchemaName>,
+    reviewed: Option<&BTreeSet<SchemaName>>,
+) -> BTreeSet<&'a SchemaName> {
+    names
+        .iter()
+        .filter(|name| reviewed.is_none_or(|reviewed| reviewed.contains(*name)))
+        .collect()
 }
 
 fn coordinate_fingerprints(
     schema: &CanonicalSchema,
+    reviewed: Option<&BTreeSet<SchemaName>>,
 ) -> Result<BTreeMap<SchemaCoordinate, SemanticDigest>, DiagnosticSet> {
     let mut coordinates = BTreeMap::new();
     insert_fingerprint(
@@ -330,25 +642,79 @@ fn coordinate_fingerprints(
     )?;
     for definition in schema.types().values() {
         match definition {
-            TypeDefinition::Scalar(definition) => {
-                insert_type(&mut coordinates, TypeSemantics::Scalar(definition))?;
-            }
+            TypeDefinition::Scalar(definition) => insert_fingerprint(
+                &mut coordinates,
+                definition.coordinate.clone(),
+                &WireContract::Scalar {
+                    name: &definition.name,
+                    directives: wire_directives(&definition.directives),
+                },
+            )?,
             TypeDefinition::Object(definition) => {
-                insert_object(&mut coordinates, definition)?;
+                insert_fingerprint(
+                    &mut coordinates,
+                    definition.coordinate.clone(),
+                    &WireContract::Object {
+                        name: &definition.name,
+                        interfaces: scoped(&definition.interfaces, reviewed),
+                        directives: wire_directives(&definition.directives),
+                    },
+                )?;
+                insert_fields(&mut coordinates, &definition.fields)?;
             }
             TypeDefinition::Interface(definition) => {
-                insert_interface(&mut coordinates, definition)?;
+                insert_fingerprint(
+                    &mut coordinates,
+                    definition.coordinate.clone(),
+                    &WireContract::Interface {
+                        name: &definition.name,
+                        interfaces: scoped(&definition.interfaces, reviewed),
+                        possible_types: scoped(&definition.possible_types, reviewed),
+                        directives: wire_directives(&definition.directives),
+                    },
+                )?;
+                insert_fields(&mut coordinates, &definition.fields)?;
             }
             TypeDefinition::Enum(definition) => {
-                insert_type(&mut coordinates, TypeSemantics::Enum(definition))?;
+                insert_fingerprint(
+                    &mut coordinates,
+                    definition.coordinate.clone(),
+                    &WireContract::Enum {
+                        name: &definition.name,
+                        directives: wire_directives(&definition.directives),
+                    },
+                )?;
                 for value in definition.values.values() {
-                    insert_fingerprint(&mut coordinates, value.coordinate.clone(), value)?;
+                    insert_fingerprint(
+                        &mut coordinates,
+                        value.coordinate.clone(),
+                        &WireContract::EnumValue {
+                            name: &value.name,
+                            directives: wire_directives(&value.directives),
+                        },
+                    )?;
                 }
             }
             TypeDefinition::InputObject(definition) => {
-                insert_type(&mut coordinates, TypeSemantics::InputObject(definition))?;
+                insert_fingerprint(
+                    &mut coordinates,
+                    definition.coordinate.clone(),
+                    &WireContract::InputObject {
+                        name: &definition.name,
+                        directives: wire_directives(&definition.directives),
+                    },
+                )?;
                 for field in definition.fields.values() {
-                    insert_fingerprint(&mut coordinates, field.coordinate.clone(), field)?;
+                    insert_fingerprint(
+                        &mut coordinates,
+                        field.coordinate.clone(),
+                        &WireContract::Argument {
+                            name: &field.name,
+                            type_use: &field.type_use,
+                            default: field.default.as_ref(),
+                            directives: wire_directives(&field.directives),
+                        },
+                    )?;
                 }
             }
         }
@@ -359,61 +725,40 @@ fn coordinate_fingerprints(
     Ok(coordinates)
 }
 
-fn insert_object(
-    coordinates: &mut BTreeMap<SchemaCoordinate, SemanticDigest>,
-    definition: &ObjectDefinition,
-) -> Result<(), DiagnosticSet> {
-    insert_type(
-        coordinates,
-        TypeSemantics::Object {
-            name: &definition.name,
-            description: &definition.description,
-            interfaces: &definition.interfaces,
-            directives: &definition.directives,
-        },
-    )?;
-    insert_fields(coordinates, &definition.fields)
-}
-
-fn insert_interface(
-    coordinates: &mut BTreeMap<SchemaCoordinate, SemanticDigest>,
-    definition: &InterfaceDefinition,
-) -> Result<(), DiagnosticSet> {
-    insert_type(
-        coordinates,
-        TypeSemantics::Interface {
-            name: &definition.name,
-            description: &definition.description,
-            interfaces: &definition.interfaces,
-            possible_types: &definition.possible_types,
-            directives: &definition.directives,
-        },
-    )?;
-    insert_fields(coordinates, &definition.fields)
-}
-
-fn insert_type(
-    coordinates: &mut BTreeMap<SchemaCoordinate, SemanticDigest>,
-    semantics: TypeSemantics<'_>,
-) -> Result<(), DiagnosticSet> {
-    let name = match &semantics {
-        TypeSemantics::Scalar(definition) => &definition.name,
-        TypeSemantics::Object { name, .. } | TypeSemantics::Interface { name, .. } => name,
-        TypeSemantics::Enum(definition) => &definition.name,
-        TypeSemantics::InputObject(definition) => &definition.name,
-    };
-    insert_fingerprint(coordinates, SchemaCoordinate::named_type(name), &semantics)
-}
-
 fn insert_fields(
     coordinates: &mut BTreeMap<SchemaCoordinate, SemanticDigest>,
-    fields: &BTreeMap<super::canonical::SchemaName, super::canonical::FieldDefinition>,
+    fields: &BTreeMap<SchemaName, FieldDefinition>,
 ) -> Result<(), DiagnosticSet> {
     for field in fields.values() {
-        insert_fingerprint(coordinates, field.coordinate.clone(), field)?;
-        for argument in field.arguments.values() {
-            insert_fingerprint(coordinates, argument.coordinate.clone(), argument)?;
-        }
+        insert_fingerprint(
+            coordinates,
+            field.coordinate.clone(),
+            &WireContract::Field {
+                name: &field.name,
+                type_use: &field.type_use,
+                directives: wire_directives(&field.directives),
+            },
+        )?;
+        insert_arguments(coordinates, &field.arguments)?;
+    }
+    Ok(())
+}
+
+fn insert_arguments(
+    coordinates: &mut BTreeMap<SchemaCoordinate, SemanticDigest>,
+    arguments: &BTreeMap<SchemaName, ArgumentDefinition>,
+) -> Result<(), DiagnosticSet> {
+    for argument in arguments.values() {
+        insert_fingerprint(
+            coordinates,
+            argument.coordinate.clone(),
+            &WireContract::Argument {
+                name: &argument.name,
+                type_use: &argument.type_use,
+                default: argument.default.as_ref(),
+                directives: wire_directives(&argument.directives),
+            },
+        )?;
     }
     Ok(())
 }
@@ -422,11 +767,15 @@ fn insert_directive(
     coordinates: &mut BTreeMap<SchemaCoordinate, SemanticDigest>,
     definition: &DirectiveDefinition,
 ) -> Result<(), DiagnosticSet> {
-    insert_fingerprint(coordinates, definition.coordinate.clone(), definition)?;
-    for argument in definition.arguments.values() {
-        insert_fingerprint(coordinates, argument.coordinate.clone(), argument)?;
-    }
-    Ok(())
+    insert_fingerprint(
+        coordinates,
+        definition.coordinate.clone(),
+        &WireContract::Directive {
+            name: &definition.name,
+            locations: &definition.locations,
+        },
+    )?;
+    insert_arguments(coordinates, &definition.arguments)
 }
 
 fn insert_fingerprint<T: Serialize>(

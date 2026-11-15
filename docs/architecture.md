@@ -64,7 +64,7 @@ sinks remain call-local.
 
 Generated module assets carry target, descriptor, input-domain, and ownership digests.
 Checked mode compares them directly. A scoped refresh is authorized only by a changed
-authoring, visible-schema, target, or generator identity, and manifest-authorized
+authoring, consumed-schema, target, or generator identity, and manifest-authorized
 publication never adopts unknown user content.
 
 ## Connection pipeline

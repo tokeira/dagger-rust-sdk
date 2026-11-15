@@ -359,6 +359,7 @@ fn request(schema: &[u8], output: &str, seed: u16, remote: bool) -> OperationReq
         }),
         sdk_dependency: dependency(),
         output_root: RelativeOperationPath::parse(output).unwrap(),
+        engine_version: None,
     }
 }
 
