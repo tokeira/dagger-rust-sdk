@@ -59,7 +59,7 @@ fn compile_authoring(
         .filter(|name| name.as_str() != "Query")
         .map(|name| WireName::new(name.as_str()).map_err(|_| failure()))
         .collect::<Result<BTreeSet<_>, _>>()?;
-    let checked_bindings = checked_binding_assets(schema)?;
+    let checked_bindings = checked_binding_assets(schema, &authoring.sdk_dependency_alias)?;
 
     ModuleCompiler::compile(ModuleCompilationRequest {
         target: &module_target,
@@ -186,9 +186,10 @@ fn generated_type_registry(
 
 fn checked_binding_assets(
     schema: &super::visible::VisibleSchemaPlan,
+    alias: &str,
 ) -> Result<BTreeMap<GeneratedAssetPath, Vec<u8>>, DiagnosticSet> {
     let root = RelativeOperationPath::parse("src/dagger_generated")?;
-    visible_binding_artifacts(schema, &root)?
+    visible_binding_artifacts(schema, &root, alias)?
         .into_iter()
         .filter(|(path, artifact)| {
             artifact.kind == CandidateArtifactKind::RustSource

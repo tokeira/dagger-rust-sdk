@@ -14,14 +14,23 @@ use super::model::{
 };
 use super::visible::VisibleSchemaPlan;
 
+/// The SDK's library name, under which a project that does not rename its SDK
+/// dependency reaches the SDK.
+pub(crate) const SDK_LIBRARY: &str = "dagger_sdk";
+
+/// Renders the bindings of every operation-scoped type. `sdk` is the name under which
+/// the project that compiles them reaches the SDK: a module may key its SDK dependency
+/// under any name, and the bindings must name the SDK as the rest of its generated code
+/// does.
 pub(crate) fn visible_binding_artifacts(
     plan: &VisibleSchemaPlan,
     root: &RelativeOperationPath,
+    sdk: &str,
 ) -> Result<BTreeMap<RelativeOperationPath, CandidateArtifact>, DiagnosticSet> {
     let mut artifacts = BTreeMap::new();
     let mut modules = Vec::new();
     for projection in plan.projection().named_types().values() {
-        let Some((wire_name, module_name, source)) = render_extension_type(plan, projection)?
+        let Some((wire_name, module_name, source)) = render_extension_type(plan, projection, sdk)?
         else {
             continue;
         };
@@ -41,7 +50,7 @@ pub(crate) fn visible_binding_artifacts(
         plan,
         "Operation-scoped visible-schema bindings over the public Dagger SDK.",
     )?;
-    index.push_str("pub use dagger_sdk::*;\n");
+    index.push_str(&format!("pub use {sdk}::*;\n"));
     for (module, file, _) in &modules {
         index.push_str(&format!(
             "#[path = {file:?}]\nmod {module};\npub use {module}::*;\n"
@@ -125,17 +134,18 @@ pub(crate) fn generated_header(
 fn render_extension_type(
     plan: &VisibleSchemaPlan,
     projection: &TypeProjection,
+    sdk: &str,
 ) -> Result<Option<(String, String, Vec<u8>)>, DiagnosticSet> {
     let (wire_name, module_name, body) = match projection {
         TypeProjection::Object(object) if plan.is_extension_type(&object.wire_name) => (
             object.wire_name.to_string(),
             object.module_name.clone(),
-            render_object(plan, object)?,
+            render_object(plan, object, sdk)?,
         ),
         TypeProjection::Interface(interface) if plan.is_extension_type(&interface.wire_name) => (
             interface.wire_name.to_string(),
             interface.module_name.clone(),
-            render_interface(plan, interface)?,
+            render_interface(plan, interface, sdk)?,
         ),
         TypeProjection::Enum(enumeration) if plan.is_extension_type(&enumeration.wire_name) => (
             enumeration.wire_name.to_string(),
@@ -155,7 +165,7 @@ fn render_extension_type(
         TypeProjection::InputObject(input) if plan.is_extension_type(&input.wire_name) => (
             input.wire_name.to_string(),
             input.module_name.clone(),
-            render_input(plan, input)?,
+            render_input(plan, input, sdk)?,
         ),
         _ => return Ok(None),
     };
@@ -171,6 +181,7 @@ fn render_extension_type(
 fn render_object(
     plan: &VisibleSchemaPlan,
     object: &ObjectProjection,
+    sdk: &str,
 ) -> Result<String, DiagnosticSet> {
     let definition = match plan.canonical().types().get(&object.wire_name) {
         Some(TypeDefinition::Object(definition)) => definition,
@@ -186,9 +197,9 @@ fn render_object(
         None,
         None,
     )?;
-    let (support, methods) = render_fields(plan, &object.wire_name)?;
+    let (support, methods) = render_fields(plan, &object.wire_name, sdk)?;
     let mut source = format!(
-        "{attributes}#[derive(Clone)]\npub struct {} {{ query: dagger_sdk::QueryBuilder }}\n{support}impl {} {{\n#[doc(hidden)]\npub fn from_query(query: dagger_sdk::QueryBuilder) -> Self {{ Self {{ query }} }}\n/// Borrows the immutable query represented by this visible-schema handle.\n#[must_use]\npub fn selection(&self) -> &dagger_sdk::QueryBuilder {{ &self.query }}\n{methods}",
+        "{attributes}#[derive(Clone)]\npub struct {} {{ query: {sdk}::QueryBuilder }}\n{support}impl {} {{\n#[doc(hidden)]\npub fn from_query(query: {sdk}::QueryBuilder) -> Self {{ Self {{ query }} }}\n/// Borrows the immutable query represented by this visible-schema handle.\n#[must_use]\npub fn selection(&self) -> &{sdk}::QueryBuilder {{ &self.query }}\n{methods}",
         object.rust_name, object.rust_name,
     );
     source.push_str("}\n");
@@ -198,6 +209,7 @@ fn render_object(
 fn render_interface(
     plan: &VisibleSchemaPlan,
     interface: &InterfaceProjection,
+    sdk: &str,
 ) -> Result<String, DiagnosticSet> {
     let definition = match plan.canonical().types().get(&interface.wire_name) {
         Some(TypeDefinition::Interface(definition)) => definition,
@@ -223,14 +235,14 @@ fn render_interface(
         None,
         None,
     )?;
-    let (support, methods) = render_fields(plan, &interface.wire_name)?;
+    let (support, methods) = render_fields(plan, &interface.wire_name, sdk)?;
     let mut source = format!(
-        "{trait_attributes}pub trait {} {{\n/// Borrows the immutable query represented by this interface handle.\nfn selection(&self) -> &dagger_sdk::QueryBuilder;\n}}\n{client_attributes}#[derive(Clone)]\npub struct {} {{ query: dagger_sdk::QueryBuilder }}\n{support}impl {} {{\n#[doc(hidden)]\npub fn from_query(query: dagger_sdk::QueryBuilder) -> Self {{ Self {{ query }} }}\n{methods}",
+        "{trait_attributes}pub trait {} {{\n/// Borrows the immutable query represented by this interface handle.\nfn selection(&self) -> &{sdk}::QueryBuilder;\n}}\n{client_attributes}#[derive(Clone)]\npub struct {} {{ query: {sdk}::QueryBuilder }}\n{support}impl {} {{\n#[doc(hidden)]\npub fn from_query(query: {sdk}::QueryBuilder) -> Self {{ Self {{ query }} }}\n{methods}",
         interface.trait_name, interface.client_name, interface.client_name,
     );
     source.push_str("}\n");
     source.push_str(&format!(
-        "impl {} for {} {{ fn selection(&self) -> &dagger_sdk::QueryBuilder {{ &self.query }} }}\n",
+        "impl {} for {} {{ fn selection(&self) -> &{sdk}::QueryBuilder {{ &self.query }} }}\n",
         interface.trait_name, interface.client_name
     ));
     Ok(source)
@@ -239,6 +251,7 @@ fn render_interface(
 fn render_fields(
     plan: &VisibleSchemaPlan,
     owner: &SchemaName,
+    sdk: &str,
 ) -> Result<(String, String), DiagnosticSet> {
     let mut support = String::new();
     let mut methods = String::new();
@@ -254,7 +267,7 @@ fn render_fields(
         ) {
             continue;
         }
-        render_field(plan, field, &mut support, &mut methods)?;
+        render_field(plan, field, sdk, &mut support, &mut methods)?;
     }
     Ok((support, methods))
 }
@@ -262,6 +275,7 @@ fn render_fields(
 fn render_field(
     plan: &VisibleSchemaPlan,
     field: &FieldProjection,
+    sdk: &str,
     support: &mut String,
     methods: &mut String,
 ) -> Result<(), DiagnosticSet> {
@@ -292,10 +306,10 @@ fn render_field(
         .collect::<Vec<_>>();
     let parameters = required
         .iter()
-        .map(|argument| format!(", {}: dagger_sdk::Json", argument.rust_name))
+        .map(|argument| format!(", {}: {sdk}::Json", argument.rust_name))
         .collect::<String>();
     methods.push_str(&format!(
-        "{attributes}#[must_use]\npub fn {}(&self{}) -> dagger_sdk::QueryBuilder {{\nlet query = self.query.select({:?});\n",
+        "{attributes}#[must_use]\npub fn {}(&self{}) -> {sdk}::QueryBuilder {{\nlet query = self.query.select({:?});\n",
         field.rust_name,
         parameters,
         field.wire_name.as_str()
@@ -355,13 +369,13 @@ fn render_field(
             argument.experimental.as_deref(),
         )?;
         support.push_str(&format!(
-            "{argument_attributes}pub {}: Option<dagger_sdk::Json>,\n",
+            "{argument_attributes}pub {}: Option<{sdk}::Json>,\n",
             argument.rust_name
         ));
     }
     support.push_str("}\n");
     methods.push_str(&format!(
-        "{attributes}#[must_use]\npub fn {options_method}(&self{parameters}, opts: &{options_name}) -> dagger_sdk::QueryBuilder {{\nlet query = self.query.select({:?});\n",
+        "{attributes}#[must_use]\npub fn {options_method}(&self{parameters}, opts: &{options_name}) -> {sdk}::QueryBuilder {{\nlet query = self.query.select({:?});\n",
         field.wire_name.as_str()
     ));
     for argument in &required {
@@ -418,6 +432,7 @@ fn render_enum(
 fn render_input(
     plan: &VisibleSchemaPlan,
     input: &InputObjectProjection,
+    sdk: &str,
 ) -> Result<String, DiagnosticSet> {
     let definition = match plan.canonical().types().get(&input.wire_name) {
         Some(TypeDefinition::InputObject(definition)) => definition,
@@ -440,9 +455,9 @@ fn render_input(
             .get(&field.wire_name)
             .ok_or_else(|| lost_definition(&field.coordinate, "input field"))?;
         let carrier = if field.presence.is_omittable() {
-            "Option<dagger_sdk::Json>"
+            format!("Option<{sdk}::Json>")
         } else {
-            "dagger_sdk::Json"
+            format!("{sdk}::Json")
         };
         let fallback = match &field.presence {
             ArgumentPresence::Required => {

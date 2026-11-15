@@ -3,11 +3,11 @@
 use crate::diagnostic::DiagnosticSet;
 
 use super::model::{ContentDomain, PostWorkPlan};
-use super::render::{rust_source_paths, visible_binding_artifacts};
+use super::render::{SDK_LIBRARY, rust_source_paths, visible_binding_artifacts};
 use super::renderers::{LibraryRenderInput, RendererOutput};
 
 pub(crate) fn render(input: LibraryRenderInput<'_>) -> Result<RendererOutput, DiagnosticSet> {
-    let artifacts = visible_binding_artifacts(input.schema, input.output)?;
+    let artifacts = visible_binding_artifacts(input.schema, input.output, SDK_LIBRARY)?;
     let rust_files = rust_source_paths(&artifacts);
     let mut output = RendererOutput::new(ContentDomain::VisibleSchemaBindings);
     output.artifacts = artifacts;

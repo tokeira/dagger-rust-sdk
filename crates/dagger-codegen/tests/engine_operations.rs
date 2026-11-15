@@ -12,8 +12,9 @@ use dagger_codegen::engine::{
 use dagger_codegen::target::CodegenTarget;
 
 use support::{
-    CORE_SCHEMA_BYTES, ClientSchemaCase, TARGET_BYTES, VisibleSchemaCase, client_visible_schema,
-    module_authoring_input, module_authoring_input_from, module_visible_schema, visible_schema,
+    CORE_SCHEMA_BYTES, ClientSchemaCase, MODULE_AUTHORING_SOURCE, TARGET_BYTES, VisibleSchemaCase,
+    client_visible_schema, module_authoring_input, module_authoring_input_from,
+    module_visible_schema, visible_schema,
 };
 
 fn target() -> CodegenTarget {
@@ -273,6 +274,85 @@ fn source_map_required_argument_compatibility_is_engine_specific() {
         })
         .expect_err("required directive arguments outside the engine exception must fail");
         assert!(diagnostics.contains(DiagnosticCode::SchemaDirectiveArgumentInvalid));
+    }
+}
+
+/// Renders a module beside dependency types of every kind that gets a binding (objects,
+/// an interface, an enum and an input object), with the module's SDK
+/// dependency keyed under `alias`, and returns the dependency bindings by file name.
+fn dependency_bindings(alias: &str) -> std::collections::BTreeMap<String, String> {
+    let output = RelativeOperationPath::parse("candidate").expect("fixture path must parse");
+    let mut authoring =
+        module_authoring_input_from(&MODULE_AUTHORING_SOURCE.replace("dagger_sdk", alias));
+    authoring.sdk_dependency_alias = alias.to_owned();
+    let plan = project_operation(OperationProjectionRequest {
+        target: &target(),
+        operation: OperationKind::GenerateModule,
+        visible_schema_json: &client_visible_schema(ClientSchemaCase::Valid, 0),
+        module: Some(&module()),
+        output: &output,
+        sdk_dependency: &dependency(),
+        authoring: Some(&authoring),
+        engine_version: None,
+    })
+    .expect("a module beside dependency types must generate");
+    plan.artifacts()
+        .iter()
+        .filter_map(|(path, artifact)| {
+            let name = path
+                .as_str()
+                .strip_prefix("candidate/src/dagger_generated/minimal")?;
+            let source = String::from_utf8(artifact.content.clone()).expect("Rust is UTF-8");
+            Some((format!("minimal{name}"), source))
+        })
+        .collect()
+}
+
+// A module may key its SDK dependency under any name, and the rest of its generated
+// code reaches the SDK under that name. Dependency bindings that named `dagger_sdk`
+// would not compile in such a module.
+#[test]
+fn dependency_bindings_reach_the_sdk_under_the_module_alias() {
+    let default = dependency_bindings("dagger_sdk");
+    let renamed = dependency_bindings("renamed_sdk");
+    assert_eq!(
+        default.keys().collect::<Vec<_>>(),
+        [
+            "minimal.rs",
+            "minimal_client.rs",
+            "minimal_config.rs",
+            "minimal_item.rs",
+            "minimal_node.rs",
+            "minimal_state.rs",
+        ]
+    );
+    for expected in [
+        "pub struct Minimal { query: dagger_sdk::QueryBuilder }",
+        "pub fn from_query(query: dagger_sdk::QueryBuilder) -> Self { Self { query } }",
+        "pub fn selection(&self) -> &dagger_sdk::QueryBuilder { &self.query }",
+        "pub fn use_item(&self, item: dagger_sdk::Json) -> dagger_sdk::QueryBuilder {",
+        "pub config: Option<dagger_sdk::Json>,",
+        "opts: &MinimalItemOpts) -> dagger_sdk::QueryBuilder {",
+    ] {
+        assert!(
+            default["minimal.rs"].contains(expected),
+            "the default binding lacks `{expected}`"
+        );
+    }
+    assert!(
+        default["minimal_node.rs"].contains("fn selection(&self) -> &dagger_sdk::QueryBuilder;")
+    );
+    assert!(default["minimal_config.rs"].contains("pub enabled: Option<dagger_sdk::Json>,"));
+
+    assert_eq!(default.len(), renamed.len());
+    for (name, source) in &renamed {
+        assert!(
+            !source.contains("dagger_sdk"),
+            "{name} names the SDK other than by the module's alias"
+        );
+        // The alias is the only difference, so the default alias renders what it did
+        // before the bindings took one.
+        assert_eq!(source.replace("renamed_sdk", "dagger_sdk"), default[name]);
     }
 }
 
