@@ -553,6 +553,11 @@ fn tuple_pattern(fields: &[(syn::Ident, Type)]) -> TokenStream {
 }
 
 fn tuple_value(fields: &[(syn::Ident, Type)]) -> TokenStream {
+    // An object that keeps no state returns the unit by ending the function. Writing
+    // `()` out would be Clippy's `unused_unit` in the module that applies the macro.
+    if fields.is_empty() {
+        return TokenStream::new();
+    }
     let names = fields.iter().map(|(name, _)| name);
     quote!((#(self.#names,)*))
 }

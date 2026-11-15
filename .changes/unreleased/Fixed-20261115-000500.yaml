@@ -1,0 +1,7 @@
+kind: Fixed
+body: |
+    A module with an object that keeps no state builds without warnings from its generated code. For such an object, with no `#[dagger(field)]` and no other field the engine keeps, the generated `module_codec.rs` bound an `object` and a `context` that it did not use and declared a map `mut` that it never changed, so every build of the module warned of unused variables and an unneeded `mut`, and the expansion of `#[dagger_sdk::object]` failed Clippy's `unused_unit`. The generated codec now names only what it uses, and the expansion returns the unit without writing it out.
+time: 2026-11-15T00:05:00Z
+custom:
+    Author: iw
+    PR: "54"

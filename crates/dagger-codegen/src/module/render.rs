@@ -933,8 +933,17 @@ fn render_object_codec(
     generated_types: &BTreeMap<String, ResolvedGeneratedType>,
 ) -> Result<(), ModuleDiagnosticSet> {
     let object_type = contract.symbol.as_str();
+    // An object with no persistent field and no collection base reads nothing from its
+    // JSON object and inserts nothing into it. Its codec then names only what it uses,
+    // so a module's build output carries no unused-variable or unused-mut warning for
+    // generated code. A value that is not a JSON object is refused either way.
+    let has_fields = !contract.fields.is_empty();
+    let has_state = has_fields || contract.collection.is_some();
+    // Only a field's codec takes the context; the collection base does not.
+    let context = if has_fields { "context" } else { "_context" };
+    let decode_object = if has_state { "let object = " } else { "" };
     output.push_str(&format!(
-        "impl super::__private::ModuleInputCodec for {object_type} {{\n    fn decode_input(value: &super::__private::ModuleJson, context: &super::__private::ModuleContextBase) -> Result<Self, super::__private::DecodeError> {{\n        let object = value.as_json().as_object().ok_or(super::__private::DecodeError)?;\n"
+        "impl super::__private::ModuleInputCodec for {object_type} {{\n    fn decode_input(value: &super::__private::ModuleJson, {context}: &super::__private::ModuleContextBase) -> Result<Self, super::__private::DecodeError> {{\n        {decode_object}value.as_json().as_object().ok_or(super::__private::DecodeError)?;\n"
     ));
     for (index, field) in contract.fields.iter().enumerate() {
         output.push_str(&format!(
@@ -959,8 +968,9 @@ fn render_object_codec(
     output.push_str(&format!(
         "        Ok(<{object_type} as super::__private::ModuleObjectBridge>::from_persistent_state({state}))\n    }}\n}}\n\n"
     ));
+    let encode_object = if has_state { "mut object" } else { "object" };
     output.push_str(&format!(
-        "impl super::__private::ModuleOutputCodec for {object_type} {{\n    fn encode_output<'a>(self, context: &'a super::__private::ModuleContextBase) -> super::__private::ModuleBoxFuture<'a, Result<super::__private::ModuleJson, super::__private::EncodeError>> where Self: 'a {{\n        Box::pin(async move {{\n            let {state} = <{object_type} as super::__private::ModuleObjectBridge>::into_persistent_state(self);\n            let mut object = super::__private::serde_json::Map::new();\n"
+        "impl super::__private::ModuleOutputCodec for {object_type} {{\n    fn encode_output<'a>(self, {context}: &'a super::__private::ModuleContextBase) -> super::__private::ModuleBoxFuture<'a, Result<super::__private::ModuleJson, super::__private::EncodeError>> where Self: 'a {{\n        Box::pin(async move {{\n            let {state} = <{object_type} as super::__private::ModuleObjectBridge>::into_persistent_state(self);\n            let {encode_object} = super::__private::serde_json::Map::new();\n"
     ));
     for (index, field) in contract.fields.iter().enumerate() {
         output.push_str(&format!(

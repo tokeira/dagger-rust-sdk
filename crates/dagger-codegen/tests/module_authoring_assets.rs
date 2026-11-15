@@ -1187,7 +1187,8 @@ pub(crate) struct Child {
 // The representative crate is authored the way an initialized module is: its root
 // describes the module and declares the generated module, and its exports include a
 // direct `ModuleError` result, Core handles whose Rust and target names differ, an
-// agent, Core enums and scalars, with defaults and as a field, and a collection.
+// agent, Core enums and scalars, with defaults and as a field, a collection, and an
+// object that keeps no state, whose codec reads and writes an empty JSON object.
 fn representative_source() -> ModuleSourceSnapshot {
     let mut snapshot = source_snapshot(7, false, false);
     let root_path = ModuleSourcePath::new("src/lib.rs").expect("fixture root path is valid");
@@ -1266,6 +1267,11 @@ impl Root {
     }
 
     #[dagger(function)]
+    pub(crate) fn marker(&self) -> Marker {
+        Marker {}
+    }
+
+    #[dagger(function)]
     pub(crate) fn items(&self) -> Items {
         Items {
             names: vec!["a".to_owned(), "b".to_owned()],
@@ -1281,6 +1287,9 @@ pub(crate) struct Entry {
     #[dagger(field)]
     kind: renamed_sdk::FileType,
 }
+
+#[renamed_sdk::object(rename = "FixtureMarker")]
+pub(crate) struct Marker {}
 
 #[renamed_sdk::object(collection, rename = "FixtureItems")]
 #[derive(Clone)]
