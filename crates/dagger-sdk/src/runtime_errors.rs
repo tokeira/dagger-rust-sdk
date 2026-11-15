@@ -207,7 +207,7 @@ impl Error for SessionStartupError {
     }
 }
 
-/// Why an engine identity could not prove the exact compiled target.
+/// Why an engine identity could not prove that the engine serves the compiled target.
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CompatibilityEvidenceGap {
@@ -227,21 +227,45 @@ pub enum CompatibilityEvidenceGap {
     DirtyRevision,
     /// Build metadata used an unknown provenance format.
     UnknownRevisionFormat,
+    /// An engine no older than the target did not state the API view it serves.
+    MissingView,
 }
 
 /// Stable compatibility result category.
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CompatibilityErrorKind {
-    /// The engine semantic version differs from the compiled target.
+    /// The engine belongs to another major version than the compiled target.
     VersionMismatch,
-    /// A well-formed clean revision prefix differs from the compiled target.
+    /// A well-formed clean revision prefix differs from the compiled target. Release
+    /// provenance is checked for form, not paired with the target's revision, so the
+    /// runtime validator does not currently report this kind.
     RevisionMismatch,
-    /// Available evidence cannot prove or disprove the exact target.
+    /// Available evidence cannot prove or disprove compatibility with the target.
     Unverified,
+    /// The engine release is older than the compiled target.
+    EngineTooOld,
+    /// The engine serves the session an API view other than the compiled target's.
+    ViewMismatch,
 }
 
-/// Safe exact-target compatibility failure for an implicit session.
+/// The compiled target that a compatibility check compares an engine against.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct CompatibilityTarget {
+    pub(crate) version: Version,
+    pub(crate) revision_prefix: String,
+    pub(crate) view: String,
+}
+
+/// What an engine stated about itself, kept only once it parsed or validated safely.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub(crate) struct ObservedIdentity {
+    pub(crate) version: Option<Version>,
+    pub(crate) revision_prefix: Option<String>,
+    pub(crate) view: Option<String>,
+}
+
+/// Safe compatibility failure for an implicit session.
 #[derive(Clone)]
 pub struct CompatibilityError {
     inner: Arc<CompatibilityErrorState>,
@@ -250,29 +274,23 @@ pub struct CompatibilityError {
 struct CompatibilityErrorState {
     kind: CompatibilityErrorKind,
     gap: Option<CompatibilityEvidenceGap>,
-    expected_version: Version,
-    observed_version: Option<Version>,
-    expected_revision_prefix: String,
-    observed_revision_prefix: Option<String>,
+    target: CompatibilityTarget,
+    observed: ObservedIdentity,
     source: Option<SharedError>,
 }
 
 impl CompatibilityError {
     pub(crate) fn mismatch(
         kind: CompatibilityErrorKind,
-        expected_version: Version,
-        observed_version: Option<Version>,
-        expected_revision_prefix: String,
-        observed_revision_prefix: Option<String>,
+        target: &CompatibilityTarget,
+        observed: ObservedIdentity,
     ) -> Self {
         Self {
             inner: Arc::new(CompatibilityErrorState {
                 kind,
                 gap: None,
-                expected_version,
-                observed_version,
-                expected_revision_prefix,
-                observed_revision_prefix,
+                target: target.clone(),
+                observed,
                 source: None,
             }),
         }
@@ -280,43 +298,22 @@ impl CompatibilityError {
 
     pub(crate) fn unverified(
         gap: CompatibilityEvidenceGap,
-        expected_version: Version,
-        expected_revision_prefix: String,
+        target: &CompatibilityTarget,
+        observed: ObservedIdentity,
         source: Option<SharedError>,
     ) -> Self {
         Self {
             inner: Arc::new(CompatibilityErrorState {
                 kind: CompatibilityErrorKind::Unverified,
                 gap: Some(gap),
-                expected_version,
-                observed_version: None,
-                expected_revision_prefix,
-                observed_revision_prefix: None,
+                target: target.clone(),
+                observed,
                 source,
             }),
         }
     }
 
-    pub(crate) fn unverified_observed(
-        gap: CompatibilityEvidenceGap,
-        expected_version: Version,
-        observed_version: Version,
-        expected_revision_prefix: String,
-    ) -> Self {
-        Self {
-            inner: Arc::new(CompatibilityErrorState {
-                kind: CompatibilityErrorKind::Unverified,
-                gap: Some(gap),
-                expected_version,
-                observed_version: Some(observed_version),
-                expected_revision_prefix,
-                observed_revision_prefix: None,
-                source: None,
-            }),
-        }
-    }
-
-    /// Returns whether evidence proved a version mismatch, revision mismatch, or gap.
+    /// Returns whether evidence proved a mismatch, or which kind, or left a gap.
     pub fn kind(&self) -> CompatibilityErrorKind {
         self.inner.kind
     }
@@ -326,59 +323,101 @@ impl CompatibilityError {
         self.inner.gap
     }
 
-    /// Returns the generated semantic target expected by this SDK build.
+    /// Returns the release this SDK build targets, which is also the oldest engine
+    /// release it accepts.
     pub fn expected_version(&self) -> &Version {
-        &self.inner.expected_version
+        &self.inner.target.version
     }
 
     /// Returns a safely parsed observed semantic version when available.
     pub fn observed_version(&self) -> Option<&Version> {
-        self.inner.observed_version.as_ref()
+        self.inner.observed.version.as_ref()
     }
 
-    /// Returns the generated clean source-revision prefix.
+    /// Returns the target's clean source-revision prefix.
     pub fn expected_revision_prefix(&self) -> &str {
-        &self.inner.expected_revision_prefix
+        &self.inner.target.revision_prefix
     }
 
     /// Returns a well-formed observed clean revision prefix when available.
     pub fn observed_revision_prefix(&self) -> Option<&str> {
-        self.inner.observed_revision_prefix.as_deref()
+        self.inner.observed.revision_prefix.as_deref()
+    }
+
+    /// Returns the API view the compiled bindings require, such as `v1.0.0-beta.27`.
+    pub fn expected_view(&self) -> &str {
+        &self.inner.target.view
+    }
+
+    /// Returns the API view the engine stated for the session, when it names a release.
+    pub fn observed_view(&self) -> Option<&str> {
+        self.inner.observed.view.as_deref()
     }
 }
 
 impl fmt::Display for CompatibilityError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(match self.inner.kind {
-            CompatibilityErrorKind::VersionMismatch => {
-                "the engine version does not match the Rust SDK target"
+        let state = &*self.inner;
+        let target = &state.target;
+        match (state.kind, &state.observed.version) {
+            (CompatibilityErrorKind::EngineTooOld, Some(observed)) => write!(
+                formatter,
+                "the engine is v{observed}, older than v{}, the earliest Dagger release \
+                 this Rust SDK supports",
+                target.version
+            ),
+            (CompatibilityErrorKind::EngineTooOld, None) => write!(
+                formatter,
+                "the engine is older than v{}, the earliest Dagger release this Rust SDK \
+                 supports",
+                target.version
+            ),
+            (CompatibilityErrorKind::VersionMismatch, Some(observed)) => write!(
+                formatter,
+                "the engine is v{observed}, and this Rust SDK supports Dagger v{} and later \
+                 {}.x releases",
+                target.version, target.version.major
+            ),
+            (CompatibilityErrorKind::VersionMismatch, None) => {
+                formatter.write_str("the engine version does not match the Rust SDK target")
             }
-            CompatibilityErrorKind::RevisionMismatch => {
-                "the engine revision does not match the Rust SDK target"
+            (CompatibilityErrorKind::ViewMismatch, _) => {
+                match &state.observed.view {
+                    Some(view) => write!(formatter, "the engine serves the {view} API view")?,
+                    None => formatter
+                        .write_str("the engine serves an API view that names no release")?,
+                }
+                write!(
+                    formatter,
+                    ", and this Rust SDK requires the {view} view: a module selects its view \
+                     with engineVersion = \"{view}\" in its dagger-module.toml, and a client \
+                     gets the view of the Dagger CLI release that opened its session",
+                    view = target.view
+                )
             }
-            CompatibilityErrorKind::Unverified => {
-                "the engine identity cannot prove the Rust SDK target"
+            (CompatibilityErrorKind::RevisionMismatch, _) => {
+                formatter.write_str("the engine revision does not match the Rust SDK target")
             }
-        })
+            (CompatibilityErrorKind::Unverified, _) => {
+                formatter.write_str("the engine identity cannot prove the Rust SDK target")
+            }
+        }
     }
 }
 
 impl fmt::Debug for CompatibilityError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let state = &*self.inner;
         formatter
             .debug_struct("CompatibilityError")
-            .field("kind", &self.inner.kind)
-            .field("evidence_gap", &self.inner.gap)
-            .field("expected_version", &self.inner.expected_version)
-            .field("observed_version", &self.inner.observed_version)
-            .field(
-                "expected_revision_prefix",
-                &self.inner.expected_revision_prefix,
-            )
-            .field(
-                "observed_revision_prefix",
-                &self.inner.observed_revision_prefix,
-            )
+            .field("kind", &state.kind)
+            .field("evidence_gap", &state.gap)
+            .field("expected_version", &state.target.version)
+            .field("observed_version", &state.observed.version)
+            .field("expected_view", &state.target.view)
+            .field("observed_view", &state.observed.view)
+            .field("expected_revision_prefix", &state.target.revision_prefix)
+            .field("observed_revision_prefix", &state.observed.revision_prefix)
             .finish_non_exhaustive()
     }
 }

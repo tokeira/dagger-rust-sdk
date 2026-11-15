@@ -69,9 +69,10 @@ renderer work:
    digest (the SHA-256 of the captured bytes), schema version (the captured view), Rust
    SDK version, and Rust toolchain — and the matching `APPROVED_*` constants in
    `crates/dagger-codegen/src/target.rs`, which are the reviewed second pin.
-3. Hand-carry `crates/dagger-sdk/src/target_generated.rs` to the same identity. It is
-   generated *from* the target descriptor but sits outside the bootstrap generator's
-   owned artifact set, so the direct update never rewrites it; the pairing test
+3. Hand-carry `crates/dagger-sdk/src/target_generated.rs` to the same identity, the
+   schema version included: the runtime check requires that view. It is generated
+   *from* the target descriptor but sits outside the bootstrap generator's owned
+   artifact set, so the direct update never rewrites it; the pairing test
    `generated_target_matches_checked_repository_metadata` is what refuses a miss.
 4. Reset the binding manifest for the new target: artifact provenance is validated
    against the exact target before regeneration, so a refresh replaces

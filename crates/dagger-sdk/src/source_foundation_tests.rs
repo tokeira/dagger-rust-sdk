@@ -31,7 +31,9 @@ use crate::target::{
     Architecture, ArchiveDescriptor, ArchiveFormat, OperatingSystem, exact_target,
     exact_target_from_parts,
 };
-use crate::target_generated::{TARGET_CLI_VERSION, TARGET_ENGINE_VERSION, TARGET_REVISION};
+use crate::target_generated::{
+    TARGET_CLI_VERSION, TARGET_ENGINE_VERSION, TARGET_REVISION, TARGET_SCHEMA_VERSION,
+};
 use crate::test_support::{TransportEventLog, proptest_config};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -304,17 +306,18 @@ proptest! {
     fn property_06_platform_descriptors_exact_side_effect_free(
         os_case in 0_u8..5,
         arch_case in 0_u8..4,
-        drift_case in 0_u8..5,
+        drift_case in 0_u8..6,
     ) {
-        let (engine, cli, revision) = match drift_case {
-            0 => (TARGET_ENGINE_VERSION, TARGET_CLI_VERSION, TARGET_REVISION),
-            1 => ("1.0.0-beta.11.rust.5", TARGET_CLI_VERSION, TARGET_REVISION),
-            2 => (TARGET_ENGINE_VERSION, "not-semver", TARGET_REVISION),
-            3 => (TARGET_ENGINE_VERSION, TARGET_CLI_VERSION, "ABCDEF"),
-            _ => (TARGET_ENGINE_VERSION, "1.0.0-beta.11", TARGET_REVISION),
+        let (engine, cli, revision, view) = match drift_case {
+            0 => (TARGET_ENGINE_VERSION, TARGET_CLI_VERSION, TARGET_REVISION, TARGET_SCHEMA_VERSION),
+            1 => ("1.0.0-beta.11.rust.5", TARGET_CLI_VERSION, TARGET_REVISION, TARGET_SCHEMA_VERSION),
+            2 => (TARGET_ENGINE_VERSION, "not-semver", TARGET_REVISION, TARGET_SCHEMA_VERSION),
+            3 => (TARGET_ENGINE_VERSION, TARGET_CLI_VERSION, "ABCDEF", TARGET_SCHEMA_VERSION),
+            4 => (TARGET_ENGINE_VERSION, TARGET_CLI_VERSION, TARGET_REVISION, "v1.0.0-beta.26"),
+            _ => (TARGET_ENGINE_VERSION, "1.0.0-beta.11", TARGET_REVISION, TARGET_SCHEMA_VERSION),
         };
         let events = TransportEventLog::default();
-        let target = exact_target_from_parts(engine, cli, revision);
+        let target = exact_target_from_parts(engine, cli, revision, view);
         if drift_case != 0 {
             prop_assert!(target.is_err());
             prop_assert!(events.events().is_empty());
@@ -375,11 +378,13 @@ fn generated_target_matches_checked_repository_metadata() {
     // The SDK versions independently of the stock engine and CLI it targets.
     assert_eq!(target["rust_sdk_version"], env!("CARGO_PKG_VERSION"));
     assert_eq!(target["dagger_revision"], TARGET_REVISION);
+    assert_eq!(target["schema_version"], TARGET_SCHEMA_VERSION);
 
     let parsed = exact_target().expect("the generated target parses once");
     assert_eq!(parsed.engine_version().to_string(), TARGET_CLI_VERSION);
     assert_eq!(parsed.cli_version().to_string(), TARGET_CLI_VERSION);
     assert_eq!(parsed.revision().bytes().len(), 20);
+    assert_eq!(parsed.schema_version(), TARGET_SCHEMA_VERSION);
 }
 
 #[test]
@@ -389,29 +394,47 @@ fn exact_target_rejects_each_independent_drift_shape() {
             "1.0.0-beta.11.rust.5",
             TARGET_CLI_VERSION,
             TARGET_REVISION,
+            TARGET_SCHEMA_VERSION,
             TargetErrorKind::InvalidEngineVersion,
         ),
         (
             TARGET_ENGINE_VERSION,
             "invalid",
             TARGET_REVISION,
+            TARGET_SCHEMA_VERSION,
             TargetErrorKind::InvalidCliVersion,
         ),
         (
             TARGET_ENGINE_VERSION,
             TARGET_CLI_VERSION,
             "25300124CA110612EDC09C43F89CB5FAD6028170",
+            TARGET_SCHEMA_VERSION,
             TargetErrorKind::InvalidRevision,
         ),
         (
             TARGET_ENGINE_VERSION,
             "1.0.0-beta.11",
             TARGET_REVISION,
+            TARGET_SCHEMA_VERSION,
+            TargetErrorKind::VersionMismatch,
+        ),
+        (
+            TARGET_ENGINE_VERSION,
+            TARGET_CLI_VERSION,
+            TARGET_REVISION,
+            "v1.0.0-beta.26",
+            TargetErrorKind::VersionMismatch,
+        ),
+        (
+            TARGET_ENGINE_VERSION,
+            TARGET_CLI_VERSION,
+            TARGET_REVISION,
+            "1.0.0-beta.27",
             TargetErrorKind::VersionMismatch,
         ),
     ];
-    for (engine, cli, revision, expected) in cases {
-        let error = exact_target_from_parts(engine, cli, revision)
+    for (engine, cli, revision, view, expected) in cases {
+        let error = exact_target_from_parts(engine, cli, revision, view)
             .expect_err("the drift fixture must fail");
         assert_eq!(error.kind(), expected);
     }

@@ -1,8 +1,9 @@
 //! Exact Dagger target identity and platform-specific release descriptors.
 //!
 //! The checked constants are generated from the completeness target. Runtime parsing
-//! happens once, giving later provisioning stages validated semantic versions and a
-//! fixed revision rather than repeatedly interpreting repository metadata.
+//! happens once, giving later provisioning stages validated semantic versions, a fixed
+//! revision, and the API view the bindings were compiled against rather than repeatedly
+//! interpreting repository metadata.
 
 use std::sync::OnceLock;
 
@@ -10,7 +11,9 @@ use semver::Version;
 use url::Url;
 
 use crate::errors::{PlatformError, PlatformErrorKind, TargetError, TargetErrorKind};
-use crate::target_generated::{TARGET_CLI_VERSION, TARGET_ENGINE_VERSION, TARGET_REVISION};
+use crate::target_generated::{
+    TARGET_CLI_VERSION, TARGET_ENGINE_VERSION, TARGET_REVISION, TARGET_SCHEMA_VERSION,
+};
 
 const RELEASE_ORIGIN: &str = "https://dl.dagger.io/dagger/releases/";
 
@@ -20,10 +23,16 @@ pub(crate) struct ExactTarget {
     engine_version: Version,
     cli_version: Version,
     revision: DaggerRevision,
+    schema_version: String,
 }
 
 impl ExactTarget {
-    fn parse(engine_version: &str, cli_version: &str, revision: &str) -> Result<Self, TargetError> {
+    fn parse(
+        engine_version: &str,
+        cli_version: &str,
+        revision: &str,
+        schema_version: &str,
+    ) -> Result<Self, TargetError> {
         let engine_version = engine_version
             .strip_prefix('v')
             .ok_or_else(|| TargetError::new(TargetErrorKind::InvalidEngineVersion))
@@ -38,11 +47,17 @@ impl ExactTarget {
         if engine_version != cli_version {
             return Err(TargetError::new(TargetErrorKind::VersionMismatch));
         }
+        // Dagger names each frozen API view after the release that introduced it, so
+        // the target's view is the target release's name.
+        if schema_version.strip_prefix('v') != Some(engine_version.to_string().as_str()) {
+            return Err(TargetError::new(TargetErrorKind::VersionMismatch));
+        }
 
         Ok(Self {
             engine_version,
             cli_version,
             revision,
+            schema_version: schema_version.to_owned(),
         })
     }
 
@@ -56,6 +71,11 @@ impl ExactTarget {
 
     pub(crate) fn revision(&self) -> &DaggerRevision {
         &self.revision
+    }
+
+    /// Returns the API view the compiled bindings consume, such as `v1.0.0-beta.27`.
+    pub(crate) fn schema_version(&self) -> &str {
+        &self.schema_version
     }
 }
 
@@ -98,7 +118,12 @@ pub(crate) fn exact_target() -> Result<&'static ExactTarget, TargetError> {
     static TARGET: OnceLock<Result<ExactTarget, TargetError>> = OnceLock::new();
     TARGET
         .get_or_init(|| {
-            ExactTarget::parse(TARGET_ENGINE_VERSION, TARGET_CLI_VERSION, TARGET_REVISION)
+            ExactTarget::parse(
+                TARGET_ENGINE_VERSION,
+                TARGET_CLI_VERSION,
+                TARGET_REVISION,
+                TARGET_SCHEMA_VERSION,
+            )
         })
         .as_ref()
         .map_err(Clone::clone)
@@ -252,6 +277,7 @@ pub(crate) fn exact_target_from_parts(
     engine_version: &str,
     cli_version: &str,
     revision: &str,
+    schema_version: &str,
 ) -> Result<ExactTarget, TargetError> {
-    ExactTarget::parse(engine_version, cli_version, revision)
+    ExactTarget::parse(engine_version, cli_version, revision, schema_version)
 }

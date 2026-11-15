@@ -85,7 +85,7 @@ executable from the process snapshot captured during preflight.
 
 Caller-supplied connections transfer directly into the shared lifecycle and bypass the
 implicit connector. Every other source remains inside an armed pending owner until the
-session protocol, transport construction, and exact-target compatibility probe succeed.
+session protocol, transport construction, and target compatibility probe succeed.
 An error or cancellation before that transfer uses the same cleanup path.
 
 ## Provisioning and cache publication
@@ -132,10 +132,11 @@ from the active `tracing` span takes precedence over the environment captured at
 preflight. Context is injected into a new CLI and into each HTTP request without
 reading or changing OpenTelemetry's process-global propagator.
 
-Before an implicit connection becomes public, a constant raw `Query.version` probe
-requires the compiled semantic version and clean revision prefix. The compatibility
-bypass applies only when provenance is unprovable; known version and revision
-mismatches always fail. A caller-supplied `EngineConnection` remains a complete
+Before an implicit connection becomes public, a constant raw query of `version` and
+`__schemaVersion` requires a release no older than the compiled target within its major
+version, the target's API view, and a clean revision prefix. The compatibility bypass
+applies only when that evidence is missing; an older release, another major version, and
+another view always fail. A caller-supplied `EngineConnection` remains a complete
 abstraction and therefore does not receive this probe.
 
 ## Shared shutdown

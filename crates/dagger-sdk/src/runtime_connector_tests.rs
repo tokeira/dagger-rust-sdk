@@ -25,8 +25,9 @@ use crate::graphql::{GraphQlError, RawRequest, RawResponse, ResponseData};
 use crate::preflight::PropagationEnvironment;
 use crate::propagation::W3cPropagation;
 use crate::runtime_errors::{
-    CompatibilityErrorKind, ExecError, ProvisioningError, ProvisioningErrorKind,
-    SessionStartupError, SessionStartupErrorKind, ShutdownError, ShutdownFailureKind,
+    CompatibilityError, CompatibilityErrorKind, CompatibilityEvidenceGap, ExecError,
+    ProvisioningError, ProvisioningErrorKind, SessionStartupError, SessionStartupErrorKind,
+    ShutdownError, ShutdownFailureKind,
 };
 use crate::session::SecretString;
 use crate::session_startup::install_live_session_observer;
@@ -150,10 +151,21 @@ async fn exact_target_default_connector_evidence() {
         .version()
         .await
         .expect("generated authenticated Query.version succeeds");
+    let view = client
+        .execute(RawRequest::new("query { __schemaVersion }"))
+        .await
+        .expect("authenticated view query succeeds");
+    let view = match view.data() {
+        ResponseData::Value(Value::Object(data)) => data
+            .get("__schemaVersion")
+            .and_then(Value::as_str)
+            .map(str::to_owned),
+        _ => None,
+    };
     CompatibilityValidator::exact()
         .expect("compiled target is valid")
-        .validate_version(&version)
-        .expect("observed engine version and revision are exact");
+        .validate_identity(&version, view.as_deref())
+        .expect("observed engine release, view and revision satisfy the target");
     client.close().await.expect("explicit live close succeeds");
 
     let downloaded = fs::read_dir(&cache_root)
@@ -480,7 +492,7 @@ proptest! {
                 4 => {
                     let value = CompatibilityValidator::exact()
                         .expect("generated target")
-                        .validate_version(&canary)
+                        .validate_identity(&canary, Some(&format!("v{canary}")))
                         .expect_err("canary is not a version");
                     format!("{value}|{value:?}")
                 }
@@ -549,51 +561,172 @@ proptest! {
         }
     }
 
-    // Exact compatibility is the semantic identity plus clean, well-formed commit
-    // provenance; the pairing itself is guaranteed by the content-addressed release
-    // build, not asserted at runtime. Known mismatches never enter the unverified
-    // bypass class.
+    // Compatibility accepts any release no older than the target within the target's
+    // major version that serves the target's API view, with clean, well-formed commit
+    // provenance; the pairing of a release with its commit is guaranteed by the
+    // content-addressed release build, not asserted at runtime. Known mismatches (an
+    // older release, another major version, another view) are decided before any
+    // evidence gap and never enter the unverified bypass class.
     #[test]
-    fn property_25_compatibility_accepts_exact_declared_target(
-        case in 0_u8..9,
-        other_revision in "[0-9a-f]{8}",
+    fn property_25_compatibility_accepts_target_floor_and_pinned_view(
+        case in 0_u8..17,
+        revision in "[0-9a-f]{8}",
         allow_unverified in any::<bool>(),
     ) {
+        use CompatibilityErrorKind::{EngineTooOld, Unverified, VersionMismatch, ViewMismatch};
+
         let validator = CompatibilityValidator::exact().expect("generated target is valid");
-        let expected_revision = validator.expected_revision_prefix().to_owned();
-        let value = match case {
-            0 => format!("v1.0.0-beta.27+{expected_revision}"),
-            1 => format!("1.0.0-beta.27+{expected_revision}"),
-            2 => format!("v1.0.1-beta.10+{expected_revision}"),
-            3 => "v1.0.0-beta.27".to_owned(),
-            4 => format!("v1.0.0-beta.27+{expected_revision}.dirty"),
-            5 => format!("v1.0.0-beta.27+{}", other_revision.to_ascii_uppercase()),
-            6 => "not-semver".to_owned(),
-            7 => format!("v1.0.0-beta.9+{expected_revision}"),
-            _ => format!("v1.0.0-beta.27+{other_revision}"),
+        let target = validator.expected_view().to_owned();
+        let later = "v1.0.0-beta.28".to_owned();
+        let uppercase_still_hex = revision.bytes().all(|byte| byte.is_ascii_digit());
+        let (version, view, expected) = match case {
+            0 => (format!("v1.0.0-beta.27+{revision}"), Some(target.clone()), None),
+            1 => (format!("1.0.0-beta.27+{revision}"), Some(target.clone()), None),
+            2 => (format!("v1.0.0-beta.28+{revision}"), Some(target.clone()), None),
+            3 => (format!("v1.0.0+{revision}"), Some(target.clone()), None),
+            4 => (format!("v1.4.2+{revision}"), Some(target.clone()), None),
+            5 => (format!("v1.0.0-beta.26+{revision}"), Some(target.clone()), Some(EngineTooOld)),
+            // Engines that predate per-release views state the bare major view.
+            6 => (format!("v1.0.0-beta.21+{revision}"), Some("v1.0.0".to_owned()), Some(EngineTooOld)),
+            7 => (format!("v2.0.0+{revision}"), Some(target.clone()), Some(VersionMismatch)),
+            8 => (format!("v1.0.0-beta.28+{revision}"), Some(later.clone()), Some(ViewMismatch)),
+            9 => (format!("v1.0.0-beta.28+{revision}"), Some("v1.0.0-beta.26".to_owned()), Some(ViewMismatch)),
+            10 => ("v1.0.0-beta.28".to_owned(), Some(target.clone()), Some(Unverified)),
+            11 => (format!("v1.0.0-beta.28+{revision}.dirty"), Some(target.clone()), Some(Unverified)),
+            // A known view mismatch wins over a waivable provenance gap.
+            12 => (format!("v1.0.0-beta.28+{revision}.dirty"), Some(later.clone()), Some(ViewMismatch)),
+            13 => (format!("v1.0.0-beta.28+{revision}"), None, Some(Unverified)),
+            14 => (format!("v1.0.0-beta.25+{revision}"), None, Some(EngineTooOld)),
+            15 => (
+                format!("v1.0.0-beta.27+{}", revision.to_ascii_uppercase()),
+                Some(target.clone()),
+                (!uppercase_still_hex).then_some(Unverified),
+            ),
+            _ => ("not-semver".to_owned(), Some(target.clone()), Some(Unverified)),
         };
-        let result = validator.validate_version(&value);
-        let expected_kind = result.as_ref().err().map(|error| error.kind());
-        let response = StaticResponseConnection(Ok(RawResponse::new(ResponseData::Value(json!({
-            "version": value,
-        })))));
-        let observed = futures::executor::block_on(
-            validator.validate(&response, allow_unverified),
-        );
-        let expected_observed = result.is_ok()
-            || (allow_unverified && expected_kind == Some(CompatibilityErrorKind::Unverified));
-        prop_assert_eq!(observed.is_ok(), expected_observed);
-        let uppercase_still_hex = other_revision.bytes().all(|byte| byte.is_ascii_digit());
-        let expected_exact =
-            matches!(case, 0 | 1 | 8) || (case == 5 && uppercase_still_hex);
-        prop_assert_eq!(result.is_ok(), expected_exact);
-        if let Err(error) = result {
-            match case {
-                2 | 7 => prop_assert_eq!(error.kind(), CompatibilityErrorKind::VersionMismatch),
-                _ => prop_assert_eq!(error.kind(), CompatibilityErrorKind::Unverified),
-            }
+        let result = validator.validate_identity(&version, view.as_deref());
+        prop_assert_eq!(result.as_ref().err().map(CompatibilityError::kind), expected);
+        if let Err(error) = &result {
+            prop_assert_eq!(error.expected_view(), target.as_str());
+            prop_assert_eq!(error.expected_version().to_string(), "1.0.0-beta.27");
         }
+
+        let mut data = json!({ "version": version });
+        if let Some(view) = &view {
+            data["__schemaVersion"] = json!(view);
+        }
+        let response = StaticResponseConnection(Ok(RawResponse::new(ResponseData::Value(data))));
+        let observed = futures::executor::block_on(validator.validate(&response, allow_unverified));
+        let waived = allow_unverified && expected == Some(Unverified);
+        prop_assert_eq!(observed.is_ok(), expected.is_none() || waived);
     }
+}
+
+#[test]
+fn compatibility_falls_back_to_the_release_when_the_view_field_is_unknown() {
+    let validator = CompatibilityValidator::exact().expect("generated target is valid");
+    let rejected = RawResponse::new(ResponseData::Absent).with_errors(vec![GraphQlError::new(
+        "Cannot query field \"__schemaVersion\" on type \"Query\".",
+    )]);
+    let cases = [
+        (
+            "v1.0.0-beta.21+abcdef12",
+            CompatibilityErrorKind::EngineTooOld,
+            None,
+        ),
+        (
+            "v1.0.0-beta.28+abcdef12",
+            CompatibilityErrorKind::Unverified,
+            Some(CompatibilityEvidenceGap::MissingView),
+        ),
+    ];
+    for (version, kind, gap) in cases {
+        let connection = QueryScriptedConnection::new(
+            rejected.clone(),
+            Some(RawResponse::new(ResponseData::Value(
+                json!({ "version": version }),
+            ))),
+        );
+        let error = futures::executor::block_on(validator.validate(&connection, false))
+            .expect_err("a release alone never proves the view");
+        assert_eq!(error.kind(), kind);
+        assert_eq!(error.evidence_gap(), gap);
+        assert_eq!(connection.queries(), 2);
+        let waived = futures::executor::block_on(validator.validate(&connection, true));
+        assert_eq!(waived.is_ok(), kind == CompatibilityErrorKind::Unverified);
+    }
+
+    let connection = QueryScriptedConnection::new(rejected.clone(), Some(rejected));
+    let error = futures::executor::block_on(validator.validate(&connection, false))
+        .expect_err("no identity is unverified");
+    assert_eq!(
+        error.evidence_gap(),
+        Some(CompatibilityEvidenceGap::GraphQl)
+    );
+    assert!(futures::executor::block_on(validator.validate(&connection, true)).is_ok());
+
+    let connection = QueryScriptedConnection::new(
+        RawResponse::new(ResponseData::Value(json!({
+            "version": "v1.0.0-beta.27+abcdef12",
+            "__schemaVersion": "v1.0.0-beta.27",
+        }))),
+        None,
+    );
+    assert!(futures::executor::block_on(validator.validate(&connection, false)).is_ok());
+    assert_eq!(connection.queries(), 1, "a full statement needs one query");
+}
+
+#[test]
+fn compatibility_messages_name_the_engine_and_the_remedy() {
+    let validator = CompatibilityValidator::exact().expect("generated target is valid");
+    let message = |version: &str, view: Option<&str>| {
+        validator
+            .validate_identity(version, view)
+            .expect_err("fixture is incompatible")
+            .to_string()
+    };
+
+    assert_eq!(
+        message("v1.0.0-beta.28+abcdef12", Some("v1.0.0-beta.28")),
+        "the engine serves the v1.0.0-beta.28 API view, and this Rust SDK requires the \
+         v1.0.0-beta.27 view: a module selects its view with engineVersion = \
+         \"v1.0.0-beta.27\" in its dagger-module.toml, and a client gets the view of the \
+         Dagger CLI release that opened its session",
+    );
+    assert_eq!(
+        message("v1.0.0-beta.25+abcdef12", Some("v1.0.0-beta.25")),
+        "the engine is v1.0.0-beta.25+abcdef12, older than v1.0.0-beta.27, the earliest \
+         Dagger release this Rust SDK supports",
+    );
+    assert_eq!(
+        message("v1.0.0-beta.21+abcdef12", Some("v1.0.0")),
+        "the engine is v1.0.0-beta.21+abcdef12, older than v1.0.0-beta.27, the earliest \
+         Dagger release this Rust SDK supports",
+    );
+    assert_eq!(
+        message("v2.1.0+abcdef12", Some("v1.0.0-beta.27")),
+        "the engine is v2.1.0+abcdef12, and this Rust SDK supports Dagger v1.0.0-beta.27 \
+         and later 1.x releases",
+    );
+
+    // A view that is not shaped like a release name is refused without being echoed.
+    let error = validator
+        .validate_identity("v1.0.0-beta.28+abcdef12", Some("v1.0.0\nforged line"))
+        .expect_err("a forged view is a mismatch");
+    assert_eq!(error.kind(), CompatibilityErrorKind::ViewMismatch);
+    assert_eq!(error.observed_view(), None);
+    assert!(!error.to_string().contains("forged"));
+    assert!(!format!("{error:?}").contains("forged"));
+
+    let error = validator
+        .validate_identity("v1.0.0-beta.28+abcdef12", Some("v1.0.0-beta.28"))
+        .expect_err("a later view is a mismatch");
+    assert_eq!(error.observed_view(), Some("v1.0.0-beta.28"));
+    assert_eq!(error.observed_revision_prefix(), Some("abcdef12"));
+    assert_eq!(
+        error.observed_version().map(ToString::to_string).as_deref(),
+        Some("1.0.0-beta.28+abcdef12")
+    );
 }
 
 #[test]
@@ -640,6 +773,46 @@ fn active_context_wins_and_concurrent_carriers_remain_distinct() {
 
 #[derive(Clone)]
 struct StaticResponseConnection(Result<RawResponse, EngineConnectionError>);
+
+/// Answers the combined identity query and the release-only query separately.
+struct QueryScriptedConnection {
+    combined: RawResponse,
+    release_only: Option<RawResponse>,
+    queries: Mutex<usize>,
+}
+
+impl QueryScriptedConnection {
+    fn new(combined: RawResponse, release_only: Option<RawResponse>) -> Self {
+        Self {
+            combined,
+            release_only,
+            queries: Mutex::new(0),
+        }
+    }
+
+    fn queries(&self) -> usize {
+        *self.queries.lock().expect("query counter is not poisoned")
+    }
+}
+
+#[async_trait]
+impl EngineConnection for QueryScriptedConnection {
+    async fn execute(&self, request: RawRequest) -> Result<RawResponse, EngineConnectionError> {
+        *self.queries.lock().expect("query counter is not poisoned") += 1;
+        if request.query().contains("__schemaVersion") {
+            return Ok(self.combined.clone());
+        }
+        self.release_only
+            .clone()
+            .ok_or_else(|| EngineConnectionError::new(EngineConnectionErrorKind::Protocol))
+    }
+
+    async fn close(&self) -> Result<(), EngineConnectionError> {
+        Ok(())
+    }
+
+    fn abort(&self) {}
+}
 
 #[async_trait]
 impl EngineConnection for StaticResponseConnection {

@@ -126,11 +126,23 @@
 //! # }
 //! ```
 //!
+//! # Engine compatibility
+//!
+//! The bindings are compiled against one Dagger API view, the target release's. Before
+//! a session is used, the SDK asks the engine for its release and for the view it
+//! serves the session. It accepts any engine release from the target onwards within the
+//! target's major version that serves the target's view, and refuses an older engine
+//! with a message that says so. A module selects its view with `engineVersion` in
+//! `dagger-module.toml`. A client gets the view of the Dagger CLI release that opened
+//! its session: the CLI the SDK provisions itself is always the target release, while
+//! under `dagger run` it is the CLI running the command.
+//!
 //! # Compatibility escape hatch
 //!
-//! Implicit connections normally require exact version and revision evidence. The
-//! explicit escape hatch accepts only an otherwise compatible engine whose provenance
-//! is unavailable; a known version or revision mismatch is still rejected.
+//! Implicit connections normally require clean, well-formed revision evidence as well.
+//! The explicit escape hatch accepts only an otherwise compatible engine whose
+//! provenance is unavailable; an older engine, another major version or another view is
+//! still rejected.
 //!
 //! ```no_run
 //! # async fn compatibility() -> Result<(), Box<dyn std::error::Error>> {

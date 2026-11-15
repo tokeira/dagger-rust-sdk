@@ -61,7 +61,7 @@ const CONTRACT_MODULES: &[(&str, &str, &[&str])] = &[
     (
         "compatibility",
         include_str!("compatibility.rs"),
-        &["Exact runtime-target", "known mismatch", "unprovable"],
+        &["Runtime-target validation", "known mismatch", "unprovable"],
     ),
     (
         "runtime_errors",
