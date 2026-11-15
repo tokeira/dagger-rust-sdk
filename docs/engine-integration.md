@@ -35,7 +35,7 @@ Use three deliberately separate boundaries:
 3. For runtime changes and release readiness, run the
    [stock-engine acceptance](#stock-engine-acceptance). It installs the runtime from a
    pushed commit on a stock engine of the target release and drives module and client
-   flows against it.
+   flows against it, and against that release's engine reporting a later release.
 
 ## Engine-free development workflow
 
@@ -101,9 +101,9 @@ commit that file names, and its modules depend on that commit.
 `dagger call ci acceptance --commit <commit>` performs every step below for a commit
 pushed to this repository and checks each result, except the README module's `publish`
 ([ci.md](ci.md)). It runs on the engine that calls the ci module, which
-`.dagger/engine.sh` starts as a stock engine of the target release. CI runs it for each
-push that touches the runtime, the crates, the target, the README, or CI, as
-[ci.md](ci.md) describes.
+`.dagger/engine.sh` starts as a stock engine of the target release; step 13 starts another
+engine of that release, as a service of the first. CI runs it for each push that touches
+the runtime, the crates, the target, the README, or CI, as [ci.md](ci.md) describes.
 
 By hand, run the acceptance with the target release's stock CLI, downloaded from
 `https://dl.dagger.io/dagger/releases/<version>/` and verified against that release's
@@ -174,6 +174,17 @@ needs a Git workspace:
     Meanwhile it drops the session's acknowledgements to it with iptables for 20 s,
     spanning its first probe. It also fails if no probe went unanswered, because then the
     step proved nothing.
+13. An engine of the target release that reports itself as `v1.0.0-beta.28+1a2b3c4d`
+    while it serves the target's API view, as a later release does, runs the runtime and
+    a client. On it, `dagger module init` declares the target as `engineVersion`, and the
+    module regenerates without changes and answers calls, a collection query and a check.
+    A module that declares `v1.0.0-beta.28` fails `dagger generate` with
+    `TARGET_IDENTITY_INVALID`, and the message names the `engineVersion` to declare. A
+    plain client built from the commit accepts the engine under `dagger run`.
+    `dagger call ci later-engine --commit <commit>` runs this step alone. By hand, start a
+    second engine container as above, with
+    `-e _EXPERIMENTAL_DAGGER_VERSION=1.0.0-beta.28+1a2b3c4d`: the value replaces the
+    engine's whole version, so it must carry a revision.
 
 The README's `ci` module is a fuller module check: `test` against PostgreSQL, `build`,
 and `publish` to a registry that only the engine can reach

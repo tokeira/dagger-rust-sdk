@@ -1,6 +1,6 @@
 {
-  "descriptor_digest": "sha256:65db96c86b2b520a176767cdc5cc461bba1bebb12dccc22d4a278d2beabeeb61",
-  "documentation": "Continuous integration for the Rust SDK for Dagger, built with the SDK itself.\n\nEvery function runs inside the Dagger engine, so the same calls work from a laptop, a CI\nrunner, or a managed engine. Orchestration, secrets, and engine provisioning stay outside\nthe module, in `.dagger/engine.sh` and the pipelines that call it. So does publishing:\n`package` prepares a release's archives, and `published` proves the release afterwards.",
+  "descriptor_digest": "sha256:27bac00a79bd21659e87993e746e7c98963538584dc6093d3db9ca3078a7fd98",
+  "documentation": "Continuous integration for the Rust SDK for Dagger, built with the SDK itself.\n\nEvery function runs inside the Dagger engine, so the same calls work from a laptop, a CI\nrunner, or a managed engine. Orchestration, secrets, and engine provisioning stay outside\nthe module, in `.dagger/engine.sh` and the pipelines that call it. The one engine the\nmodule starts itself is the later-engine step's, a service of the engine that runs it.\nPublishing stays outside too: `package` prepares a release's archives, and `published`\nproves the release afterwards.",
   "format_version": 1,
   "types": {
     "Ci": {
@@ -21,7 +21,7 @@
               "optional": false,
               "source": {
                 "column": 9,
-                "line": 104,
+                "line": 114,
                 "path": "src/lib.rs"
               },
               "ty": {
@@ -37,7 +37,7 @@
           },
           "constructor": false,
           "deprecation": null,
-          "documentation": "Runs the stock-engine acceptance of docs/engine-integration.md for a pushed commit:\nthe runtime installed from it, a module initialized, regenerated, loaded and called,\ncollections, plain clients, a refused client scope, an existing crate adopted, the\nrefusals of broken modules and unsafe initializations, a legacy module, the README\nmodule's test and build, and a plain client's query through a lost keepalive reply.\nIt needs an engine of the release the commit targets.",
+          "documentation": "Runs the stock-engine acceptance of docs/engine-integration.md for a pushed commit:\nthe runtime installed from it, a module initialized, regenerated, loaded and called,\ncollections, plain clients, a refused client scope, an existing crate adopted, the\nrefusals of broken modules and unsafe initializations, a legacy module, the README\nmodule's test and build, a plain client's query through a lost keepalive reply, and\nthe later-engine step. It needs an engine of the release the commit targets.",
           "return_type": {
             "kind": "named",
             "name": "String",
@@ -46,7 +46,7 @@
           "role": "ordinary",
           "source": {
             "column": 18,
-            "line": 100,
+            "line": 110,
             "path": "src/lib.rs"
           },
           "wire_name": "acceptance"
@@ -67,10 +67,52 @@
           "role": "ordinary",
           "source": {
             "column": 18,
-            "line": 82,
+            "line": 92,
             "path": "src/lib.rs"
           },
           "wire_name": "gates"
+        },
+        {
+          "arguments": [
+            {
+              "default": null,
+              "default_address": null,
+              "default_path": null,
+              "deprecation": null,
+              "documentation": "Full hash of a commit pushed to github.com/tokeira/dagger-rust-sdk.",
+              "ignore": [],
+              "optional": false,
+              "source": {
+                "column": 9,
+                "line": 174,
+                "path": "src/lib.rs"
+              },
+              "ty": {
+                "kind": "named",
+                "name": "String",
+                "nullable": false
+              },
+              "wire_name": "commit"
+            }
+          ],
+          "cache": {
+            "kind": "default"
+          },
+          "constructor": false,
+          "deprecation": null,
+          "documentation": "Runs the later-engine step for a pushed commit. The engine of the release the commit\ntargets runs as a service of the one that runs this module, and reports a later\nrelease while it serves the target's API view. On it, a module initialized with the\nruntime installed from the commit declares the target release, regenerates without\nchanges, and answers calls, a collection query and a check; a module that declares\nthe later release is refused with the engineVersion to declare instead; and a plain\nclient built from the commit accepts the engine. `acceptance` runs the step too. It\nneeds an engine of the release the commit targets.",
+          "return_type": {
+            "kind": "named",
+            "name": "String",
+            "nullable": false
+          },
+          "role": "ordinary",
+          "source": {
+            "column": 18,
+            "line": 170,
+            "path": "src/lib.rs"
+          },
+          "wire_name": "laterEngine"
         },
         {
           "arguments": [
@@ -84,7 +126,7 @@
               "optional": false,
               "source": {
                 "column": 9,
-                "line": 161,
+                "line": 200,
                 "path": "src/lib.rs"
               },
               "ty": {
@@ -109,7 +151,7 @@
           "role": "ordinary",
           "source": {
             "column": 18,
-            "line": 155,
+            "line": 194,
             "path": "src/lib.rs"
           },
           "wire_name": "package"
@@ -126,7 +168,7 @@
               "optional": false,
               "source": {
                 "column": 89,
-                "line": 180,
+                "line": 219,
                 "path": "src/lib.rs"
               },
               "ty": {
@@ -151,7 +193,7 @@
           "role": "ordinary",
           "source": {
             "column": 18,
-            "line": 177,
+            "line": 216,
             "path": "src/lib.rs"
           },
           "wire_name": "published"
@@ -161,7 +203,7 @@
       "kind": "object",
       "source": {
         "column": 12,
-        "line": 60,
+        "line": 70,
         "path": "src/lib.rs"
       },
       "wire_name": "Ci"
@@ -188,7 +230,7 @@
               "optional": true,
               "source": {
                 "column": 9,
-                "line": 74,
+                "line": 84,
                 "path": "src/lib.rs"
               },
               "ty": {
@@ -213,7 +255,7 @@
           "role": "ordinary",
           "source": {
             "column": 12,
-            "line": 68,
+            "line": 78,
             "path": "src/lib.rs"
           },
           "wire_name": "ci"
@@ -223,7 +265,7 @@
       "kind": "object",
       "source": {
         "column": 12,
-        "line": 68,
+        "line": 78,
         "path": "src/lib.rs"
       },
       "wire_name": "Query"

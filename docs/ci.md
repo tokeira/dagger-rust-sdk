@@ -26,16 +26,24 @@ to the workspace root without `.git` and build output; pass
 | Call | What it does |
 | --- | --- |
 | `gates` | Runs the engine-free acceptance of [maintaining.md](maintaining.md), section 5: `cargo fmt`, `check`, `clippy -D warnings`, `doc -D warnings`, the test suite with all and with no default features, `cargo deny check`, and the generated-output check, alongside the runtime's Go tests |
-| `acceptance --commit=<commit>` | Runs the [stock-engine acceptance](engine-integration.md#stock-engine-acceptance) for a commit pushed to this repository: installs the runtime from it, drives module and client flows, checks what initialization and loading refuse, and runs the README module's `test` and `build` |
+| `acceptance --commit=<commit>` | Runs the [stock-engine acceptance](engine-integration.md#stock-engine-acceptance) for a commit pushed to this repository: installs the runtime from it, drives module and client flows, checks what initialization and loading refuse, runs the README module's `test` and `build`, and runs the later-engine step |
+| `later-engine --commit=<commit>` | Runs the acceptance's later-engine step alone: an engine of the target release that reports a later release, while it serves the target's API view, runs a module made with the commit's runtime and a plain client built from the commit |
 | `package --commit=<commit>` | Packages the crates a release publishes from a pushed commit, verifies each by building it from its archive, then builds and runs an application against the archives; returns the archives, their `SHA256SUMS`, and each crate's file list |
 | `published --sums=<file>` | Proves a release on crates.io: each archive crates.io serves matches the `SHA256SUMS` that `package` returned, and an application that depends on the version alone resolves both crates from crates.io, builds, and runs |
 
 `acceptance` checks the commit as pushed. The runtime, the crates, the target, and the
 README come from GitHub at that commit; only the module and its fixtures come from the
 checkout. It runs on the engine that calls it, which must be of the release the commit
-targets, and starts each `dagger` command in a container as a new session of that engine,
-so it needs no engine of its own. The README module's `publish` needs a registry, so it is
-checked by hand.
+targets, and starts each `dagger` command in a container as a new session of that engine.
+The README module's `publish` needs a registry, so it is checked by hand.
+
+The later-engine step needs an engine of its own. It starts the target release's engine
+image as a service of the engine that calls the module, with `_EXPERIMENTAL_DAGGER_VERSION`
+set so that it reports `v1.0.0-beta.28+1a2b3c4d`. The step's `dagger` commands reach that
+engine through `DAGGER_ENGINE` and have no access to the one that calls the module. Its
+state stays in the module's `ci-later-engine-state` cache volume, within the cache of the
+engine that calls the module, so its own build cache outlives the step; it keeps 5 GB of
+it and collects above 15 GB.
 
 `package` and `published` bracket a release, and no CI system runs them: a maintainer
 calls them by hand around publishing, as [maintaining.md](maintaining.md), section 6,
@@ -109,14 +117,15 @@ Remove `dagger.lock` first here too: a commit needs no pin, so the update writes
 
 ## Changing the Dagger release
 
-The SDK talks only to an engine of exactly its target release, so a target refresh
-([maintaining.md](maintaining.md), section 3) also moves:
+CI proves the SDK on an engine of exactly its target release, the oldest it accepts, so a
+target refresh ([maintaining.md](maintaining.md), section 3) also moves:
 
 - `version`, the CLI checksums, and the image digest in `.dagger/engine.sh`;
 - the module's SDK pin, to a commit of the new target, and `engineVersion` in
   `.dagger/modules/ci/dagger-module.toml` with it;
-- `DAGGER_VERSION` and the CLI checksums that the acceptance uses, in
-  `.dagger/modules/ci/src/lib.rs`.
+- `DAGGER_VERSION`, `ENGINE_IMAGE`, and the CLI checksums that the acceptance uses, and
+  `LATER_VERSION` and `LATER_ENGINE_VERSION`, a release after the new target for the
+  later-engine step's engine to report, in `.dagger/modules/ci/src/lib.rs`.
 
 ## Buildkite on Namespace
 

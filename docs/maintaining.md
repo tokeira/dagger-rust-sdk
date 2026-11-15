@@ -118,8 +118,9 @@ renderer work:
      that release through `moduleSource(refString: "runtime")` and its
      `generatedContextDirectory`, then run the runtime's direct Go checks in
      [engine-integration.md](engine-integration.md).
-   - The Dagger release pins in `.dagger/engine.sh` and the `ci` module's SDK pin and
-     `engineVersion`, as [ci.md](ci.md#changing-the-dagger-release) lists.
+   - The Dagger release pins in `.dagger/engine.sh` and the `ci` module's SDK pin,
+     `engineVersion`, and later-engine release, as
+     [ci.md](ci.md#changing-the-dagger-release) lists.
 
 Changed or removed schema coordinates fail closed until their generated and
 compatibility policies are explicit — a new directive needs a `DirectivePolicy`

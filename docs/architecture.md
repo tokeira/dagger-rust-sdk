@@ -193,6 +193,7 @@ Go ABI tests, generated drift/ownership checks, package policy, security, and
 clean-output inspection run without an engine.
 
 Release readiness then installs the runtime from a pushed commit on a stock engine of
-the target release and drives module and client flows against it. The maintainer
+the target release and drives module and client flows against it, and against that
+release's engine reporting a later release. The maintainer
 procedure is documented in
 [engine-integration.md](engine-integration.md#stock-engine-acceptance).

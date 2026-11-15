@@ -5,10 +5,10 @@
 #   eval "$(.dagger/engine.sh cli)"  put the CLI on PATH without starting an engine
 #   .dagger/engine.sh stop           stop the engine and remove its container, keeping its state
 #
-# Both are pinned to the release codegen/target.json targets, because the SDK talks only to
-# an engine of exactly that release. The CLI archive is checked against its SHA-256 before
-# it is unpacked, and the engine image is pulled by digest. Only the export lines go to
-# standard output, so the result can be evaluated.
+# Both are pinned to the release codegen/target.json targets, the oldest the SDK accepts, so
+# CI proves the SDK on an engine of exactly that release. The CLI archive is checked against
+# its SHA-256 before it is unpacked, and the engine image is pulled by digest. Only the
+# export lines go to standard output, so the result can be evaluated.
 #
 # The engine keeps its state, build cache included, in the `<container>-state` volume. A CI
 # system that keeps a directory between jobs can set DAGGER_RUST_SDK_ENGINE_STATE to that

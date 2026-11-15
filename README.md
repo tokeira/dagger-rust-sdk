@@ -328,8 +328,9 @@ runtime's direct Go tests run without an engine. Add a focused engine-backed reg
 only when the direct production harness cannot represent the boundary. CI runs the same
 gates through this repository's own Rust Dagger module, as [`docs/ci.md`](docs/ci.md)
 describes. Runtime changes and every release are proven on a stock engine of the target
-release, as [`docs/engine-integration.md`](docs/engine-integration.md) describes, and the
-module runs that acceptance too.
+release, and on that engine reporting a later release, as
+[`docs/engine-integration.md`](docs/engine-integration.md) describes, and the module runs
+that acceptance too.
 
 A release publishes `tokeira-dagger-sdk-macros` and then `tokeira-dagger-sdk` to
 crates.io at one version and tags the commit, and the runtime installs from that tag.
