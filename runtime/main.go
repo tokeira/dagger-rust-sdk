@@ -148,11 +148,11 @@ func (sdk *RustSDK) initializedModuleScope(
 	if err != nil {
 		return nil, err
 	}
-	engineVersion, err := dag.Version(ctx)
+	descriptor, err := sdk.descriptorMetadata(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("read engine version: %w", err)
+		return nil, err
 	}
-	manifest := moduleManifest(name, engineVersion, runtime)
+	manifest := moduleManifest(name, descriptor.EngineVersion, runtime)
 	return ws.WithDirectory(".", scaffold).
 		WithNewFile("dagger-module.toml", manifest, dagger.WorkspaceWithNewFileOpts{Permissions: 0o644}), nil
 }
@@ -268,11 +268,13 @@ func isRemoteModuleReference(source string) bool {
 
 // moduleManifest renders the configuration of a new Rust module in the layout
 // the engine wrote when it authored module configuration. The engine version is
-// the running engine's release without build metadata.
-func moduleManifest(name string, engineVersion string, runtime string) string {
-	release, _, _ := strings.Cut(engineVersion, "+")
+// the SDK's target release rather than the running engine's: a module is served
+// the API view its engineVersion names, and the Rust bindings are compiled
+// against the target's view, so a module created on a later engine still gets
+// the view the SDK was built for.
+func moduleManifest(name string, targetRelease string, runtime string) string {
 	return "name = " + tomlString(name) + "\n" +
-		"engineVersion = " + tomlString(release) + "\n\n" +
+		"engineVersion = " + tomlString("v"+targetRelease) + "\n\n" +
 		"[runtime]\n" +
 		"  source = " + tomlString(runtime) + "\n"
 }

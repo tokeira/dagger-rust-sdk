@@ -24,10 +24,12 @@ with `dagger call my-module <function>`.
 ## Upgrade a module
 
 Each SDK release targets one Dagger release, and from `v1.0.0-beta.22` each Dagger release
-serves an API view of its own. The engine gives a module the view of the release that its
-`dagger-module.toml` declares as `engineVersion`, which initialization sets to the engine's
-release, and generation refuses a module whose view is not the SDK's target. To move a
-module to a new SDK release:
+serves an API view of its own and keeps serving the views of earlier releases. The engine
+gives a module the view of the release that its `dagger-module.toml` declares as
+`engineVersion`. Initialization sets it to the SDK's target release, and it stays there:
+generation refuses a module whose view is not the SDK's target, and names the
+`engineVersion` to declare. A module that declares the target runs on an engine of that
+release or of any later 1.x release. To move a module to a new SDK release:
 
 1. `dagger module update rust-sdk --version <ref>` moves the workspace's `dagger.toml` to
    the new runtime.
