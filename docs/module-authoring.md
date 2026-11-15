@@ -124,8 +124,11 @@ documented with `#![doc = include_str!(...)]` gives the module no description.
 
 Persistent state is owned data reconstructed for the selected object. A public field
 appears in the TypeDef; a private persistent field participates only in state encoding;
-an ordinary unmarked field remains implementation detail. Generated Core, self, and
-dependency handles preserve their typed IDs and re-enter through the active session.
+an ordinary unmarked field remains implementation detail. Generated Core and self handles
+preserve their typed IDs and re-enter through the active session. A module can declare a
+dependency on another module under `[[dependencies]]` in its `dagger-module.toml`, and
+generation binds the dependency's types, but the module cannot yet call the dependency or
+take its objects as arguments.
 
 Arguments, results, and fields can also be Core enums and scalars, such as
 `NetworkProtocol`, `Platform`, `Json`, and `Bytes`. An enum crosses the boundary as the

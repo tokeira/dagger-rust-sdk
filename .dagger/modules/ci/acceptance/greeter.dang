@@ -1,0 +1,8 @@
+type Greeter {
+  """
+  Returns a greeting for the name.
+  """
+  hello(name: String!): String! {
+    "hello, " + name
+  }
+}

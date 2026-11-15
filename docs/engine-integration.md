@@ -164,10 +164,13 @@ needs a Git workspace:
    `dagger-module.toml`, and seals the SDK content. The module's `Cargo.toml` depends on
    `<commit>`.
 3. Author exports that take and return Core types: objects, enums, and scalars, with
-   defaults, an agent function, and a collection. Loading the module before
-   regeneration fails with a diagnostic that names `dagger generate`.
-4. `dagger generate` regenerates. A second run changes nothing, and the module's
-   `.gitattributes` stays scoped to the module.
+   defaults, an agent function, and a collection. Give the module a dependency on a Dang
+   module in the workspace, declared under `[[dependencies]]` in its
+   `dagger-module.toml`. Loading the module before regeneration fails with a diagnostic
+   that names `dagger generate`.
+4. `dagger generate` regenerates, and the generated files bind the dependency's object
+   type. A second run changes nothing, and the module's `.gitattributes` stays scoped to
+   the module.
 5. `dagger call gate <function>` loads the module and calls each export, with and
    without the arguments that have defaults. The engine describes the module with its
    crate documentation. `dagger agent --list` lists the agent function, and composing it

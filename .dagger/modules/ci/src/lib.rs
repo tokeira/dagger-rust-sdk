@@ -101,11 +101,12 @@ impl Ci {
     }
 
     /// Runs the stock-engine acceptance of docs/engine-integration.md for a pushed commit:
-    /// the runtime installed from it, a module initialized, regenerated, loaded and called,
-    /// collections, plain clients, a refused client scope, an existing crate adopted, the
-    /// refusals of broken modules and unsafe initializations, a legacy module, the README
-    /// module's test and build, a plain client's query through a lost keepalive reply, and
-    /// the later-engine step. It needs an engine of the release the commit targets.
+    /// the runtime installed from it, a module that depends on another module initialized,
+    /// regenerated, loaded and called, collections, plain clients, a refused client scope,
+    /// an existing crate adopted, the refusals of broken modules and unsafe initializations,
+    /// a legacy module, the README module's test and build, a plain client's query through a
+    /// lost keepalive reply, and the later-engine step. It needs an engine of the release the
+    /// commit targets.
     #[dagger(function)]
     pub async fn acceptance(
         &self,
@@ -139,11 +140,11 @@ impl Ci {
             later_engine_step(dag, &cli, &fixtures, &tree, &runtime),
         )?;
         Ok(format!(
-            "{commit} passed on {engine}: the runtime installed; a module initialized, \
-             regenerated, loaded and answered calls, Core enums, scalars and defaults \
-             included, and its agent was listed and composed; its collections answered the \
-             engine's operations, kept their bases and had their items selected by a check, \
-             as did a module whose main object is an enum-keyed collection; plain clients \
+            "{commit} passed on {engine}: the runtime installed; a module that depends on \
+             another module initialized, regenerated, loaded and answered calls, Core enums, \
+             scalars and defaults included, and its agent was listed and composed; its \
+             collections answered the engine's operations, kept their bases and had their \
+             items selected by a check, as did a module whose main object is an enum-keyed collection; plain clients \
              made each kind of Core call, \
              met each kind of failure and exported an image; a Rust client scope was refused; an \
              existing crate was adopted and one without a root object refused; modules with \
@@ -458,8 +459,9 @@ async fn dagger_cli(dag: &Query) -> Result<Container, ModuleError> {
         .with_env_variable("GIT_COMMITTER_EMAIL", "acceptance@example.invalid"))
 }
 
-/// Steps 1 to 5 and 7 of the acceptance: install the runtime, initialize a module, load it
-/// before regeneration, regenerate it twice, call its exports, and refuse a client scope.
+/// Steps 1 to 5 and 7 of the acceptance: install the runtime, initialize a module that
+/// depends on another module, load it before regeneration, regenerate it twice, call its
+/// exports, and refuse a client scope.
 async fn module_flows(
     cli: &Container,
     fixtures: &Directory,
@@ -487,6 +489,7 @@ async fn module_flows(
             fixtures.file("gate.rs"),
         )
         .with_new_file("rust module gate\n", "/ws/gate-input/note.txt");
+    let workspace = with_greeter(&workspace, fixtures, "/ws", "gate").await?;
     let note = ["call", "gate", "note", "--source", "gate-input", "contents"];
     refused(&workspace, &note, "run `dagger generate`").await?;
 
@@ -496,6 +499,23 @@ async fn module_flows(
     );
     let workspace = dagger(&workspace, &["generate", "-y"]);
     unchanged(&workspace, "a second dagger generate").await?;
+    // The engine generates the module against a schema that holds its dependency's types.
+    let binding = workspace
+        .file("/ws/.dagger/modules/gate/src/dagger_generated/greeter.rs")
+        .contents()
+        .await
+        .map_err(|error| {
+            check_failed(
+                "dagger generate",
+                format!("wrote no binding for the dependency's type Greeter: {error}"),
+            )
+        })?;
+    if !binding.contains("pub struct Greeter") {
+        return Err(check_failed(
+            "dagger generate",
+            format!("the binding for the dependency lacks its type Greeter:\n{binding}"),
+        ));
+    }
     let attributes = workspace
         .file("/ws/.dagger/modules/gate/.gitattributes")
         .contents()
@@ -2058,6 +2078,42 @@ async fn declares_target(
             format!("dagger-module.toml does not declare {declared:?}:\n{manifest}"),
         ))
     }
+}
+
+/// Gives the module `name`, in the repository at `root`, a dependency on `greeter`, the
+/// acceptance's Dang module, so the dependency needs no Rust build. beta.27's CLI installs a
+/// module only into the workspace, so the module's `dagger-module.toml` declares it.
+async fn with_greeter(
+    workspace: &Container,
+    fixtures: &Directory,
+    root: &str,
+    name: &str,
+) -> Result<Container, ModuleError> {
+    let path = format!("{root}/.dagger/modules/{name}/dagger-module.toml");
+    let manifest = workspace
+        .file(path.as_str())
+        .contents()
+        .await
+        .map_err(step_failure)?;
+    let greeter = format!("{root}/.dagger/modules/greeter");
+    Ok(workspace
+        .with_new_file(
+            format!(
+                "name = \"greeter\"\n{}\n[runtime]\n  source = \"dang\"\n",
+                target_declaration()
+            ),
+            format!("{greeter}/dagger-module.toml"),
+        )
+        .with_file(
+            format!("{greeter}/main.dang"),
+            fixtures.file("greeter.dang"),
+        )
+        .with_new_file(
+            format!(
+                "{manifest}\n[[dependencies]]\n  name = \"greeter\"\n  source = \"../greeter\"\n"
+            ),
+            path,
+        ))
 }
 
 /// The manifest of a crate named `name` with no dependencies.
