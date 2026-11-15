@@ -1,7 +1,0 @@
-kind: Changed
-body: |
-    The SDK runs on later Dagger engines. It accepts an engine of its target release, `v1.0.0-beta.27`, or of any later 1.x release that serves the `v1.0.0-beta.27` API view, which a module selects with `engineVersion = "v1.0.0-beta.27"` in its `dagger-module.toml` and a client gets from a `v1.0.0-beta.27` CLI. Before a session is used, the SDK asks the engine for its release and for the view it serves. An engine older than the target fails with the new `CompatibilityErrorKind::EngineTooOld`, an engine of another major version with `VersionMismatch`, and another view with the new `ViewMismatch`, whose message says how a module and a client select their view. `allow_unverified_compatibility` still waives only missing evidence, which now includes an engine that states no view (`CompatibilityEvidenceGap::MissingView`). Under `dagger run`, a client's session has the view of the CLI running the command, so that CLI must be `v1.0.0-beta.27`.
-time: 2026-11-15T00:01:00Z
-custom:
-    Author: iw
-    PR: "51"

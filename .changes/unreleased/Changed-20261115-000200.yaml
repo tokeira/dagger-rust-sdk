@@ -1,7 +1,0 @@
-kind: Changed
-body: |
-    `dagger module init` writes the SDK's target release as the module's `engineVersion`, rather than the engine's release, so a module initialized on a later engine is served the API view that the SDK's bindings are compiled for.
-time: 2026-11-15T00:02:00Z
-custom:
-    Author: iw
-    PR: "51"

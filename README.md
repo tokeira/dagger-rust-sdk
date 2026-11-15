@@ -12,7 +12,7 @@ Rust SDK for [Dagger](https://dagger.io), maintained by Tokeira. Not affiliated 
 Dagger, Inc.
 
 This workspace contains the SDK, its code generator, module-authoring runtime,
-standalone-client generator, and engine integration. The current SDK version is `0.6.0`.
+standalone-client generator, and engine integration. The current SDK version is `0.7.0`.
 Its bindings target the Dagger `v1.0.0-beta.27` API, and it runs on a `v1.0.0-beta.27` or
 a later 1.x engine, as [Engine compatibility](#engine-compatibility) describes.
 

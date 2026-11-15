@@ -1,7 +1,0 @@
-kind: Fixed
-body: |
-    Generation no longer fails for a module that depends on another module. The engine adds every object type of a module's dependencies to the possible types of Core's `Node` interface, since each has an ID, and 0.6.0 compared each Core interface's possible types with its reviewed Core API in full, so `dagger generate` failed with `SCHEMA_CORE_COORDINATE_INCOMPATIBLE` at `Node`, and the module could not load. Possible types are now compared over Core types only. The module's generated files bind the dependency's types, but a module cannot yet call a dependency or take its objects as arguments.
-time: 2026-11-15T00:04:00Z
-custom:
-    Author: iw
-    PR: "51"
