@@ -2,5 +2,5 @@
 # Any Dagger command may update this file; always commit it with your changes.
 # Run `dagger lock update` to refresh the pinned versions.
 [["version","2"]]
-["","git-latest",["github.com/tokeira/dagger-rust-sdk",["tagPrefix","runtime"],["version","v0.6.0"]],"refs/tags/v0.6.0"]
-["","git-sha",["github.com/tokeira/dagger-rust-sdk","refs/tags/v0.6.0"],"d0e742a3cacd32a6f8d6574be08854bf4cebd730"]
+["","git-latest",["github.com/tokeira/dagger-rust-sdk",["tagPrefix","runtime"],["version","v0.7.0"]],"refs/tags/v0.7.0"]
+["","git-sha",["github.com/tokeira/dagger-rust-sdk","refs/tags/v0.7.0"],"371587d0533d03bf62feb455381f0162404cff8a"]
