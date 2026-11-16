@@ -1,7 +1,0 @@
-kind: Fixed
-body: |
-    A module that depends on another module compiles when its `Cargo.toml` keys the SDK dependency under a name other than `dagger_sdk`. The bindings generated for the dependency's types named `dagger_sdk::` whatever the module called the SDK, so the module's build could not resolve `dagger_sdk`. The bindings now reach the SDK under the module's name for it, as the rest of the module's generated code does.
-time: 2026-11-15T00:07:00Z
-custom:
-    Author: iw
-    PR: "54"
