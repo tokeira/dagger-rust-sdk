@@ -1,7 +1,0 @@
-kind: Added
-body: |
-    A module loads a dependency's object from an ID as it loads a Core object. `context.query().r#ref::<T>(id)` builds a lazy handle without a request, and `context.query().load::<T>(id).await` first checks that the object exists and has that type. Both accept every type that implements the new `dagger_generated::ModuleLoadable`: Core's handles and the handles of the module's dependencies. There is no `As<Interface>()`: `context.query().r#ref::<GreeterNamedClient>(message.id().await?)` gives a value as an interface it implements, and passes a Core object where a dependency's interface is expected.
-time: 2026-11-19T16:02:00Z
-custom:
-    Author: iw
-    PR: "58"

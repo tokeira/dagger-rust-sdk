@@ -1,7 +1,0 @@
-kind: Fixed
-body: |
-    Generation accepts a module dependency that declares an interface. The engine marks every type of a dependency with `@sourceMap`, which names the module that owns the type, and marks the dependency's interfaces too, although the directive's definition does not list interfaces among the places it may appear. 0.7.1 refused such a schema with `SCHEMA_DIRECTIVE_ARGUMENT_INVALID` at the interface, so `dagger generate` failed for a module that depended on a module with an interface, and the module could not load. The directive is now accepted on an interface. Every other directive stays confined to the places its definition lists.
-time: 2026-11-19T15:00:00Z
-custom:
-    Author: iw
-    PR: "58"

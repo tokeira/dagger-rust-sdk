@@ -1,7 +1,0 @@
-kind: Changed
-body: |
-    `ModuleQuery::r#ref` and `ModuleQuery::load`, the methods of `context.query()`, take any type that implements `dagger_generated::ModuleLoadable` rather than any `Loadable`. Every Core handle implements it, so a call that loads a Core handle compiles as before. A helper of the module's own that is generic over `T: Loadable` and calls either method needs the bound `T: ModuleLoadable` instead.
-time: 2026-11-19T16:04:00Z
-custom:
-    Author: iw
-    PR: "58"
