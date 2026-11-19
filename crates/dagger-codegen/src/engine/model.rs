@@ -226,6 +226,9 @@ pub enum ContentDomain {
     StandaloneClient,
     /// Generic descriptor-bound module entrypoint content only.
     ModuleEntrypoint,
+    /// One module's typed client for a Cargo package: its `Client` and the bindings of
+    /// the types the module owns.
+    ModuleClient,
 }
 
 /// One generated Cargo binary target planned without mutating a caller manifest.

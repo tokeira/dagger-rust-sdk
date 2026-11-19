@@ -57,6 +57,7 @@ pub(crate) fn visible_binding_artifacts(
     let mut index = generated_header(
         plan,
         "Operation-scoped visible-schema bindings over the public Dagger SDK.",
+        surface,
     )?;
     index.push_str(&format!("pub use {sdk}::*;\n"));
     for (module, file, _) in &modules {
@@ -119,9 +120,16 @@ pub(crate) fn checked_source(coordinate: &str, source: String) -> Result<Vec<u8>
     Ok(source.into_bytes())
 }
 
+/// The two lines that open a generated file: its documentation and its provenance.
+///
+/// A module client's files are owned by the record beside them, which recognises a
+/// generated file by a first line that begins `// @generated`. So the client surface
+/// writes that line first and the file's documentation after it, where the other
+/// surfaces keep the order their checked files have.
 pub(crate) fn generated_header(
     plan: &VisibleSchemaPlan,
     module_doc: &str,
+    surface: BindingSurface,
 ) -> Result<String, DiagnosticSet> {
     let provenance = serde_json::to_string(&serde_json::json!({
         "format": "dagger-rust-visible-v1",
@@ -136,7 +144,37 @@ pub(crate) fn generated_header(
             "visible-schema provenance could not be encoded",
         ))
     })?;
-    Ok(format!("//! {module_doc}\n// @generated {provenance}\n"))
+    Ok(match surface {
+        BindingSurface::Client => format!("// @generated {provenance}\n//! {module_doc}\n"),
+        BindingSurface::Library | BindingSurface::Module => {
+            format!("//! {module_doc}\n// @generated {provenance}\n")
+        }
+    })
+}
+
+/// Renders the typed binding of a type that a module owns, as the file that holds it:
+/// the type's wire name, the Rust module of the file, and its source. Returns `None`
+/// for any other type.
+pub(super) fn render_owned_type(
+    plan: &VisibleSchemaPlan,
+    projection: &TypeProjection,
+    sdk: &str,
+    surface: BindingSurface,
+) -> Result<Option<(String, String, Vec<u8>)>, DiagnosticSet> {
+    let Some(binding) = render_dependency_type(plan, projection, sdk, surface)? else {
+        return Ok(None);
+    };
+    let mut source = generated_header(
+        plan,
+        &format!(
+            "Bindings owned by visible GraphQL type `{}`.",
+            binding.wire_name
+        ),
+        surface,
+    )?;
+    source.push_str(&binding.body);
+    let source = checked_source(&binding.wire_name, source)?;
+    Ok(Some((binding.wire_name, binding.module_name, source)))
 }
 
 fn render_extension_type(
@@ -147,17 +185,8 @@ fn render_extension_type(
 ) -> Result<Option<(String, String, Vec<u8>)>, DiagnosticSet> {
     // A dependency's type gets a typed binding. Any other type outside the reviewed
     // Core API, such as one a later engine added, keeps the untyped handle below.
-    if let Some(binding) = render_dependency_type(plan, projection, sdk, surface)? {
-        let mut source = generated_header(
-            plan,
-            &format!(
-                "Bindings owned by visible GraphQL type `{}`.",
-                binding.wire_name
-            ),
-        )?;
-        source.push_str(&binding.body);
-        let source = checked_source(&binding.wire_name, source)?;
-        return Ok(Some((binding.wire_name, binding.module_name, source)));
+    if let Some(owned) = render_owned_type(plan, projection, sdk, surface)? {
+        return Ok(Some(owned));
     }
     let (wire_name, module_name, body) = match projection {
         TypeProjection::Object(object) if plan.is_extension_type(&object.wire_name) => (
@@ -195,6 +224,7 @@ fn render_extension_type(
     let mut source = generated_header(
         plan,
         &format!("Bindings owned by visible GraphQL type `{wire_name}`."),
+        surface,
     )?;
     source.push_str(&body);
     let source = checked_source(&wire_name, source)?;

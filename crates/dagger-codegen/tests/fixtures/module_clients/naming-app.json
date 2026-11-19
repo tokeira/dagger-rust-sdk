@@ -1,0 +1,247 @@
+{
+  "queryFields": [
+    {
+      "args": [],
+      "deprecationReason": null,
+      "description": "",
+      "directives": [
+        {
+          "args": [
+            {
+              "name": "module",
+              "value": "\"naming-app\""
+            }
+          ],
+          "name": "sourceMap"
+        }
+      ],
+      "isDeprecated": false,
+      "name": "namingApp",
+      "type": {
+        "kind": "NON_NULL",
+        "ofType": {
+          "kind": "OBJECT",
+          "name": "NamingApp"
+        }
+      }
+    }
+  ],
+  "types": [
+    {
+      "directives": [
+        {
+          "args": [
+            {
+              "name": "module",
+              "value": "\"naming-app\""
+            }
+          ],
+          "name": "sourceMap"
+        }
+      ],
+      "fields": [
+        {
+          "args": [],
+          "deprecationReason": null,
+          "description": "A unique identifier for this NamingApp.",
+          "directives": [],
+          "isDeprecated": false,
+          "name": "id",
+          "type": {
+            "kind": "NON_NULL",
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "ID"
+            }
+          }
+        },
+        {
+          "args": [
+            {
+              "defaultValue": null,
+              "deprecationReason": null,
+              "description": "",
+              "directives": [
+                {
+                  "args": [
+                    {
+                      "name": "module",
+                      "value": "\"naming-app\""
+                    }
+                  ],
+                  "name": "sourceMap"
+                }
+              ],
+              "isDeprecated": false,
+              "name": "url",
+              "type": {
+                "kind": "NON_NULL",
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "String"
+                }
+              }
+            },
+            {
+              "defaultValue": null,
+              "deprecationReason": null,
+              "description": "",
+              "directives": [
+                {
+                  "args": [
+                    {
+                      "name": "module",
+                      "value": "\"naming-app\""
+                    }
+                  ],
+                  "name": "sourceMap"
+                }
+              ],
+              "isDeprecated": false,
+              "name": "retries",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Int"
+              }
+            }
+          ],
+          "deprecationReason": null,
+          "description": "\nReturns a fetcher for the URL.\n",
+          "directives": [
+            {
+              "args": [
+                {
+                  "name": "module",
+                  "value": "\"naming-app\""
+                }
+              ],
+              "name": "sourceMap"
+            }
+          ],
+          "isDeprecated": false,
+          "name": "fetcher",
+          "type": {
+            "kind": "NON_NULL",
+            "ofType": {
+              "kind": "OBJECT",
+              "name": "NamingAppHTTPFetcher"
+            }
+          }
+        }
+      ],
+      "interfaces": [
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "INTERFACE",
+          "name": "Node",
+          "possibleTypes": null
+        }
+      ],
+      "kind": "OBJECT",
+      "name": "NamingApp",
+      "possibleTypes": []
+    },
+    {
+      "description": "\nFetches things over HTTP.\n",
+      "directives": [
+        {
+          "args": [
+            {
+              "name": "module",
+              "value": "\"naming-app\""
+            }
+          ],
+          "name": "sourceMap"
+        }
+      ],
+      "fields": [
+        {
+          "args": [],
+          "deprecationReason": null,
+          "description": "A unique identifier for this NamingAppHTTPFetcher.",
+          "directives": [],
+          "isDeprecated": false,
+          "name": "id",
+          "type": {
+            "kind": "NON_NULL",
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "ID"
+            }
+          }
+        },
+        {
+          "args": [],
+          "deprecationReason": null,
+          "description": "The URL to fetch.",
+          "directives": [
+            {
+              "args": [
+                {
+                  "name": "module",
+                  "value": "\"naming-app\""
+                }
+              ],
+              "name": "sourceMap"
+            },
+            {
+              "args": [],
+              "name": "trivialResolveField"
+            }
+          ],
+          "isDeprecated": false,
+          "name": "url",
+          "type": {
+            "kind": "NON_NULL",
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "String"
+            }
+          }
+        },
+        {
+          "args": [],
+          "deprecationReason": null,
+          "description": "How many times to try.",
+          "directives": [
+            {
+              "args": [
+                {
+                  "name": "module",
+                  "value": "\"naming-app\""
+                }
+              ],
+              "name": "sourceMap"
+            },
+            {
+              "args": [],
+              "name": "trivialResolveField"
+            }
+          ],
+          "isDeprecated": false,
+          "name": "retries",
+          "type": {
+            "kind": "NON_NULL",
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "Int"
+            }
+          }
+        }
+      ],
+      "interfaces": [
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "INTERFACE",
+          "name": "Node",
+          "possibleTypes": null
+        }
+      ],
+      "kind": "OBJECT",
+      "name": "NamingAppHTTPFetcher",
+      "possibleTypes": []
+    }
+  ]
+}

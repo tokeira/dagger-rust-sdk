@@ -10,6 +10,7 @@ mod library;
 mod metadata;
 mod model;
 mod module;
+mod module_client;
 mod render;
 mod renderers;
 mod visible;
@@ -22,6 +23,7 @@ pub use model::{
     ContentDomain, ModuleAuthoringInput, ModuleProjectionInput, OperationKind, OperationPlan,
     OperationProjectionRequest, PostWorkPlan, PublishedSdkDependency, RelativeOperationPath,
 };
+pub use module_client::{ModuleClientRenderInput, render_module_client};
 pub use renderers::{
     ClientRenderInput, EntrypointRenderInput, LibraryRenderInput, ModuleRenderInput,
     OperationRenderer, PreparedOperationRequest, RendererOutput, dispatch_prepared_operation,

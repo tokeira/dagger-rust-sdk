@@ -69,6 +69,42 @@ pub(crate) enum BindingSurface {
     /// that the module compiler renders there. A dependency's bindings add its
     /// constructor to that query root and make its handles loadable from an ID.
     Module,
+    /// One module's client in a Cargo package that is not a module, beside the `Client`
+    /// and `ClientLoadable` that the client renderer writes in the directory's
+    /// `mod.rs`. The module's bindings add its constructor to that `Client` and make
+    /// its handles loadable from an ID through it.
+    Client,
+}
+
+impl BindingSurface {
+    /// The query root that a constructor is a method of, and the trait through which
+    /// that root loads a handle from an ID, with the trait's two methods. A library
+    /// has neither.
+    fn query_root(self) -> Option<QueryRoot> {
+        match self {
+            Self::Library => None,
+            Self::Module => Some(QueryRoot {
+                root: "ModuleQuery",
+                loadable: "ModuleLoadable",
+                reference: "__module_ref",
+                load: "__module_load",
+            }),
+            Self::Client => Some(QueryRoot {
+                root: "Client",
+                loadable: "ClientLoadable",
+                reference: "__client_ref",
+                load: "__client_load",
+            }),
+        }
+    }
+}
+
+/// The names a surface gives its query root and the trait that loads through it.
+struct QueryRoot {
+    root: &'static str,
+    loadable: &'static str,
+    reference: &'static str,
+    load: &'static str,
 }
 
 /// One rendered dependency type: its wire name, the Rust module that holds it, and the
@@ -182,7 +218,8 @@ impl<'a> Renderer<'a> {
         let support = self.handle_support(&object.wire_name, &name, object.has_id)?;
         let methods = self.inherent_methods(&fields)?;
         let interfaces = self.interface_impls(&object.wire_name, &name)?;
-        let loadable = self.loadable(&object.wire_name, &name, object.has_id);
+        let loadable =
+            self.loadable(&object.wire_name, &name, object.has_id, &object.coordinate)?;
         let codecs = self.handle_codecs(&object.wire_name, &name, object.has_id);
         let constructors = self.constructors(object)?;
         let sdk = &self.sdk;
@@ -249,7 +286,12 @@ impl<'a> Renderer<'a> {
         let methods = self.inherent_methods(&fields)?;
         let own_impl = self.trait_impl(&trait_name, &client_name, &fields)?;
         let parents = self.interface_impls(&interface.wire_name, &client_name)?;
-        let loadable = self.loadable(&interface.wire_name, &client_name, interface.has_id);
+        let loadable = self.loadable(
+            &interface.wire_name,
+            &client_name,
+            interface.has_id,
+            &interface.coordinate,
+        )?;
         let codecs = self.handle_codecs(&interface.wire_name, &client_name, interface.has_id);
         let sdk = &self.sdk;
         Ok(quote! {
@@ -738,8 +780,8 @@ impl<'a> Renderer<'a> {
         Ok(quote! { #(#implementations)* })
     }
 
-    /// The constructors of `object` on the module's query root: one method for each
-    /// field the object's dependency adds to `Query`.
+    /// The constructors of `object` on the surface's query root: one method for each
+    /// field the object's module adds to `Query`.
     ///
     /// The engine installs a dependency's constructor as a field of `Query` named
     /// after the dependency, with the arguments of the constructor its author wrote
@@ -748,10 +790,17 @@ impl<'a> Renderer<'a> {
     /// (cmd/codegen/generator/go/templates/src/internal/dagger/_dep.gen.go.tmpl). The
     /// field is recognised by what it returns, since `Query` itself is a Core type:
     /// a field outside the reviewed Core API that returns a dependency's object.
+    ///
+    /// A module's client in a Cargo package has the same method on its `Client`, as
+    /// the client Dagger's Go SDK generates for a package has the bound module's
+    /// constructor on its own `Client`
+    /// (cmd/dagger-go-sdk-codegen/generator/gogenerator/generate_unified.go of
+    /// github.com/dagger/go-sdk at bb23e8d).
     fn constructors(&self, object: &ObjectProjection) -> Result<TokenStream, Diagnostic> {
-        if self.surface != BindingSurface::Module {
+        let Some(names) = self.surface.query_root() else {
             return Ok(TokenStream::new());
-        }
+        };
+        let root = ident(names.root, &object.coordinate)?;
         let fields = constructor_fields(self.plan)
             .filter(|(_, target)| *target == &object.wire_name)
             .map(|(field, _)| field)
@@ -767,37 +816,46 @@ impl<'a> Renderer<'a> {
         Ok(quote! {
             #options
 
-            impl super::ModuleQuery {
+            impl super::#root {
                 #(#methods)*
             }
         })
     }
 
-    /// Makes a handle loadable from an ID through the module's query root.
+    /// Makes a handle loadable from an ID through the surface's query root.
     ///
-    /// `ModuleQuery::r#ref` and `ModuleQuery::load` are generic over the trait this
-    /// implements, as `Ref` and `Load` of Dagger's Go SDK are generic over every
-    /// generated object and interface client
+    /// `r#ref` and `load` of `ModuleQuery`, and of a module client's `Client`, are
+    /// generic over the trait this implements, as `Ref` and `Load` of Dagger's Go SDK
+    /// are generic over every generated object and interface client
     /// (cmd/codegen/generator/go/templates/src/_dagger.gen.go/defs.go.tmpl). A
     /// reference keeps no ID, since the caller's ID need not be in the form `id`
     /// returns. A load asks for `id` through the type's inline fragment, which fails
     /// for a node that is missing or of another type, and keeps the ID it is given
     /// back.
-    fn loadable(&self, wire_name: &SchemaName, handle: &Ident, has_id: bool) -> TokenStream {
-        if self.surface != BindingSurface::Module || !has_id {
-            return TokenStream::new();
-        }
+    fn loadable(
+        &self,
+        wire_name: &SchemaName,
+        handle: &Ident,
+        has_id: bool,
+        coordinate: &SchemaCoordinate,
+    ) -> Result<TokenStream, Diagnostic> {
+        let Some(names) = self.surface.query_root().filter(|_| has_id) else {
+            return Ok(TokenStream::new());
+        };
+        let loadable = ident(names.loadable, coordinate)?;
+        let reference = ident(names.reference, coordinate)?;
+        let load = ident(names.load, coordinate)?;
         let sdk = &self.sdk;
         let graphql_name = wire_name.as_str();
-        quote! {
-            impl super::ModuleLoadable for #handle {
-                fn __module_ref(__query: &#sdk::QueryBuilder, __id: #sdk::IdInput<Self>) -> Self {
+        Ok(quote! {
+            impl super::#loadable for #handle {
+                fn #reference(__query: &#sdk::QueryBuilder, __id: #sdk::IdInput<Self>) -> Self {
                     Self::__from_query(
                         __query.generated_lazy_reentry_builder(__id, #graphql_name),
                     )
                 }
 
-                fn __module_load(
+                fn #load(
                     __query: &#sdk::QueryBuilder,
                     __id: #sdk::IdInput<Self>,
                 ) -> impl ::core::future::Future<
@@ -816,7 +874,7 @@ impl<'a> Renderer<'a> {
                     }
                 }
             }
-        }
+        })
     }
 
     /// The module codecs of a handle, with which a module's object keeps it in private

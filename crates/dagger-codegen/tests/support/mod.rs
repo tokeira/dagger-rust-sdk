@@ -681,7 +681,17 @@ pub(crate) const PRELUDE_NAMED_TYPES: &[&str] = &[
 ///   of every wrapper, so its binding writes every standard name it uses;
 /// - a type whose Rust module is called what the module calls the SDK (`sdk_alias`).
 pub(crate) fn adversarial_dependency_module_schema(sdk_alias: &str) -> Vec<u8> {
-    changed_dependency_module_schema(|document| {
+    adversarial_schema(&dependency_module_schema(0), sdk_alias)
+}
+
+/// The same awkward names beside the whole reviewed Core API, as the schema of a
+/// module's client is served them.
+pub(crate) fn adversarial_dependency_core_schema(sdk_alias: &str) -> Vec<u8> {
+    adversarial_schema(&dependency_core_schema(0), sdk_alias)
+}
+
+fn adversarial_schema(base: &[u8], sdk_alias: &str) -> Vec<u8> {
+    changed_schema(base, |document| {
         let clashing = || {
             vec![
                 argument("query", scalar_type("String", false), None),
@@ -845,13 +855,190 @@ fn lower_first(name: &str) -> String {
     })
 }
 
+/// Applies `change` to the three dependencies beside the whole reviewed Core API, for
+/// a test of what a session that is not a module's is served.
+pub(crate) fn changed_dependency_core_schema(change: impl FnOnce(&mut Value)) -> Vec<u8> {
+    changed_schema(&dependency_core_schema(0), change)
+}
+
+fn changed_schema(base: &[u8], change: impl FnOnce(&mut Value)) -> Vec<u8> {
+    let mut document: Value =
+        serde_json::from_slice(base).expect("dependency schema fixture must decode");
+    change(&mut document);
+    serde_json::to_vec(&document).expect("changed dependency schema fixture must encode")
+}
+
+/// What the `greeter` module adds to the schema of its client, as an engine at the
+/// target serves it. See [`module_client_schema`].
+pub(crate) const GREETER_CLIENT_SCHEMA_PART: &[u8] =
+    include_bytes!("../fixtures/module_clients/greeter.json");
+
+/// What the `naming-app` module adds to the schema of its client. The module has a type
+/// with an acronym in its name, which the engine serves as `NamingAppHTTPFetcher`.
+pub(crate) const NAMING_APP_CLIENT_SCHEMA_PART: &[u8] =
+    include_bytes!("../fixtures/module_clients/naming-app.json");
+
+/// The schema an engine at the target serves for a module's client, from the part the
+/// module adds: `clientSchemaIntrospectionJson(clientVersion:)` of the module's source.
+///
+/// A captured client schema is the reviewed Core API with three additions, and the
+/// fixtures keep only those, since the Core part is the checked `codegen/schema.json`
+/// type for type: the module's types, the fields it adds to `Query`, and the interface
+/// edges between its types and Core's. The edges are stated by the module's types
+/// themselves, so this splices them back: a Core interface gains the module's types
+/// that implement it, and a Core type gains the module's interfaces that list it.
+/// [`module_client_schema_part`] is the inverse, and checks the round trip.
+pub(crate) fn module_client_schema(part: &[u8]) -> Vec<u8> {
+    let part: Value = serde_json::from_slice(part).expect("client schema part must decode");
+    let mut document: Value =
+        serde_json::from_slice(CORE_SCHEMA_BYTES).expect("checked schema fixture must decode");
+    let added = part["types"]
+        .as_array()
+        .expect("client schema part lists the module's types")
+        .clone();
+    let reference = |definition: &Value| {
+        json!({
+            "kind": definition["kind"],
+            "name": definition["name"],
+            "interfaces": null,
+            "possibleTypes": null,
+            "directives": null
+        })
+    };
+    let types = schema_array_mut(&mut document, "types");
+    for definition in &added {
+        for (edges, back) in [
+            ("interfaces", "possibleTypes"),
+            ("possibleTypes", "interfaces"),
+        ] {
+            // An interface's possible types are objects: an interface that extends
+            // another is not one of them.
+            if back == "possibleTypes" && definition["kind"] != "OBJECT" {
+                continue;
+            }
+            for edge in definition[edges].as_array().into_iter().flatten() {
+                let Some(core) = types.iter_mut().find(|core| core["name"] == edge["name"]) else {
+                    continue;
+                };
+                let list = core[back]
+                    .as_array_mut()
+                    .expect("a Core type lists its interface edges");
+                list.push(reference(definition));
+                list.sort_by_key(|entry| entry["name"].as_str().map(str::to_owned));
+            }
+        }
+    }
+    types.extend(added);
+    types.sort_by_key(|definition| definition["name"].as_str().map(str::to_owned));
+    let query = types
+        .iter_mut()
+        .find(|definition| definition["name"] == "Query")
+        .expect("checked schema must contain Query");
+    query["fields"]
+        .as_array_mut()
+        .expect("Query fields must be an array")
+        .extend(
+            part["queryFields"]
+                .as_array()
+                .expect("client schema part lists the module's Query fields")
+                .clone(),
+        );
+    serde_json::to_vec(&document).expect("client schema fixture must encode")
+}
+
+/// Reduces a client schema captured from an engine to the part its module adds, in the
+/// form the fixtures keep.
+///
+/// Panics unless [`module_client_schema`] gives the captured schema back from that
+/// part, type for type, once the introspection types an engine serves beside the
+/// schema are set aside. So a fixture stands for exactly what the engine served.
+pub(crate) fn module_client_schema_part(captured: &[u8]) -> Vec<u8> {
+    let core: Value =
+        serde_json::from_slice(CORE_SCHEMA_BYTES).expect("checked schema fixture must decode");
+    let mut captured: Value =
+        serde_json::from_slice(captured).expect("captured client schema must decode");
+    let core_types = core["__schema"]["types"]
+        .as_array()
+        .expect("checked schema lists its types");
+    let is_core = |name: &Value| core_types.iter().any(|core| &core["name"] == name);
+    let owned = |definition: &Value| {
+        definition["directives"]
+            .as_array()
+            .is_some_and(|directives| {
+                directives
+                    .iter()
+                    .any(|directive| directive["name"] == "sourceMap")
+            })
+    };
+    // `__Type` and its like describe introspection itself, and the checked schema
+    // leaves them out.
+    schema_array_mut(&mut captured, "types")
+        .retain(|definition| is_core(&definition["name"]) || owned(definition));
+    let types = captured["__schema"]["types"]
+        .as_array()
+        .expect("captured schema lists its types");
+    let added = types
+        .iter()
+        .filter(|definition| !is_core(&definition["name"]))
+        .cloned()
+        .collect::<Vec<_>>();
+    let core_query = core_types
+        .iter()
+        .find(|definition| definition["name"] == "Query")
+        .expect("checked schema must contain Query");
+    let query_fields = types
+        .iter()
+        .find(|definition| definition["name"] == "Query")
+        .and_then(|query| query["fields"].as_array())
+        .expect("captured schema must contain Query")
+        .iter()
+        .filter(|field| {
+            !core_query["fields"]
+                .as_array()
+                .is_some_and(|fields| fields.iter().any(|core| core["name"] == field["name"]))
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let mut part = serde_json::to_vec_pretty(&json!({
+        "queryFields": query_fields,
+        "types": added,
+    }))
+    .expect("client schema part must encode");
+    part.push(b'\n');
+    let spliced: Value = serde_json::from_slice(&module_client_schema(&part))
+        .expect("spliced client schema must decode");
+    assert_eq!(
+        spliced["__schema"]["types"].as_array().map(Vec::len),
+        captured["__schema"]["types"].as_array().map(Vec::len),
+    );
+    for (spliced, captured) in spliced["__schema"]["types"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .zip(
+            captured["__schema"]["types"]
+                .as_array()
+                .into_iter()
+                .flatten(),
+        )
+    {
+        assert_eq!(
+            spliced, captured,
+            "the fixture's part does not give back the captured `{}`",
+            captured["name"]
+        );
+    }
+    for key in ["queryType", "directives"] {
+        assert_eq!(spliced["__schema"][key], captured["__schema"][key], "{key}");
+    }
+    assert_eq!(spliced["__schemaVersion"], captured["__schemaVersion"]);
+    part
+}
+
 /// Applies `change` to the unpermuted dependency schema, for a test that needs one
 /// coordinate to differ.
 pub(crate) fn changed_dependency_module_schema(change: impl FnOnce(&mut Value)) -> Vec<u8> {
-    let mut document: Value = serde_json::from_slice(&dependency_module_schema(0))
-        .expect("dependency schema fixture must decode");
-    change(&mut document);
-    serde_json::to_vec(&document).expect("changed dependency schema fixture must encode")
+    changed_schema(&dependency_module_schema(0), change)
 }
 
 /// Adds an object type and the `Query` field that returns it, as a module dependency
@@ -870,6 +1057,25 @@ pub(crate) fn add_constructed_object(
         own(document, type_name, module);
     }
     add_query_object_field(document, constructor, type_name);
+}
+
+/// Adds an object of `module` that no field returns. A module may declare a type that
+/// none of its functions returns, and the engine serves it as it serves the module's
+/// other objects: with an ID, `Node` among its interfaces, and `@sourceMap(module:)`.
+/// Only the type's own binding names it.
+pub(crate) fn add_unreturned_object(schema: &[u8], module: &str, type_name: &str) -> Vec<u8> {
+    changed_schema(schema, |document| {
+        add_object_type(
+            document,
+            type_name,
+            vec![
+                object_field("id", scalar_type("ID", false), vec![]),
+                object_field("note", scalar_type("String", false), vec![]),
+            ],
+        );
+        own(document, type_name, module);
+        implement_node(document, type_name);
+    })
 }
 
 /// Adds an enum outside the reviewed Core API that carries no `@sourceMap`, as a later

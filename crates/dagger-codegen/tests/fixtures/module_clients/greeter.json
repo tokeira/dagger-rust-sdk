@@ -1,0 +1,939 @@
+{
+  "queryFields": [
+    {
+      "args": [
+        {
+          "defaultValue": null,
+          "deprecationReason": null,
+          "description": "",
+          "directives": [
+            {
+              "args": [
+                {
+                  "name": "module",
+                  "value": "\"greeter\""
+                }
+              ],
+              "name": "sourceMap"
+            }
+          ],
+          "isDeprecated": false,
+          "name": "greeting",
+          "type": {
+            "kind": "SCALAR",
+            "name": "String"
+          }
+        }
+      ],
+      "deprecationReason": null,
+      "description": "",
+      "directives": [
+        {
+          "args": [
+            {
+              "name": "module",
+              "value": "\"greeter\""
+            }
+          ],
+          "name": "sourceMap"
+        }
+      ],
+      "isDeprecated": false,
+      "name": "greeter",
+      "type": {
+        "kind": "NON_NULL",
+        "ofType": {
+          "kind": "OBJECT",
+          "name": "Greeter"
+        }
+      }
+    }
+  ],
+  "types": [
+    {
+      "directives": [
+        {
+          "args": [
+            {
+              "name": "module",
+              "value": "\"greeter\""
+            }
+          ],
+          "name": "sourceMap"
+        }
+      ],
+      "fields": [
+        {
+          "args": [],
+          "deprecationReason": null,
+          "description": "A unique identifier for this Greeter.",
+          "directives": [],
+          "isDeprecated": false,
+          "name": "id",
+          "type": {
+            "kind": "NON_NULL",
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "ID"
+            }
+          }
+        },
+        {
+          "args": [
+            {
+              "defaultValue": null,
+              "deprecationReason": null,
+              "description": "",
+              "directives": [
+                {
+                  "args": [
+                    {
+                      "name": "module",
+                      "value": "\"greeter\""
+                    }
+                  ],
+                  "name": "sourceMap"
+                }
+              ],
+              "isDeprecated": false,
+              "name": "name",
+              "type": {
+                "kind": "NON_NULL",
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "String"
+                }
+              }
+            },
+            {
+              "defaultValue": null,
+              "deprecationReason": null,
+              "description": "",
+              "directives": [
+                {
+                  "args": [
+                    {
+                      "name": "module",
+                      "value": "\"greeter\""
+                    }
+                  ],
+                  "name": "sourceMap"
+                }
+              ],
+              "isDeprecated": false,
+              "name": "ending",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String"
+              }
+            }
+          ],
+          "deprecationReason": null,
+          "description": "\nReturns a greeting for the name, with an ending when one is given.\n",
+          "directives": [
+            {
+              "args": [
+                {
+                  "name": "module",
+                  "value": "\"greeter\""
+                }
+              ],
+              "name": "sourceMap"
+            }
+          ],
+          "isDeprecated": false,
+          "name": "hello",
+          "type": {
+            "kind": "NON_NULL",
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "String"
+            }
+          }
+        },
+        {
+          "args": [
+            {
+              "defaultValue": null,
+              "deprecationReason": null,
+              "description": "",
+              "directives": [
+                {
+                  "args": [
+                    {
+                      "name": "module",
+                      "value": "\"greeter\""
+                    }
+                  ],
+                  "name": "sourceMap"
+                }
+              ],
+              "isDeprecated": false,
+              "name": "name",
+              "type": {
+                "kind": "NON_NULL",
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "String"
+                }
+              }
+            }
+          ],
+          "deprecationReason": null,
+          "description": "\nReturns a message that greets the name.\n",
+          "directives": [
+            {
+              "args": [
+                {
+                  "name": "module",
+                  "value": "\"greeter\""
+                }
+              ],
+              "name": "sourceMap"
+            }
+          ],
+          "isDeprecated": false,
+          "name": "message",
+          "type": {
+            "kind": "NON_NULL",
+            "ofType": {
+              "kind": "OBJECT",
+              "name": "GreeterMessage"
+            }
+          }
+        },
+        {
+          "args": [
+            {
+              "defaultValue": null,
+              "deprecationReason": null,
+              "description": "",
+              "directives": [
+                {
+                  "args": [
+                    {
+                      "name": "name",
+                      "value": "\"GreeterNamed\""
+                    }
+                  ],
+                  "name": "expectedType"
+                },
+                {
+                  "args": [
+                    {
+                      "name": "module",
+                      "value": "\"greeter\""
+                    }
+                  ],
+                  "name": "sourceMap"
+                }
+              ],
+              "isDeprecated": false,
+              "name": "subject",
+              "type": {
+                "kind": "NON_NULL",
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "ID"
+                }
+              }
+            }
+          ],
+          "deprecationReason": null,
+          "description": "\nReturns what it is given, as something with a name.\n",
+          "directives": [
+            {
+              "args": [
+                {
+                  "name": "module",
+                  "value": "\"greeter\""
+                }
+              ],
+              "name": "sourceMap"
+            }
+          ],
+          "isDeprecated": false,
+          "name": "named",
+          "type": {
+            "kind": "NON_NULL",
+            "ofType": {
+              "kind": "INTERFACE",
+              "name": "GreeterNamed"
+            }
+          }
+        },
+        {
+          "args": [
+            {
+              "defaultValue": null,
+              "deprecationReason": null,
+              "description": "",
+              "directives": [
+                {
+                  "args": [
+                    {
+                      "name": "module",
+                      "value": "\"greeter\""
+                    }
+                  ],
+                  "name": "sourceMap"
+                }
+              ],
+              "isDeprecated": false,
+              "name": "style",
+              "type": {
+                "kind": "NON_NULL",
+                "ofType": {
+                  "kind": "ENUM",
+                  "name": "GreeterStyle"
+                }
+              }
+            }
+          ],
+          "deprecationReason": null,
+          "description": "\nReturns the other style.\n",
+          "directives": [
+            {
+              "args": [
+                {
+                  "name": "module",
+                  "value": "\"greeter\""
+                }
+              ],
+              "name": "sourceMap"
+            }
+          ],
+          "isDeprecated": false,
+          "name": "restyle",
+          "type": {
+            "kind": "NON_NULL",
+            "ofType": {
+              "kind": "ENUM",
+              "name": "GreeterStyle"
+            }
+          }
+        },
+        {
+          "args": [
+            {
+              "defaultValue": null,
+              "deprecationReason": null,
+              "description": "",
+              "directives": [
+                {
+                  "args": [
+                    {
+                      "name": "name",
+                      "value": "\"Directory\""
+                    }
+                  ],
+                  "name": "expectedType"
+                },
+                {
+                  "args": [
+                    {
+                      "name": "module",
+                      "value": "\"greeter\""
+                    }
+                  ],
+                  "name": "sourceMap"
+                }
+              ],
+              "isDeprecated": false,
+              "name": "source",
+              "type": {
+                "kind": "NON_NULL",
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "ID"
+                }
+              }
+            }
+          ],
+          "deprecationReason": null,
+          "description": "\nReturns the directory with the greeting written to greeting.txt.\n",
+          "directives": [
+            {
+              "args": [
+                {
+                  "name": "module",
+                  "value": "\"greeter\""
+                }
+              ],
+              "name": "sourceMap"
+            }
+          ],
+          "isDeprecated": false,
+          "name": "stamp",
+          "type": {
+            "kind": "NON_NULL",
+            "ofType": {
+              "kind": "OBJECT",
+              "name": "Directory"
+            }
+          }
+        },
+        {
+          "args": [
+            {
+              "defaultValue": null,
+              "deprecationReason": null,
+              "description": "",
+              "directives": [
+                {
+                  "args": [
+                    {
+                      "name": "path",
+                      "value": "\"/\""
+                    }
+                  ],
+                  "name": "defaultPath"
+                },
+                {
+                  "args": [
+                    {
+                      "name": "name",
+                      "value": "\"Directory\""
+                    }
+                  ],
+                  "name": "expectedType"
+                },
+                {
+                  "args": [
+                    {
+                      "name": "patterns",
+                      "value": "[\"*.md\"]"
+                    }
+                  ],
+                  "name": "ignorePatterns"
+                },
+                {
+                  "args": [
+                    {
+                      "name": "module",
+                      "value": "\"greeter\""
+                    }
+                  ],
+                  "name": "sourceMap"
+                }
+              ],
+              "isDeprecated": false,
+              "name": "source",
+              "type": {
+                "kind": "SCALAR",
+                "name": "ID"
+              }
+            }
+          ],
+          "deprecationReason": null,
+          "description": "\nLists the entries at the root of a directory.\n",
+          "directives": [
+            {
+              "args": [
+                {
+                  "name": "module",
+                  "value": "\"greeter\""
+                }
+              ],
+              "name": "sourceMap"
+            }
+          ],
+          "isDeprecated": false,
+          "name": "entries",
+          "type": {
+            "kind": "NON_NULL",
+            "ofType": {
+              "kind": "LIST",
+              "ofType": {
+                "kind": "NON_NULL",
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "String"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "interfaces": [
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "INTERFACE",
+          "name": "Node",
+          "possibleTypes": null
+        }
+      ],
+      "kind": "OBJECT",
+      "name": "Greeter",
+      "possibleTypes": []
+    },
+    {
+      "description": "\nA greeting for one name.\n",
+      "directives": [
+        {
+          "args": [
+            {
+              "name": "module",
+              "value": "\"greeter\""
+            }
+          ],
+          "name": "sourceMap"
+        }
+      ],
+      "fields": [
+        {
+          "args": [],
+          "deprecationReason": null,
+          "description": "A unique identifier for this GreeterMessage.",
+          "directives": [],
+          "isDeprecated": false,
+          "name": "id",
+          "type": {
+            "kind": "NON_NULL",
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "ID"
+            }
+          }
+        },
+        {
+          "args": [],
+          "deprecationReason": null,
+          "description": "Whom the message greets.",
+          "directives": [
+            {
+              "args": [
+                {
+                  "name": "module",
+                  "value": "\"greeter\""
+                }
+              ],
+              "name": "sourceMap"
+            },
+            {
+              "args": [],
+              "name": "trivialResolveField"
+            }
+          ],
+          "isDeprecated": false,
+          "name": "name",
+          "type": {
+            "kind": "NON_NULL",
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "String"
+            }
+          }
+        },
+        {
+          "args": [],
+          "deprecationReason": null,
+          "description": "The greeting.",
+          "directives": [
+            {
+              "args": [
+                {
+                  "name": "module",
+                  "value": "\"greeter\""
+                }
+              ],
+              "name": "sourceMap"
+            },
+            {
+              "args": [],
+              "name": "trivialResolveField"
+            }
+          ],
+          "isDeprecated": false,
+          "name": "text",
+          "type": {
+            "kind": "NON_NULL",
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "String"
+            }
+          }
+        }
+      ],
+      "interfaces": [
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "INTERFACE",
+          "name": "GreeterNamed",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "INTERFACE",
+          "name": "Node",
+          "possibleTypes": null
+        }
+      ],
+      "kind": "OBJECT",
+      "name": "GreeterMessage",
+      "possibleTypes": []
+    },
+    {
+      "directives": [
+        {
+          "args": [
+            {
+              "name": "module",
+              "value": "\"greeter\""
+            }
+          ],
+          "name": "sourceMap"
+        }
+      ],
+      "fields": [
+        {
+          "args": [],
+          "deprecationReason": null,
+          "description": "A unique identifier for this GreeterNamed.",
+          "directives": [],
+          "isDeprecated": false,
+          "name": "id",
+          "type": {
+            "kind": "NON_NULL",
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "ID"
+            }
+          }
+        },
+        {
+          "args": [],
+          "deprecationReason": null,
+          "description": "",
+          "directives": [
+            {
+              "args": [
+                {
+                  "name": "module",
+                  "value": "\"greeter\""
+                }
+              ],
+              "name": "sourceMap"
+            }
+          ],
+          "isDeprecated": false,
+          "name": "name",
+          "type": {
+            "kind": "NON_NULL",
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "String"
+            }
+          }
+        }
+      ],
+      "interfaces": [
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "INTERFACE",
+          "name": "Node",
+          "possibleTypes": null
+        }
+      ],
+      "kind": "INTERFACE",
+      "name": "GreeterNamed",
+      "possibleTypes": [
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "Agent",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "ArtifactDimension",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "CurrentModule",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "Directory",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "Engine",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "EnumTypeDef",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "EnumValueTypeDef",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "EnvVariable",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "ErrorValue",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "Expertise",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "FieldTypeDef",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "File",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "Function",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "FunctionArg",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "FunctionCall",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "FunctionCallArgValue",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "GitBundleRef",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "GitRef",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "GitRemote",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "GreeterMessage",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "Identifier",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "InputTypeDef",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "InterfaceTypeDef",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "LLMSkill",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "Label",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "Module",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "ModuleNaming",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "ObjectTypeDef",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "ScalarTypeDef",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "Secret",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "Stat",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "TypeDef",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "WorkspaceModule",
+          "possibleTypes": null
+        },
+        {
+          "directives": null,
+          "interfaces": null,
+          "kind": "OBJECT",
+          "name": "WorkspaceSDK",
+          "possibleTypes": null
+        }
+      ]
+    },
+    {
+      "directives": [
+        {
+          "args": [
+            {
+              "name": "module",
+              "value": "\"greeter\""
+            }
+          ],
+          "name": "sourceMap"
+        }
+      ],
+      "enumValues": [
+        {
+          "deprecationReason": null,
+          "description": "",
+          "directives": [
+            {
+              "args": [
+                {
+                  "name": "module",
+                  "value": "\"greeter\""
+                }
+              ],
+              "name": "sourceMap"
+            }
+          ],
+          "isDeprecated": false,
+          "name": "PLAIN"
+        },
+        {
+          "deprecationReason": null,
+          "description": "",
+          "directives": [
+            {
+              "args": [
+                {
+                  "name": "module",
+                  "value": "\"greeter\""
+                }
+              ],
+              "name": "sourceMap"
+            }
+          ],
+          "isDeprecated": false,
+          "name": "LOUD"
+        }
+      ],
+      "interfaces": [],
+      "kind": "ENUM",
+      "name": "GreeterStyle",
+      "possibleTypes": []
+    }
+  ]
+}

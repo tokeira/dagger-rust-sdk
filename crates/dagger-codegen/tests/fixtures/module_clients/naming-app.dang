@@ -1,0 +1,29 @@
+"""
+Fetches things over HTTP.
+"""
+type HTTPFetcher {
+  """
+  The URL to fetch.
+  """
+  pub url: String!
+
+  """
+  How many times to try.
+  """
+  pub retries: Int!
+
+  new(url: String!, retries: Int!) {
+    self.url = url
+    self.retries = retries
+    self
+  }
+}
+
+type NamingApp {
+  """
+  Returns a fetcher for the URL.
+  """
+  pub fetcher(url: String!, retries: Int! = 3): HTTPFetcher! {
+    HTTPFetcher(url, retries)
+  }
+}

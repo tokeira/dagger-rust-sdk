@@ -113,6 +113,17 @@ renderer work:
      --test dependency_bindings`, then `rustfmt --edition 2024` on the files, which no
      crate includes and the workspace formatter therefore does not reach. Their headers
      state the target's revision.
+   - The client schema fixtures in
+     `crates/dagger-codegen/tests/fixtures/module_clients/`, which hold what two Dang
+     modules add to the schema of their client. Capture each module's schema from an
+     engine at the new target, with `dagger -c 'module-source <module> |
+     client-schema-introspection-json --client-version <target> | export <name>.json'`
+     in a workspace that holds the two as Dang modules named `greeter` and
+     `naming-app` (their sources are `.dagger/modules/ci/acceptance/greeter.dang` and
+     `naming-app.dang` beside the fixtures). Then reduce the captures with
+     `DAGGER_UPDATE_MODULE_CLIENT_SCHEMA_FIXTURES=<directory> cargo test -p
+     dagger-codegen --locked --test module_client`, which refuses a capture whose Core
+     part is not the checked schema.
    - Target-derived engine fixtures and compile-contract goldens outside the generated
      set: update the core-schema digest in
      `crates/dagger-sdk-engine/tests/client_usability_properties.rs` and
