@@ -125,10 +125,9 @@ documented with `#![doc = include_str!(...)]` gives the module no description.
 Persistent state is owned data reconstructed for the selected object. A public field
 appears in the TypeDef; a private persistent field participates only in state encoding;
 an ordinary unmarked field remains implementation detail. Generated Core and self handles
-preserve their typed IDs and re-enter through the active session. A module can declare a
-dependency on another module under `[[dependencies]]` in its `dagger-module.toml`, and
-generation binds the dependency's types, but the module cannot yet call the dependency or
-take its objects as arguments.
+preserve their typed IDs and re-enter through the active session. A module can also call
+the modules it depends on and keep their objects in private state, as
+[Dependencies](#dependencies) describes.
 
 Arguments, results, and fields can also be Core enums and scalars, such as
 `NetworkProtocol`, `Platform`, `Json`, and `Bytes`. An enum crosses the boundary as the
@@ -201,6 +200,126 @@ against it. A value built from the receiver, with `self.clone()` or `..self.clon
 keeps its base, as `without_examples` does. A value built afresh starts from
 `CollectionBase::default()` and is its own base. A collection declares exactly one
 such field, and no other object declares one.
+
+### Dependencies
+
+A module calls another module through typed bindings that `dagger generate` writes into
+its own crate. Declare the dependency in the module's `dagger-module.toml`, under the
+name the module will call it by:
+
+```toml
+[[dependencies]]
+  name = "greeter"
+  source = "../greeter"
+```
+
+Then run `dagger generate`. Each type of the dependency is bound in a file of
+`src/dagger_generated/` and exported from `dagger_generated`. The engine names the types
+after the dependency: its main object is `Greeter`, and its other types begin with that
+name, such as `GreeterMessage` and `GreeterMode`. Run `dagger generate` again whenever the
+dependency's functions or types change, and commit the result. Bindings that no longer
+match the dependency still compile, and a call through them fails at run time with the
+engine's error.
+
+The dependency's main object comes from the query root that the context holds:
+
+```rust
+use dagger_generated::{GreeterMode, GreeterShoutOpts, ModuleContext, QueryGreeterOpts};
+
+#[dagger(function)]
+async fn welcome(
+    &self,
+    name: String,
+    #[dagger(context)] context: ModuleContext,
+) -> Result<String, dagger_sdk::ModuleError> {
+    let greeter = context
+        .query()
+        .greeter_opts(&QueryGreeterOpts::default().with_greeting("hi"));
+    let loud = greeter.with_mode(GreeterMode::Loud);
+    let twice = GreeterShoutOpts::default().with_times(2);
+    Ok(loud.shout_opts(name, &twice).await?)
+}
+```
+
+`context.query()` has one method for each dependency, named after it, which takes the
+arguments of the dependency's constructor. Calls follow the convention of the Core
+bindings:
+
+- Required arguments are positional, in the alphabetical order of their GraphQL names,
+  not the order the dependency declares them in. `vault(name:, mount:)` is
+  `query.vault(mount, name)`.
+- A function with optional arguments has a second method, `<function>_opts`, that
+  borrows an options struct after the required arguments. The struct is named after the
+  owner and the function, `GreeterShoutOpts`, or `Query<Dependency>Opts` for a
+  constructor. It starts from `default()` and has one `with_<argument>` setter for each
+  optional argument; an argument that is not set is left out of the request.
+- A string argument takes anything that converts to a `String`, and an object argument
+  takes the object's handle or its ID.
+- A function that returns an object returns a lazy handle and sends nothing. A function
+  that returns a value, a nullable object, or a list is `async` and returns
+  `Result<T, QueryError>`, which `?` converts to a `ModuleError` that keeps the
+  dependency's message.
+- An enum of the dependency is a Rust enum whose variants are its members.
+- An interface of the dependency is a trait, `GreeterNamed`, and a handle,
+  `GreeterNamedClient`, that implements it. A function that returns the interface
+  returns the handle. The dependency's objects that implement the interface implement
+  the trait and convert to the handle where the interface is an argument.
+
+An object can keep a dependency's objects and enums in private state, where they survive
+from one call to the next:
+
+```rust
+#[dagger_sdk::object]
+pub(crate) struct Welcome {
+    #[dagger(state)]
+    greeter: Greeter,
+    #[dagger(state)]
+    mode: GreeterMode,
+}
+```
+
+`context.query().r#ref::<T>(id)` builds a handle from an ID without a request, and
+`context.query().load::<T>(id).await` first checks that the object exists and has that
+type. Both accept every type that implements `dagger_generated::ModuleLoadable`: Core's
+handles and the handles of the module's dependencies.
+
+Some rules follow from the engine and from Rust:
+
+- The engine refuses a dependency's type in the module's own API: in an exported
+  function's arguments or result, and in a `#[dagger(field)]`. Generation and the build
+  succeed, and the module then fails to load with the engine's reason. Keep such a value
+  in `#[dagger(state)]`, and return its data or a Core object.
+- A function that every handle already has through Rust's prelude is bound with a
+  trailing underscore: `clone_`, `clone_from_`, `clone_into_`, `into_`, `to_owned_`, and
+  `try_into_`. `handle.clone()` still clones the handle. The `_opts` method keeps the
+  plain name, `clone_opts`. The same holds for a dependency of one of these names:
+  `context.query().clone_()` constructs a dependency called `clone`. When a required
+  argument is itself called `opts`, the options parameter is `opts_`.
+- Generation refuses a dependency called `load` or `ref`, whose constructor would
+  redefine a method of the query root, and a dependency type that would be bound as
+  `ModuleContext`, `ModuleQuery`, `ModuleLoadable`, or another name or file of the
+  generated support. It also refuses a type of the module's own with the name of one of
+  a dependency's types. In each case, declare the dependency under another `name`, or
+  rename the local type.
+- A dependency type called `Result`, `Option`, or `Vec` is written by its path,
+  `dagger_generated::Result`, wherever the module names it as a field's type. The bare
+  name is the standard type.
+- A dependency function that names a type with no typed binding fails generation at the
+  function's coordinate with `SCHEMA_FIELD_UNMAPPED`. Such a type is neither part of the
+  Core API the SDK targets nor owned by a dependency: a later engine's addition, for
+  example.
+
+Compared with a Go module, these are left out:
+
+- A module cannot call its own functions through the query root.
+- A dependency's object cannot be returned through an interface the module declares.
+- A dependency's handle does not implement the traits of the Core interfaces it
+  implements, such as `Node`. It still converts to their IDs.
+- The runtime refuses a module scope with clients recorded for it.
+- There is no `As<Interface>()` and no `Loaded[T]`. To use a value as an interface it
+  implements, build the interface's handle from the value's ID:
+  `context.query().r#ref::<GreeterNamedClient>(message.id().await?)`. The same call
+  passes a Core object where a dependency's interface is expected.
 
 ## Descriptor and generated ownership
 

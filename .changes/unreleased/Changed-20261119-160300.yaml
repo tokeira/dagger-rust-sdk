@@ -1,0 +1,7 @@
+kind: Changed
+body: |
+    The bindings generated for a dependency's types are typed. 0.7.1 bound each object and interface of a dependency as an untyped handle, whose methods took `Json` arguments and returned a `QueryBuilder`, with a public `selection()` and a hidden `from_query`, and bound each enum without its wire names. Those methods, `selection()` and `from_query` are gone; a 0.7.1 module had no way to construct such a handle, so no working call changes. A type outside the Core API the SDK targets that no dependency owns, such as one a later engine adds, keeps the untyped handle. A dependency function that names such a type, as an argument or a result, now fails generation with `SCHEMA_FIELD_UNMAPPED` at the function's coordinate, where 0.7.1 bound the function untyped. Generation also refuses a dependency called `load` or `ref`, and a dependency type that would be bound under a name or in a file of the module's generated support, such as `ModuleContext`, `ModuleQuery` or `ModuleLoadable`, with `RUST_NAME_COLLISION` or `OPERATION_ARTIFACT_COLLISION` at the coordinate; declare the dependency under another `name`. Moving a module to 0.8.0 takes one `dagger generate`, whose changes are committed with the move; until then the module fails to load with `GENERATED_STALE`, as after any SDK release.
+time: 2026-11-19T16:03:00Z
+custom:
+    Author: iw
+    PR: "58"

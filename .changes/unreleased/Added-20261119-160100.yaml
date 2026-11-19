@@ -1,0 +1,7 @@
+kind: Added
+body: |
+    An object can keep a dependency's objects and enums in private state. A `#[dagger(state)]` field typed as a dependency's handle or enum, bare or in an `Option` or a `Vec`, is kept by the engine from one call to the next: the handle crosses as its ID and is loaded again on the next call's session. The engine refuses a dependency's type in a module's own API, in an exported function's arguments or result and in a `#[dagger(field)]`, as it does for every SDK. Generation and the build accept such a signature, and the module then fails to load with the engine's reason. A dependency type called `Result`, `Option` or `Vec` is written by its path, `dagger_generated::Result`; the bare name is still the standard type.
+time: 2026-11-19T16:01:00Z
+custom:
+    Author: iw
+    PR: "58"

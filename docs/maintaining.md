@@ -106,6 +106,13 @@ renderer work:
    - The checked generated-client fixtures: regenerate through the sanctioned path
      (`DAGGER_UPDATE_GENERATED_CLIENT_FIXTURE=1 cargo test -p dagger-codegen
      --test client_renderer`), then run the workspace formatter.
+   - The checked dependency bindings in
+     `crates/dagger-codegen/tests/fixtures/dependency_bindings/`, which the bindings
+     renderer for a module's dependencies must match:
+     `DAGGER_UPDATE_DEPENDENCY_BINDINGS_FIXTURE=1 cargo test -p dagger-codegen --locked
+     --test dependency_bindings`, then `rustfmt --edition 2024` on the files, which no
+     crate includes and the workspace formatter therefore does not reach. Their headers
+     state the target's revision.
    - Target-derived engine fixtures and compile-contract goldens outside the generated
      set: update the core-schema digest in
      `crates/dagger-sdk-engine/tests/client_usability_properties.rs` and

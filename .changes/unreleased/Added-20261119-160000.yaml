@@ -1,0 +1,7 @@
+kind: Added
+body: |
+    A module can construct and call the modules it depends on, as a Go module can. For each dependency declared under `[[dependencies]]` in the module's `dagger-module.toml`, `dagger generate` writes typed bindings into the module's `dagger_generated`, in the calling convention of the Core bindings. `context.query().greeter()` constructs the dependency `greeter`, and `greeter_opts(&QueryGreeterOpts::default().with_greeting("hi"))` passes its constructor's optional arguments. A function that returns an object returns a lazy handle; one that returns a value, a nullable object or a list is `async` and returns `Result<T, QueryError>`, which `?` turns into a `ModuleError` with the dependency's message. Optional arguments go in a borrowed options struct with `with_*` setters, passed to an `_opts` method. Required arguments are positional in the alphabetical order of their GraphQL names, as in the Core bindings, not in the order the dependency declares them. A dependency's enum is a Rust enum, and its interface is a trait and a `...Client` handle that the dependency's objects implement and convert to. The Dependencies section of the module authoring guide describes the calls, the names generation changes or refuses, and what is left out compared with Go: a module calling its own functions, a dependency's object behind an interface the module declares, Core's interface traits on a dependency's handles, and `As<Interface>()`.
+time: 2026-11-19T16:00:00Z
+custom:
+    Author: iw
+    PR: "58"
