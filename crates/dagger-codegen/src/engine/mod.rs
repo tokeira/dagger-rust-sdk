@@ -5,6 +5,7 @@
 //! sessions, publication, and completeness transitions remain outside this crate.
 
 mod client;
+mod dependency;
 mod library;
 mod metadata;
 mod model;

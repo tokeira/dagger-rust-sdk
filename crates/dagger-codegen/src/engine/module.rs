@@ -1,16 +1,19 @@
 //! Production rendering from one pure module-authoring compilation.
 //!
-//! The visible schema contributes only checked generated-handle bindings. Authored
-//! source, descriptor construction, registration, dispatch, and entrypoint generation
-//! remain inside the Rust compiler pipeline and are published as one candidate set.
+//! The visible schema contributes only checked generated-handle bindings: the SDK's
+//! own for the reviewed Core API, typed ones rendered into the module for the types of
+//! the modules it depends on, and untyped ones for anything else. Authored source,
+//! descriptor construction, registration, dispatch, and entrypoint generation remain
+//! inside the Rust compiler pipeline and are published as one candidate set.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::diagnostic::{DiagnosticCode, DiagnosticSet};
 use crate::module::{
-    GeneratedAssetPath, GeneratedTypeBinding, GeneratedTypeKind, GeneratedTypeRegistry,
-    ModuleCompilation, ModuleCompilationRequest, ModuleCompiler, ModuleDiagnosticSet, ModuleTarget,
-    Sha256Digest as ModuleDigest, TargetValue, WireName,
+    GENERATED_SUPPORT_MODULES, GENERATED_SUPPORT_NAMES, GeneratedAssetPath, GeneratedTypeBinding,
+    GeneratedTypeKind, GeneratedTypeRegistry, ModuleCompilation, ModuleCompilationRequest,
+    ModuleCompiler, ModuleDiagnosticSet, ModuleTarget, Sha256Digest as ModuleDigest, TargetValue,
+    WireName,
 };
 use crate::naming::NameContext;
 use crate::projection::types::{ScalarKind, TypeProjection};
@@ -59,6 +62,7 @@ fn compile_authoring(
         .filter(|name| name.as_str() != "Query")
         .map(|name| WireName::new(name.as_str()).map_err(|_| failure()))
         .collect::<Result<BTreeSet<_>, _>>()?;
+    refuse_support_collisions(schema)?;
     let checked_bindings = checked_binding_assets(schema, &authoring.sdk_dependency_alias)?;
 
     ModuleCompiler::compile(ModuleCompilationRequest {
@@ -100,6 +104,97 @@ fn authoring_diagnostics(errors: ModuleDiagnosticSet) -> DiagnosticSet {
     DiagnosticSet::new(diagnostics).unwrap_or_else(failure)
 }
 
+// A type outside the reviewed Core API is bound in the module's own crate, in a file
+// named after it and re-exported from `dagger_generated` beside the module's generated
+// support. A type that projects to a name or a file of that support would shadow it or
+// be shadowed by it, so it is refused here with its own coordinate rather than as a
+// compiler error in generated code. The engine names a dependency's types after the
+// name the dependency is declared under (`Namer.NamespaceObject` in core/gqlformat.go
+// at the target), which is why declaring it under another name is the remedy.
+fn refuse_support_collisions(
+    schema: &super::visible::VisibleSchemaPlan,
+) -> Result<(), DiagnosticSet> {
+    let mut diagnostics = Vec::new();
+    for projection in schema.projection().named_types().values() {
+        let (wire_name, coordinate, rust_names, module_name) = match projection {
+            TypeProjection::Object(object) => (
+                &object.wire_name,
+                &object.coordinate,
+                vec![object.rust_name.as_str()],
+                Some(object.module_name.clone()),
+            ),
+            TypeProjection::Interface(interface) => (
+                &interface.wire_name,
+                &interface.coordinate,
+                vec![
+                    interface.trait_name.as_str(),
+                    interface.client_name.as_str(),
+                ],
+                Some(interface.module_name.clone()),
+            ),
+            TypeProjection::Enum(enumeration) => (
+                &enumeration.wire_name,
+                &enumeration.coordinate,
+                vec![enumeration.rust_name.as_str()],
+                schema
+                    .projection()
+                    .names()
+                    .get(&enumeration.coordinate, NameContext::Module)
+                    .map(|name| name.identifier.clone()),
+            ),
+            TypeProjection::InputObject(input) => (
+                &input.wire_name,
+                &input.coordinate,
+                vec![input.rust_name.as_str()],
+                Some(input.module_name.clone()),
+            ),
+            TypeProjection::Scalar(_) | TypeProjection::TargetPrivate(_) => continue,
+        };
+        if !schema.is_extension_type(wire_name) {
+            continue;
+        }
+        // Only a dependency's type has a name the module's author chose.
+        let (owner, remedy) = schema.dependency_module(wire_name).map_or_else(
+            || {
+                (
+                    "the visible schema".to_owned(),
+                    "the module cannot be generated against this schema",
+                )
+            },
+            |module| {
+                (
+                    format!("module dependency `{module}`"),
+                    "declare the dependency under another name",
+                )
+            },
+        );
+        for rust_name in rust_names {
+            if GENERATED_SUPPORT_NAMES.contains(&rust_name) {
+                diagnostics.push(operation_diagnostic(
+                    DiagnosticCode::RustNameCollision,
+                    coordinate.as_str(),
+                    &format!(
+                        "type `{wire_name}` of {owner} would be bound as `{rust_name}`, which the module's generated support defines; {remedy}"
+                    ),
+                ));
+            }
+        }
+        if let Some(module_name) = module_name {
+            let stem = module_name.strip_prefix("r#").unwrap_or(&module_name);
+            if GENERATED_SUPPORT_MODULES.contains(&stem) {
+                diagnostics.push(operation_diagnostic(
+                    DiagnosticCode::OperationArtifactCollision,
+                    coordinate.as_str(),
+                    &format!(
+                        "type `{wire_name}` of {owner} would be bound in `{stem}.rs`, which holds the module's generated support; {remedy}"
+                    ),
+                ));
+            }
+        }
+    }
+    DiagnosticSet::new(diagnostics).map_or(Ok(()), Err)
+}
+
 fn generated_type_registry(
     schema: &super::visible::VisibleSchemaPlan,
     alias: &str,
@@ -122,10 +217,13 @@ fn generated_type_registry(
                 &interface.wire_name,
                 BTreeMap::new(),
             ),
-            // Only the SDK crate implements module codecs for enums and scalars, so a
-            // module's signatures can name Core ones and no others.
+            // An enum needs module codecs to appear in a module's signatures or state.
+            // The SDK crate implements them for Core's enums, and the binding rendered
+            // for a dependency's enum carries its own. An enum outside the reviewed Core
+            // API that no dependency owns is bound without them.
             TypeProjection::Enum(enumeration)
-                if !schema.is_extension_type(&enumeration.wire_name) =>
+                if !schema.is_extension_type(&enumeration.wire_name)
+                    || schema.is_dependency_type(&enumeration.wire_name) =>
             {
                 (
                     enumeration.wire_name.as_str(),
@@ -139,6 +237,10 @@ fn generated_type_registry(
                         .collect(),
                 )
             }
+            // A module declares no scalars of its own (the scalar case of
+            // `userMod.modTypeFor` in core/module.go at the target finds none), so a
+            // dependency contributes none and only the SDK crate implements module
+            // codecs for one.
             TypeProjection::Scalar(scalar) if !schema.is_extension_type(&scalar.wire_name) => {
                 let rust_name = match scalar.scalar {
                     ScalarKind::Json => "Json",

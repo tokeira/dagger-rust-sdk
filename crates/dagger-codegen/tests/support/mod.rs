@@ -618,6 +618,521 @@ pub(crate) fn add_dependency_extension(schema: &[u8]) -> Vec<u8> {
     serde_json::to_vec(&document).expect("extended schema fixture must encode")
 }
 
+/// The schema `dagger generate` is served for a module that depends on three modules,
+/// as the engine at the target serves it: every type a dependency owns carries
+/// `@sourceMap(module:)` and implements Core's `Node`, and each dependency's
+/// constructor is a field of `Query`.
+///
+/// - `greeter` has an object with a function of every shape a caller meets, a second
+///   object, an interface that object implements, and an enum. Its constructor takes
+///   optional arguments only.
+/// - `vault` has a constructor with a required and an optional argument.
+/// - `clock` has a constructor without arguments.
+pub(crate) fn dependency_module_schema(permutation: u16) -> Vec<u8> {
+    let mut document: Value = serde_json::from_slice(&module_visible_schema(0))
+        .expect("module-visible schema fixture must decode");
+    add_module_dependencies(&mut document);
+    permute_schema(&mut document, permutation);
+    serde_json::to_vec(&document).expect("dependency schema fixture must encode")
+}
+
+/// The same three dependencies beside the whole reviewed Core API, as a session that is
+/// not a module's is served them.
+pub(crate) fn dependency_core_schema(permutation: u16) -> Vec<u8> {
+    let mut document: Value =
+        serde_json::from_slice(CORE_SCHEMA_BYTES).expect("checked schema fixture must decode");
+    add_module_dependencies(&mut document);
+    permute_schema(&mut document, permutation);
+    serde_json::to_vec(&document).expect("dependency schema fixture must encode")
+}
+
+/// The names of the standard prelude that a dependency's type can take, each as the main
+/// object of a dependency called by the same name. `Sync` is an interface, which the
+/// object `Send` implements. (`String` cannot occur: it is GraphQL's own scalar.)
+pub(crate) const PRELUDE_NAMED_TYPES: &[&str] = &[
+    "Box",
+    "Clone",
+    "Default",
+    "From",
+    "Future",
+    "Into",
+    "IntoIterator",
+    "Iterator",
+    "Ok",
+    "Option",
+    "Pin",
+    "Result",
+    "Send",
+    "Some",
+    "Vec",
+];
+
+/// The dependency schema with everything in a dependency's own naming that generated
+/// Rust could trip over, each of which a module must still build beside:
+///
+/// - arguments named like the locals a binding's method has (`query`, `opts`, `value`,
+///   `ids`, `id`), on an object, on an interface and on a constructor;
+/// - functions named like methods every handle has already (`clone`, `into`,
+///   `toOwned`, …) or that Clippy reads a convention into (`new`, `default`,
+///   `intoParts`, `fromQuery`);
+/// - documentation with an indented block and an untagged fence, which rustdoc would
+///   compile as Rust;
+/// - types named like items of the standard prelude, each with results and arguments
+///   of every wrapper, so its binding writes every standard name it uses;
+/// - a type whose Rust module is called what the module calls the SDK (`sdk_alias`).
+pub(crate) fn adversarial_dependency_module_schema(sdk_alias: &str) -> Vec<u8> {
+    changed_dependency_module_schema(|document| {
+        let clashing = || {
+            vec![
+                argument("query", scalar_type("String", false), None),
+                argument("opts", scalar_type("String", false), None),
+                argument("value", scalar_type("String", false), None),
+                argument("ids", scalar_type("String", false), None),
+                argument("id", scalar_type("String", false), None),
+                argument("limit", scalar_type("Int", true), Some("1")),
+                argument("builder", scalar_type("String", true), None),
+            ]
+        };
+        // On the interface and its implementor: a value, a lazy object and a list.
+        for owner in ["GreeterNamed", "GreeterMessage"] {
+            add_object_field_to_type(
+                document,
+                owner,
+                object_field("search", scalar_type("String", false), clashing()),
+            );
+            add_object_field_to_type(
+                document,
+                owner,
+                object_field("clone", interface_type("GreeterNamed", false), vec![]),
+            );
+        }
+        for (name, result) in [
+            ("search", scalar_type("String", false)),
+            ("searchLazy", object_type("Greeter", false)),
+            (
+                "searchMany",
+                list_type(object_type("GreeterMessage", false), false),
+            ),
+            ("searchMaybe", object_type("GreeterMessage", true)),
+        ] {
+            add_object_field_to_type(document, "Greeter", object_field(name, result, clashing()));
+        }
+        for (name, result, args) in [
+            ("clone", object_type("Greeter", false), vec![]),
+            (
+                "into",
+                scalar_type("String", false),
+                vec![argument(
+                    "deep",
+                    scalar_type("Boolean", true),
+                    Some("false"),
+                )],
+            ),
+            ("toOwned", scalar_type("String", false), vec![]),
+            ("tryInto", scalar_type("String", false), vec![]),
+            (
+                "cloneFrom",
+                scalar_type("String", false),
+                vec![argument("other", scalar_type("String", false), None)],
+            ),
+            ("cloneInto", scalar_type("String", false), vec![]),
+            ("new", scalar_type("String", false), vec![]),
+            ("default", scalar_type("String", false), vec![]),
+            ("drop", scalar_type("String", false), vec![]),
+            ("intoParts", scalar_type("String", false), vec![]),
+            ("fromQuery", scalar_type("String", false), vec![]),
+            ("selection", scalar_type("String", false), vec![]),
+            (
+                "wide",
+                scalar_type("String", false),
+                (0..9)
+                    .map(|index| argument(&format!("a{index}"), scalar_type("Int", false), None))
+                    .collect(),
+            ),
+        ] {
+            add_object_field_to_type(document, "Greeter", object_field(name, result, args));
+        }
+        let mut documented = object_field("documented", scalar_type("String", false), vec![]);
+        documented["description"] = json!(
+            "Says hello.\n\nExample:\n\n    dagger call documented --name=world\n\nOr:\n\n```\ndag.Greeter().Documented(ctx)\n```\n"
+        );
+        documented["args"] = json!([{
+            "name": "name",
+            "description": "The name.\n\n    --name=world",
+            "type": {"kind": "SCALAR", "name": "String"},
+            "defaultValue": null,
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "directives": []
+        }]);
+        add_object_field_to_type(document, "Greeter", documented);
+
+        add_interface_type(document, "Sync", "Send");
+        own(document, "Sync", "send");
+        for type_name in PRELUDE_NAMED_TYPES
+            .iter()
+            .copied()
+            .chain([sdk_alias_type(sdk_alias).as_str()])
+        {
+            let dependency = lower_first(type_name);
+            add_object_type(
+                document,
+                type_name,
+                vec![
+                    object_field("id", scalar_type("ID", false), vec![]),
+                    object_field("message", scalar_type("String", false), vec![]),
+                    object_field("again", object_type(type_name, false), vec![]),
+                    object_field("maybe", object_type(type_name, true), vec![]),
+                    object_field(
+                        "many",
+                        list_type(object_type(type_name, false), false),
+                        vec![argument(
+                            "names",
+                            list_type(scalar_type("String", false), false),
+                            None,
+                        )],
+                    ),
+                    object_field(
+                        "label",
+                        scalar_type("String", false),
+                        vec![
+                            argument("name", scalar_type("String", false), None),
+                            typed_id_argument("other", type_name, false),
+                            typed_id_list_argument("others", type_name),
+                            typed_id_argument("also", type_name, true),
+                            argument("tags", list_type(scalar_type("String", false), true), None),
+                            argument("loud", scalar_type("Boolean", true), Some("false")),
+                        ],
+                    ),
+                    expected_type_field("sync", type_name),
+                ],
+            );
+            own(document, type_name, &dependency);
+            implement_node(document, type_name);
+            let mut constructor = object_field(
+                &dependency,
+                object_type(type_name, false),
+                vec![
+                    argument("query", scalar_type("String", false), None),
+                    argument("opts", scalar_type("String", false), None),
+                    argument("loud", scalar_type("Boolean", true), Some("false")),
+                ],
+            );
+            constructor["directives"] = source_map_directives(&dependency);
+            add_query_field_value(document, constructor);
+        }
+        add_interface_to_object(document, "Send", "Sync");
+    })
+}
+
+/// The object type whose Rust module is called `sdk_alias`.
+fn sdk_alias_type(sdk_alias: &str) -> String {
+    sdk_alias
+        .split('_')
+        .map(|word| {
+            let mut characters = word.chars();
+            characters.next().map_or_else(String::new, |first| {
+                first.to_uppercase().chain(characters).collect()
+            })
+        })
+        .collect()
+}
+
+fn lower_first(name: &str) -> String {
+    let mut characters = name.chars();
+    characters.next().map_or_else(String::new, |first| {
+        first.to_lowercase().chain(characters).collect()
+    })
+}
+
+/// Applies `change` to the unpermuted dependency schema, for a test that needs one
+/// coordinate to differ.
+pub(crate) fn changed_dependency_module_schema(change: impl FnOnce(&mut Value)) -> Vec<u8> {
+    let mut document: Value = serde_json::from_slice(&dependency_module_schema(0))
+        .expect("dependency schema fixture must decode");
+    change(&mut document);
+    serde_json::to_vec(&document).expect("changed dependency schema fixture must encode")
+}
+
+/// Adds an object type and the `Query` field that returns it, as a module dependency
+/// contributes them, with the type owned by `module` when one is given.
+pub(crate) fn add_constructed_object(
+    document: &mut Value,
+    module: Option<&str>,
+    type_name: &str,
+    constructor: &str,
+    fields: Vec<Value>,
+) {
+    let mut all = vec![object_field("id", scalar_type("ID", false), vec![])];
+    all.extend(fields);
+    add_object_type(document, type_name, all);
+    if let Some(module) = module {
+        own(document, type_name, module);
+    }
+    add_query_object_field(document, constructor, type_name);
+}
+
+/// A field as the dependency fixtures declare one: its name, type and arguments.
+pub(crate) fn dependency_field(name: &str, type_ref: Value, args: Vec<Value>) -> Value {
+    object_field(name, type_ref, args)
+}
+
+/// A non-null reference to a named object type.
+pub(crate) fn dependency_object_type(name: &str) -> Value {
+    object_type(name, false)
+}
+
+fn add_module_dependencies(document: &mut Value) {
+    add_enum_type(document, "GreeterMode", &["LOUD", "QUIET"]);
+    own(document, "GreeterMode", "greeter");
+
+    // The interface's own functions, which the object that implements it has too: a
+    // value from optional arguments, a value from required ones of every kind, the
+    // interface itself as a lazy result, and a list of it.
+    let named_fields = || {
+        vec![
+            object_field(
+                "describe",
+                scalar_type("String", false),
+                vec![argument(
+                    "prefix",
+                    scalar_type("String", true),
+                    Some("\"\""),
+                )],
+            ),
+            object_field(
+                "relabel",
+                scalar_type("String", false),
+                vec![
+                    argument("label", scalar_type("String", false), None),
+                    argument("tags", list_type(scalar_type("String", false), false), None),
+                    typed_id_argument("source", "Directory", false),
+                    argument("loud", scalar_type("Boolean", true), Some("false")),
+                ],
+            ),
+            object_field(
+                "renamed",
+                interface_type("GreeterNamed", false),
+                vec![argument("name", scalar_type("String", false), None)],
+            ),
+            object_field(
+                "aliases",
+                list_type(interface_type("GreeterNamed", false), false),
+                vec![],
+            ),
+        ]
+    };
+    add_interface_type(document, "GreeterNamed", "GreeterMessage");
+    own(document, "GreeterNamed", "greeter");
+    for field in named_fields() {
+        add_object_field_to_type(document, "GreeterNamed", field);
+    }
+
+    let mut message_fields = vec![
+        object_field("id", scalar_type("ID", false), vec![]),
+        object_field("message", scalar_type("String", false), vec![]),
+        object_field("mode", enum_type("GreeterMode", false), vec![]),
+    ];
+    message_fields.extend(named_fields());
+    add_object_type(document, "GreeterMessage", message_fields);
+    own(document, "GreeterMessage", "greeter");
+    add_interface_to_object(document, "GreeterMessage", "GreeterNamed");
+    implement_node(document, "GreeterMessage");
+
+    let mut source = typed_id_argument("source", "Directory", true);
+    extend_directives(
+        &mut source,
+        &[directive_application("defaultPath", &[("path", "\"/\"")])],
+    );
+    add_object_type(
+        document,
+        "Greeter",
+        vec![
+            object_field("id", scalar_type("ID", false), vec![]),
+            // A value from a required string.
+            object_field(
+                "hello",
+                scalar_type("String", false),
+                vec![argument("name", scalar_type("String", false), None)],
+            ),
+            // A value from a required argument, optional ones and an enum.
+            object_field(
+                "shout",
+                scalar_type("String", false),
+                vec![
+                    argument("name", scalar_type("String", false), None),
+                    argument("times", scalar_type("Int", true), Some("1")),
+                    argument("mode", enum_type("GreeterMode", true), None),
+                    argument(
+                        "suffixes",
+                        list_type(scalar_type("String", false), true),
+                        None,
+                    ),
+                ],
+            ),
+            // An enum result and an enum argument.
+            object_field("mode", enum_type("GreeterMode", false), vec![]),
+            object_field(
+                "withMode",
+                object_type("Greeter", false),
+                vec![argument("mode", enum_type("GreeterMode", false), None)],
+            ),
+            // `Void`, which the engine declares nullable.
+            object_field("reset", scalar_type("Void", true), vec![]),
+            // A lazy object of the dependency, a nullable one and a list of them.
+            object_field(
+                "message",
+                object_type("GreeterMessage", false),
+                vec![argument("name", scalar_type("String", false), None)],
+            ),
+            object_field("lastMessage", object_type("GreeterMessage", true), vec![]),
+            object_field(
+                "messages",
+                list_type(object_type("GreeterMessage", false), false),
+                vec![argument(
+                    "names",
+                    list_type(scalar_type("String", false), false),
+                    None,
+                )],
+            ),
+            // An interface of the dependency, as a result and as an argument.
+            object_field("named", interface_type("GreeterNamed", false), vec![]),
+            object_field(
+                "describe",
+                scalar_type("String", false),
+                vec![typed_id_argument("named", "GreeterNamed", false)],
+            ),
+            // The dependency's own objects as arguments, one and many.
+            object_field(
+                "withMessage",
+                object_type("Greeter", false),
+                vec![typed_id_argument("message", "GreeterMessage", false)],
+            ),
+            object_field(
+                "withMessages",
+                object_type("Greeter", false),
+                vec![typed_id_list_argument("messages", "GreeterMessage")],
+            ),
+            // Core objects: an argument, a lazy result, a nullable one and a list.
+            object_field(
+                "container",
+                object_type("Container", false),
+                vec![
+                    typed_id_argument("source", "Directory", false),
+                    typed_id_argument("base", "Container", true),
+                ],
+            ),
+            object_field("maybeFile", object_type("File", true), vec![]),
+            object_field(
+                "files",
+                list_type(object_type("File", false), false),
+                vec![],
+            ),
+            // A Core enum and a Core scalar in both directions.
+            object_field(
+                "protocol",
+                enum_type("NetworkProtocol", false),
+                vec![argument(
+                    "protocol",
+                    enum_type("NetworkProtocol", false),
+                    None,
+                )],
+            ),
+            object_field(
+                "platform",
+                scalar_type("Platform", false),
+                vec![argument("platform", scalar_type("Platform", true), None)],
+            ),
+            // An ID that names the object it returns.
+            expected_type_field("sync", "Greeter"),
+        ],
+    );
+    own(document, "Greeter", "greeter");
+    implement_node(document, "Greeter");
+    let mut constructor = object_field(
+        "greeter",
+        object_type("Greeter", false),
+        vec![
+            argument("greeting", scalar_type("String", true), Some("\"hello\"")),
+            argument("mode", enum_type("GreeterMode", true), None),
+            source,
+        ],
+    );
+    constructor["directives"] = source_map_directives("greeter");
+    add_query_field_value(document, constructor);
+
+    add_object_type(
+        document,
+        "Vault",
+        vec![
+            object_field("id", scalar_type("ID", false), vec![]),
+            object_field("name", scalar_type("String", false), vec![]),
+        ],
+    );
+    own(document, "Vault", "vault");
+    implement_node(document, "Vault");
+    let mut constructor = object_field(
+        "vault",
+        object_type("Vault", false),
+        vec![
+            argument("name", scalar_type("String", false), None),
+            typed_id_argument("mount", "Directory", false),
+            argument("ttl", scalar_type("Int", true), Some("60")),
+        ],
+    );
+    constructor["directives"] = source_map_directives("vault");
+    add_query_field_value(document, constructor);
+
+    add_object_type(
+        document,
+        "Clock",
+        vec![
+            object_field("id", scalar_type("ID", false), vec![]),
+            object_field("now", scalar_type("String", false), vec![]),
+        ],
+    );
+    own(document, "Clock", "clock");
+    implement_node(document, "Clock");
+    let mut constructor = object_field("clock", object_type("Clock", false), vec![]);
+    constructor["directives"] = source_map_directives("clock");
+    add_query_field_value(document, constructor);
+}
+
+/// Stamps a named type with the `@sourceMap(module:)` by which the engine states the
+/// module that owns it.
+fn own(document: &mut Value, type_name: &str, module: &str) {
+    let definition = schema_array_mut(document, "types")
+        .iter_mut()
+        .find(|definition| definition["name"] == type_name)
+        .expect("the schema must contain the type");
+    definition["directives"] = source_map_directives(module);
+}
+
+/// Declares that an object implements Core's `Node`, as the engine infers for every
+/// object with an `id`.
+fn implement_node(document: &mut Value, object: &str) {
+    add_interface_to_object(document, object, "Node");
+    let node = schema_array_mut(document, "types")
+        .iter_mut()
+        .find(|definition| definition["name"] == "Node")
+        .expect("checked schema must contain Node");
+    node["possibleTypes"]
+        .as_array_mut()
+        .expect("an interface lists its possible types")
+        .push(json!({"kind": "OBJECT", "name": object}));
+}
+
+fn add_query_field_value(document: &mut Value, field: Value) {
+    let query = schema_array_mut(document, "types")
+        .iter_mut()
+        .find(|definition| definition["name"] == "Query")
+        .expect("checked schema must contain Query");
+    query["fields"]
+        .as_array_mut()
+        .expect("Query fields must be an array")
+        .push(field);
+}
+
 /// One directive application as introspection serves it: the directive's name and its
 /// arguments as encoded literals.
 pub(crate) fn directive_application(name: &str, arguments: &[(&str, &str)]) -> Value {

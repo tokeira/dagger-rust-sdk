@@ -306,16 +306,53 @@ fn checked_source(source: String) -> Result<Vec<u8>, ModuleDiagnosticSet> {
     Ok(source.into_bytes())
 }
 
+/// The public names `mod.rs` itself brings into `dagger_generated`, below.
+///
+/// The bindings of a module dependency's types are re-exported beside them, so a
+/// dependency type that projects to one of these names cannot be bound. Operation
+/// rendering refuses such a type by these lists, which must name everything
+/// `render_mod` declares or re-exports.
+pub(crate) const GENERATED_SUPPORT_NAMES: &[&str] = &[
+    "__private",
+    "CurrentCall",
+    "GeneratedDispatchRegistry",
+    "GeneratedRegistrationSink",
+    "ModuleCancellation",
+    "ModuleContext",
+    "ModuleError",
+    "ModuleErrorDetail",
+    "ModuleQuery",
+    "TelemetryContext",
+];
+
+/// The Rust modules of `dagger_generated` that hold generated support, each in the
+/// file of its name. A dependency type is bound in a file named after it, which may
+/// be none of these.
+pub(crate) const GENERATED_SUPPORT_MODULES: &[&str] = &[
+    "mod",
+    "module_codec",
+    "module_context",
+    "module_descriptor",
+    "module_dispatch",
+    "module_registration",
+];
+
+// The SDK is named from the root of the extern prelude: `alias` is the key of a Cargo
+// dependency, and a dependency type is bound in a module named after it, declared in
+// this file, which may have that very name.
 fn render_mod(alias: &str, checked_bindings: &BTreeMap<GeneratedAssetPath, Vec<u8>>) -> Vec<u8> {
     let mut source = format!(
         "//! Generated module support for the checked authoring descriptor.\n\n\
          // Generated code handles every authored item, deprecated ones included.\n\
-         #![allow(deprecated)]\n\n\
-         #[doc(hidden)]\npub mod __private {{\n    pub use {alias}::__private::*;\n}}\n\n\
+         #![allow(deprecated)]\n\
+         // The bindings of a module dependency take its functions' names and arguments\n\
+         // as its author chose them, whatever Clippy would say of a method so named.\n\
+         #![allow(\n    clippy::new_ret_no_self,\n    clippy::should_implement_trait,\n    clippy::too_many_arguments,\n    clippy::wrong_self_convention\n)]\n\n\
+         #[doc(hidden)]\npub mod __private {{\n    pub use ::{alias}::__private::*;\n}}\n\n\
          mod module_codec;\nmod module_context;\nmod module_descriptor;\nmod module_dispatch;\nmod module_registration;\n\n\
          #[doc(hidden)]\npub use module_dispatch::GeneratedDispatchRegistry;\n\
          #[doc(hidden)]\npub use module_registration::GeneratedRegistrationSink;\n\n\
-         pub use {alias}::{{CurrentCall, ModuleCancellation, ModuleError, ModuleErrorDetail, TelemetryContext}};\n\
+         pub use ::{alias}::{{CurrentCall, ModuleCancellation, ModuleError, ModuleErrorDetail, TelemetryContext}};\n\
          pub use module_context::{{ModuleContext, ModuleQuery}};\n"
     );
     for path in checked_bindings.keys().filter(|path| {
@@ -1262,10 +1299,57 @@ fn singleton(diagnostic: ModuleDiagnostic) -> ModuleDiagnosticSet {
 
 #[cfg(test)]
 mod tests {
-    use super::checked_source;
+    use std::collections::{BTreeMap, BTreeSet};
+
+    use super::{GENERATED_SUPPORT_MODULES, GENERATED_SUPPORT_NAMES, checked_source, render_mod};
 
     #[test]
     fn malformed_generated_rust_is_rejected_before_publication() {
         assert!(checked_source("fn incomplete(".to_owned()).is_err());
+    }
+
+    fn imported_names(tree: &syn::UseTree, names: &mut BTreeSet<String>) {
+        match tree {
+            syn::UseTree::Path(path) => imported_names(&path.tree, names),
+            syn::UseTree::Name(name) => {
+                names.insert(name.ident.to_string());
+            }
+            syn::UseTree::Rename(rename) => {
+                names.insert(rename.rename.to_string());
+            }
+            syn::UseTree::Group(group) => {
+                for tree in &group.items {
+                    imported_names(tree, names);
+                }
+            }
+            syn::UseTree::Glob(_) => {}
+        }
+    }
+
+    // Operation rendering refuses a dependency type that would take a name or a file of
+    // the generated support, by two lists that must name everything `mod.rs` declares.
+    #[test]
+    fn the_support_lists_name_everything_the_generated_module_declares() {
+        let source = String::from_utf8(render_mod("dagger_sdk", &BTreeMap::new()))
+            .expect("the generated module is UTF-8");
+        let file = syn::parse_file(&source).expect("the generated module is valid Rust");
+        let mut names = BTreeSet::new();
+        // `mod.rs` is the file of `dagger_generated` itself.
+        let mut modules = BTreeSet::from(["mod".to_owned()]);
+        for item in &file.items {
+            match item {
+                syn::Item::Mod(module) if module.content.is_some() => {
+                    names.insert(module.ident.to_string());
+                }
+                syn::Item::Mod(module) => {
+                    modules.insert(module.ident.to_string());
+                }
+                syn::Item::Use(item) => imported_names(&item.tree, &mut names),
+                _ => {}
+            }
+        }
+        let listed = |list: &[&str]| list.iter().map(|name| (*name).to_owned()).collect();
+        assert_eq!(names, listed(GENERATED_SUPPORT_NAMES));
+        assert_eq!(modules, listed(GENERATED_SUPPORT_MODULES));
     }
 }

@@ -102,6 +102,41 @@ impl VisibleSchemaPlan {
         self.extension_coordinates
             .contains(&SchemaCoordinate::named_type(name))
     }
+
+    /// Returns the module that owns a named type, when the type is a dependency's: one
+    /// outside the reviewed Core API that the engine stamped with
+    /// `@sourceMap(module:)`.
+    ///
+    /// The engine stamps every type of a module's direct dependencies, synthesizing
+    /// the directive when the dependency's SDK gave none (`namespaceSourceMap` in
+    /// core/module.go at the target), and Dagger's Go SDK finds dependencies by it
+    /// (`DependencyNames` in cmd/codegen/introspection/filters.go). A name prefix
+    /// proves nothing: a dependency may be declared under any name, and a later
+    /// engine's own additions sit outside the reviewed API as well.
+    #[must_use]
+    pub fn dependency_module(&self, name: &crate::schema::canonical::SchemaName) -> Option<&str> {
+        if !self.is_extension_type(name) {
+            return None;
+        }
+        self.projection
+            .directives()
+            .for_coordinate(&SchemaCoordinate::named_type(name))
+            .iter()
+            .find_map(|policy| match policy {
+                crate::directive::DirectiveApplicationPolicy::SourceMap { module }
+                    if !module.is_empty() =>
+                {
+                    Some(module.as_str())
+                }
+                _ => None,
+            })
+    }
+
+    /// Returns whether a module dependency owns a named type.
+    #[must_use]
+    pub fn is_dependency_type(&self, name: &crate::schema::canonical::SchemaName) -> bool {
+        self.dependency_module(name).is_some()
+    }
 }
 
 /// Validates the complete visible schema and projects it exactly once.

@@ -34,7 +34,7 @@ pub enum GeneratedTypeKind {
     Object,
     /// Generated interface handle.
     Interface,
-    /// Generated Core enum.
+    /// Generated enum: Core's, or one of a module dependency.
     Enum,
     /// Generated Core scalar.
     Scalar,

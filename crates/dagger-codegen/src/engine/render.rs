@@ -1,4 +1,9 @@
 //! Shared deterministic source rendering for operation-scoped extension bindings.
+//!
+//! A type outside the reviewed Core API is bound in one file. A type that a module
+//! dependency owns is rendered typed, by the dependency renderer. Every other such
+//! type keeps the untyped handle this module renders: its fields take `Json` and return
+//! a `QueryBuilder`, because nothing vouches for the shape a later engine gives it.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -9,6 +14,7 @@ use crate::projection::types::{
 };
 use crate::schema::canonical::{SchemaCoordinate, SchemaName, TypeDefinition};
 
+use super::dependency::render_dependency_type;
 use super::model::{
     CandidateArtifact, CandidateArtifactKind, RelativeOperationPath, operation_diagnostic,
 };
@@ -136,6 +142,20 @@ fn render_extension_type(
     projection: &TypeProjection,
     sdk: &str,
 ) -> Result<Option<(String, String, Vec<u8>)>, DiagnosticSet> {
+    // A dependency's type gets a typed binding. Any other type outside the reviewed
+    // Core API, such as one a later engine added, keeps the untyped handle below.
+    if let Some(binding) = render_dependency_type(plan, projection, sdk)? {
+        let mut source = generated_header(
+            plan,
+            &format!(
+                "Bindings owned by visible GraphQL type `{}`.",
+                binding.wire_name
+            ),
+        )?;
+        source.push_str(&binding.body);
+        let source = checked_source(&binding.wire_name, source)?;
+        return Ok(Some((binding.wire_name, binding.module_name, source)));
+    }
     let (wire_name, module_name, body) = match projection {
         TypeProjection::Object(object) if plan.is_extension_type(&object.wire_name) => (
             object.wire_name.to_string(),

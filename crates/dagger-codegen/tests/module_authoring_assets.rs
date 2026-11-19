@@ -1,10 +1,16 @@
 //! Engine-free descriptor, projection, rendering, and regeneration verification.
 
+mod support;
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use dagger_codegen::engine::{
+    ModuleAuthoringInput, ModuleProjectionInput, OperationKind, OperationProjectionRequest,
+    PublishedSdkDependency, RelativeOperationPath, project_operation,
+};
 use dagger_codegen::module::{
     CfgEnvironment, FormatVersion, FunctionKind, GeneratedAssetPath, GeneratedTypeBinding,
     GeneratedTypeKind, GeneratedTypeRegistry, ModuleCompilation, ModuleCompilationRequest,
@@ -13,6 +19,7 @@ use dagger_codegen::module::{
     RegenerationPlanner, Sha256Digest, SourceDocument, TargetValue, WireName, canonical_bytes,
     manifest_digest, source_snapshot_digest,
 };
+use dagger_codegen::target::CodegenTarget;
 use proptest::prelude::*;
 
 proptest! {
@@ -341,14 +348,35 @@ proptest! {
     }
 }
 
+// The module is generated as `dagger generate` generates it, against a schema that
+// holds module dependencies, so the bindings rendered for their types are built, tested
+// and linted with the module's own generated code. The dependencies carry the names
+// most likely to break generated Rust: arguments called `query` and `opts`, functions
+// called `clone` and `new`, types called `Result`, `Option`, `Box` or what the module
+// calls the SDK, and documentation that rustdoc would take for Rust.
 #[test]
 fn representative_generated_module_executes_directly_offline() {
     let source = representative_source();
-    let compiled = compile_representative(&source);
-    for (path, bytes) in &compiled.assets.files {
-        if path.as_str().ends_with(".rs") {
+    let generated = generate_representative(&source);
+    for dependency in [
+        "greeter.rs",
+        "greeter_named.rs",
+        "greeter_mode.rs",
+        "vault.rs",
+        "result.rs",
+        "into_iterator.rs",
+        "sync.rs",
+        "renamed_sdk.rs",
+    ] {
+        assert!(
+            generated.contains_key(&format!("src/dagger_generated/{dependency}")),
+            "{dependency} must be generated"
+        );
+    }
+    for (path, bytes) in &generated {
+        if path.ends_with(".rs") {
             syn::parse_file(std::str::from_utf8(bytes).expect("generated Rust is UTF-8"))
-                .unwrap_or_else(|error| panic!("{} must parse: {error}", path.as_str()));
+                .unwrap_or_else(|error| panic!("{path} must parse: {error}"));
         }
     }
 
@@ -382,11 +410,11 @@ fn representative_generated_module_executes_directly_offline() {
             .expect("document parent must be created");
         fs::write(destination, &document.contents).expect("fixture source must write");
     }
-    for (path, bytes) in &compiled.assets.files {
-        if !path.as_str().ends_with(".rs") {
+    for (path, bytes) in &generated {
+        if !path.ends_with(".rs") {
             continue;
         }
-        let destination = root.join(path.as_str());
+        let destination = root.join(path);
         fs::create_dir_all(destination.parent().expect("asset has a parent"))
             .expect("asset parent must be created");
         fs::write(destination, bytes).expect("generated source must write");
@@ -409,7 +437,22 @@ fn representative_generated_module_executes_directly_offline() {
         "generated fixture failed:\n{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    // A module that compiles generated code must not need lint exceptions for it.
+    // `--all-targets` leaves doctests out, and a dependency's documentation must not
+    // become one.
+    let doctests = Command::new(env!("CARGO"))
+        .args(["test", "--doc", "--offline", "--quiet"])
+        .env("CARGO_TARGET_DIR", &target_dir)
+        .current_dir(root)
+        .output()
+        .expect("offline fixture doctests must start");
+    assert!(
+        doctests.status.success(),
+        "generated fixture has failing doctests:\n{}\n{}",
+        String::from_utf8_lossy(&doctests.stdout),
+        String::from_utf8_lossy(&doctests.stderr)
+    );
+    // A module that compiles generated code must not need lint exceptions of its own
+    // for it.
     let lints = Command::new(env!("CARGO"))
         .args([
             "clippy",
@@ -1116,6 +1159,53 @@ fn compile_representative(source: &ModuleSourceSnapshot) -> ModuleCompilation {
         checked_bindings: &BTreeMap::new(),
     })
     .expect("representative module must compile purely")
+}
+
+// The whole operation `dagger generate` runs for a module: the visible schema is
+// checked and projected, the bindings of the dependencies' types are rendered, and the
+// authored source is compiled against the registry of both. The files are keyed by
+// their path in the module.
+fn generate_representative(source: &ModuleSourceSnapshot) -> BTreeMap<String, Vec<u8>> {
+    let output = RelativeOperationPath::parse("candidate").expect("fixture path must parse");
+    let module = ModuleProjectionInput {
+        name: "fixture".to_owned(),
+        original_name: "Fixture".to_owned(),
+        source_subpath: RelativeOperationPath::parse("modules/fixture")
+            .expect("fixture path must parse"),
+        source_digest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            .to_owned(),
+    };
+    let dependency = PublishedSdkDependency::Registry {
+        registry: "crates-io".to_owned(),
+        exact_version: "1.0.0-beta.11.rust.5".to_owned(),
+    };
+    let authoring = ModuleAuthoringInput {
+        source: source.clone(),
+        generator_digest: digest("checked-generator"),
+        sdk_dependency_alias: "renamed_sdk".to_owned(),
+    };
+    let target = CodegenTarget::decode_exact(support::TARGET_BYTES).expect("target must decode");
+    let plan = project_operation(OperationProjectionRequest {
+        target: &target,
+        operation: OperationKind::GenerateModule,
+        visible_schema_json: &support::adversarial_dependency_module_schema("renamed_sdk"),
+        module: Some(&module),
+        output: &output,
+        sdk_dependency: &dependency,
+        authoring: Some(&authoring),
+        engine_version: None,
+    })
+    .expect("the representative module must generate beside its dependencies");
+    plan.artifacts()
+        .iter()
+        .map(|(path, artifact)| {
+            let path = path
+                .as_str()
+                .strip_prefix("candidate/")
+                .expect("every artifact lies under the output root");
+            (path.to_owned(), artifact.content.clone())
+        })
+        .collect()
 }
 
 fn compile(
