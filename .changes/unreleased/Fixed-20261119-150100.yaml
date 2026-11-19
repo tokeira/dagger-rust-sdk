@@ -1,0 +1,7 @@
+kind: Fixed
+body: |
+    Generation accepts a module dependency whose object has a field. The engine marks every plain field of a module's object with `@trivialResolveField`, an engine-internal marker that the engine's MCP server reads, and its schema defines no directive of that name. 0.7.1 refused any directive without a definition, so `dagger generate` failed with `SCHEMA_DIRECTIVE_ARGUMENT_INVALID`, "directive application references a missing definition", at the field's coordinate, such as `GreeterMessage.name`, for a module that depended on a module with such an object, and the module could not load. The marker changes nothing that a caller sends or receives, so it is now left out as the engine writes it: on a field, without arguments, in a schema that does not define it. Any other directive without a definition is still refused.
+time: 2026-11-19T15:01:00Z
+custom:
+    Author: iw
+    PR: "58"

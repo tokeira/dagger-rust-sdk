@@ -1323,6 +1323,23 @@ fn canonicalize_applications(
             ));
         }
         let Some(definition) = directive_index.get(&name).copied() else {
+            // The target marks every plain field of a module's object with
+            // @trivialResolveField and defines no directive of that name
+            // (`trivialFieldDirectiveName` and `objField` in core/object.go
+            // @ 400b82d6f3c09ef096d2f59b3e920267b5969bf4). It is an engine-internal
+            // marker, which the engine's MCP server reads (`describeObject` in
+            // core/mcp.go). A module that depends on another is served that module's
+            // fields with it. It changes nothing a caller sends or receives, so the
+            // application is left out of the canonical schema, exactly as the engine
+            // writes it: on a field, without arguments, and undefined. A schema that
+            // defines the directive is held to its definition below, and every other
+            // application without a definition still fails.
+            if name.as_str() == "trivialResolveField"
+                && location == "FIELD_DEFINITION"
+                && raw_application.args.is_empty()
+            {
+                continue;
+            }
             diagnostics.push(schema_error(
                 DiagnosticCode::SchemaDirectiveArgumentInvalid,
                 coordinate.as_str(),

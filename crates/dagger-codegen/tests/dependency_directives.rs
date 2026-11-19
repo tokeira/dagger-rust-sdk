@@ -15,6 +15,11 @@
 //! interfaces included, though the target's definition of the directive does not list
 //! interfaces among its locations. Generation accepts it there and nothing else that a
 //! definition does not place on an interface.
+//!
+//! And the engine marks every plain field of a module's object with
+//! `@trivialResolveField`, which the target's schema does not define at all. Generation
+//! leaves out exactly that application, a bare one on a field, and still refuses any
+//! other application that has no definition.
 
 mod support;
 
@@ -30,8 +35,8 @@ use serde_json::Value;
 
 use support::{
     CORE_SCHEMA_BYTES, TARGET_BYTES, add_dependency_with_directives, add_dependency_with_interface,
-    apply_field_directive, apply_type_directive, directive_application, module_authoring_input,
-    module_visible_schema,
+    apply_field_directive, apply_type_directive, define_directive, directive_application,
+    module_authoring_input, module_visible_schema,
 };
 
 /// Where a directive's definition lets the engine apply it.
@@ -295,6 +300,170 @@ fn no_other_directive_is_accepted_where_its_definition_does_not_place_it() {
                     .is_some_and(|coordinate| coordinate.as_str() == "GreeterNamed")
         }),
         "{refused:?}"
+    );
+}
+
+/// Generates a module against `schema` and returns every artifact by path.
+fn generate_module(
+    schema: &[u8],
+) -> Result<std::collections::BTreeMap<String, Vec<u8>>, DiagnosticSet> {
+    let output = RelativeOperationPath::parse("candidate").expect("fixture path must parse");
+    let module = ModuleProjectionInput {
+        name: "rust-probe".to_owned(),
+        original_name: "RustProbe".to_owned(),
+        source_subpath: RelativeOperationPath::parse("modules/rust-probe")
+            .expect("fixture path must parse"),
+        source_digest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            .to_owned(),
+    };
+    let dependency = PublishedSdkDependency::Registry {
+        registry: "crates-io".to_owned(),
+        exact_version: "1.0.0-beta.11.rust.5".to_owned(),
+    };
+    let plan = project_operation(OperationProjectionRequest {
+        target: &target(),
+        operation: OperationKind::GenerateModule,
+        visible_schema_json: schema,
+        module: Some(&module),
+        output: &output,
+        sdk_dependency: &dependency,
+        authoring: Some(&module_authoring_input()),
+        engine_version: None,
+    })?;
+    Ok(plan
+        .artifacts()
+        .iter()
+        .map(|(path, artifact)| (path.as_str().to_owned(), artifact.content.clone()))
+        .collect())
+}
+
+/// The dependency with an interface, whose object has the plain field `message`.
+fn dependency_with_a_field() -> Vec<u8> {
+    add_dependency_with_interface(&module_visible_schema(0), &[])
+}
+
+/// The marker as the engine writes it: no arguments.
+fn trivial_resolve_field() -> Value {
+    directive_application("trivialResolveField", &[])
+}
+
+#[track_caller]
+fn assert_refused(schema: &[u8], code: DiagnosticCode, coordinate: &str, message: &str) {
+    let refused = generate_module(schema).expect_err("the application must be refused");
+    assert!(
+        refused.diagnostics().iter().any(|diagnostic| {
+            diagnostic.code == code
+                && diagnostic.message == message
+                && diagnostic
+                    .coordinate
+                    .as_ref()
+                    .is_some_and(|found| found.as_str() == coordinate)
+        }),
+        "{refused:?}"
+    );
+}
+
+// The schema `dagger generate` is served for a module that depends on a module whose
+// object has a plain field. The marker is internal to the engine, so the module
+// generates, and every generated file is what it is without the marker.
+#[test]
+fn a_module_generates_beside_a_dependency_whose_fields_are_marked_trivial() {
+    let plain = dependency_with_a_field();
+    let marked = apply_field_directive(
+        &apply_field_directive(&plain, "Greeter", "message", None, trivial_resolve_field()),
+        "GreeterNamed",
+        "message",
+        None,
+        trivial_resolve_field(),
+    );
+    let generated =
+        generate_module(&marked).expect("the engine's field marker must not stop generation");
+    assert!(generated.contains_key("candidate/src/dagger_generated/greeter.rs"));
+    assert_eq!(
+        generated,
+        generate_module(&plain).expect("the dependency must generate without the marker")
+    );
+}
+
+// The exception is as narrow as what the engine writes. An application without a
+// definition is refused anywhere else, with an argument, or under any other name.
+#[test]
+fn no_other_application_without_a_definition_is_accepted() {
+    const MISSING: &str = "directive application references a missing definition";
+    let invalid = DiagnosticCode::SchemaDirectiveArgumentInvalid;
+    let plain = dependency_with_a_field();
+    // Another name, on a field.
+    assert_refused(
+        &apply_field_directive(
+            &plain,
+            "Greeter",
+            "message",
+            None,
+            directive_application("trivialField", &[]),
+        ),
+        invalid,
+        "Greeter.message",
+        MISSING,
+    );
+    // The marker with an argument.
+    assert_refused(
+        &apply_field_directive(
+            &plain,
+            "Greeter",
+            "message",
+            None,
+            directive_application("trivialResolveField", &[("reason", "\"plain\"")]),
+        ),
+        invalid,
+        "Greeter.message",
+        MISSING,
+    );
+    // The marker on a type, and on an argument.
+    assert_refused(
+        &apply_type_directive(&plain, "Greeter", trivial_resolve_field()),
+        invalid,
+        "Greeter",
+        MISSING,
+    );
+    let with_argument = add_dependency_with_directives(&module_visible_schema(0), &[], &[], &[]);
+    assert_refused(
+        &apply_field_directive(
+            &with_argument,
+            "Greeter",
+            "entries",
+            Some("source"),
+            trivial_resolve_field(),
+        ),
+        invalid,
+        "Greeter.entries(source:)",
+        MISSING,
+    );
+}
+
+// A schema that defines the directive is held to that definition, like any other.
+#[test]
+fn a_defined_trivial_resolve_field_follows_its_definition() {
+    let marked = apply_field_directive(
+        &dependency_with_a_field(),
+        "Greeter",
+        "message",
+        None,
+        trivial_resolve_field(),
+    );
+    // Declared on fields, it is a directive the SDK has no policy for, and a new
+    // directive is never ignored because it is unfamiliar.
+    assert_refused(
+        &define_directive(&marked, "trivialResolveField", &["FIELD_DEFINITION"]),
+        DiagnosticCode::SchemaDirectiveUnmapped,
+        "@trivialResolveField",
+        "directive has no registered core-client projection policy",
+    );
+    // Declared elsewhere, the application on a field is misplaced.
+    assert_refused(
+        &define_directive(&marked, "trivialResolveField", &["OBJECT"]),
+        DiagnosticCode::SchemaDirectiveArgumentInvalid,
+        "Greeter.message",
+        "directive is not valid at this schema location",
     );
 }
 

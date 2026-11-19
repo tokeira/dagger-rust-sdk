@@ -697,6 +697,19 @@ pub(crate) fn add_dependency_with_interface(schema: &[u8], on_interface: &[Value
     serde_json::to_vec(&document).expect("extended schema fixture must encode")
 }
 
+/// Adds a directive definition to the schema, with the locations it may appear at and
+/// no arguments.
+pub(crate) fn define_directive(schema: &[u8], name: &str, locations: &[&str]) -> Vec<u8> {
+    let mut document: Value = serde_json::from_slice(schema).expect("schema fixture must decode");
+    schema_array_mut(&mut document, "directives").push(json!({
+        "name": name,
+        "description": format!("Fixture directive {name}."),
+        "locations": locations,
+        "args": []
+    }));
+    serde_json::to_vec(&document).expect("changed schema fixture must encode")
+}
+
 /// Applies a directive to a field of the schema, or to one of the field's arguments.
 pub(crate) fn apply_field_directive(
     schema: &[u8],
