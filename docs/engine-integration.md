@@ -145,10 +145,12 @@ By hand, run the acceptance with the target release's stock CLI, downloaded from
 `https://dl.dagger.io/dagger/releases/<version>/` and verified against that release's
 `checksums.txt` (`eval "$(.dagger/engine.sh cli)"` does both), and a dedicated engine
 container. Name the container so it cannot collide with the `dagger-engine-*` containers
-the CLI manages, and keep its state on a volume:
+the CLI manages, keep its state on a volume, and hide the cache entries its image ships
+under an empty directory, because an expired one among them fails every start:
 
 ```console
 docker run -d --privileged --name rust-sdk-acceptance \
+  --tmpfs /usr/local/share/dagger/entries \
   -v rust-sdk-acceptance-state:/var/lib/dagger registry.dagger.io/engine:v1.0.0-beta.27
 export DAGGER_ENGINE=container+docker://rust-sdk-acceptance
 dagger version

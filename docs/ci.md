@@ -43,7 +43,8 @@ set so that it reports `v1.0.0-beta.28+1a2b3c4d`. The step's `dagger` commands r
 engine through `DAGGER_ENGINE` and have no access to the one that calls the module. Its
 state stays in the module's `ci-later-engine-state` cache volume, within the cache of the
 engine that calls the module, so its own build cache outlives the step; it keeps 5 GB of
-it and collects above 15 GB.
+it and collects above 15 GB. Like the engine that `.dagger/engine.sh` starts, it starts with
+an empty directory over the cache entries its image ships.
 
 `package` and `published` bracket a release, and no CI system runs them: a maintainer
 calls them by hand around publishing, as [maintaining.md](maintaining.md), section 6,
@@ -67,7 +68,9 @@ its pinned SHA-256, and starts the `dagger-rust-sdk-engine-v1.0.0-beta.27` conta
 the image pinned by digest. Later runs reuse the container. The engine keeps its state in
 the `dagger-rust-sdk-engine-v1.0.0-beta.27-state` volume and collects its cache above
 30 GB, because the disk it sees, such as a container VM's on a Mac, can be far larger than
-the space really free.
+the space really free. The engine starts with an empty directory over
+`/usr/local/share/dagger/entries`, which hides the cache entries its image ships: an
+expired one among them fails every start of a v1.0.0-beta.27 engine.
 
 `.dagger/engine.sh stop` stops the engine and removes its container, keeping the volume.
 Stop it this way rather than with `docker rm -f`: an engine that is killed rather than

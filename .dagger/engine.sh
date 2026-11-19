@@ -58,7 +58,10 @@ start_engine() {
 	local settings="$image $state $gc"
 	if [ "$(docker inspect -f '{{.State.Running}} {{index .Config.Labels "dagger-rust-sdk.engine"}}' "$container" 2>/dev/null)" != "true $settings" ]; then
 		stop_engine
+		# An expired cache entry among those the image ships fails every start of this release,
+		# so an empty directory hides them.
 		docker run -d --privileged --name "$container" --label "dagger-rust-sdk.engine=$settings" \
+			--tmpfs /usr/local/share/dagger/entries \
 			-v "$state:/var/lib/dagger" "$image" --oci-worker-gc-keepstorage "$gc" >/dev/null
 	fi
 }

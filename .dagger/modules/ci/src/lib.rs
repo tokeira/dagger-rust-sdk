@@ -1492,6 +1492,9 @@ fn later_engine_service(dag: &Query) -> Service {
     dag.container()
         .from(ENGINE_IMAGE)
         .with_env_variable("_EXPERIMENTAL_DAGGER_VERSION", LATER_ENGINE_VERSION)
+        // An expired cache entry among those the image ships fails every start of the
+        // release, so an empty directory hides them, as in `.dagger/engine.sh`.
+        .with_mounted_temp("/usr/local/share/dagger/entries")
         .with_mounted_cache_opts(
             dag.cache_volume("ci-later-engine-state"),
             "/var/lib/dagger",
