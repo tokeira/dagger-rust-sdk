@@ -1,0 +1,7 @@
+kind: Added
+body: |
+    A module gets its dependencies through `dagger module client add`. Run in the module's directory, `dagger module client add ../greeter` records `greeter` as a client of the module in the workspace's `dagger.toml`, writes it as a `[[dependencies]]` table in the module's `dagger-module.toml`, and regenerates the module, which calls it through `context.query().greeter()` as in 0.8.0. A module in the workspace is written with its path from the module's directory and any other with its Git reference, without a pin, under the name of its module; the tables are ordered by those names, and the rest of the file is kept as it is written, comments included. `dagger module client rm` removes the dependency: generation removes its table and its unchanged generated bindings; an edited binding stays, and generation no longer tracks it. Generation refuses two clients whose modules have one name. The runtime no longer refuses a module that has clients.
+time: 2026-11-19T22:01:00Z
+custom:
+    Author: iw
+    PR: "61"

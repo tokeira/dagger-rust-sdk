@@ -45,8 +45,8 @@ The runtime build audit, SDK content, and stock-engine acceptance are in
 [docs/engine-integration.md](docs/engine-integration.md).
 The module authoring contract, direct harness, and completed-engine verification
 boundary are in [docs/module-authoring.md](docs/module-authoring.md).
-The standalone-client compiler, project, generated API, ownership, checkpoint, and
-verification workflow is in [docs/client-generation.md](docs/client-generation.md).
+Module clients, with their generated API, ownership, and contributor checkpoint, are in
+[docs/client-generation.md](docs/client-generation.md).
 The complete checked-target refresh and release procedure is in
 [docs/maintaining.md](docs/maintaining.md).
 
@@ -84,13 +84,12 @@ cargo deny check
 
 Use focused tests while iterating, but run the complete relevant set before submitting
 a pull request. `eval "$(.dagger/engine.sh)" && dagger call ci gates` runs the whole set in
-containers, as CI does; see [docs/ci.md](docs/ci.md). Module-authoring and standalone-client development is explicitly
+containers, as CI does; see [docs/ci.md](docs/ci.md). Module-authoring and module-client development is explicitly
 engine-free: use the production compilers, generated fixtures, recording transport,
 and typed test suites directly through Cargo. Reuse checked generated
 assets unless an owning source, schema, target, or generator digest changed. The
-standalone-client fixture materializes one SDK baseline and fans out isolated Cargo
-projects from it; investigate fixture sequencing and its owning input before a broader
-rerun.
+module-client compile test builds its packages in one temporary Cargo workspace;
+investigate fixture sequencing and its owning input before a broader rerun.
 
 An engine is not a local checkpoint fallback. If a contract cannot be represented by
 the direct production harness, document the precise model gap and add the narrowest

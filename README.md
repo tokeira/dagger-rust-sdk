@@ -12,7 +12,7 @@ Rust SDK for [Dagger](https://dagger.io), maintained by Tokeira. Not affiliated 
 Dagger, Inc.
 
 This workspace contains the SDK, its code generator, module-authoring runtime,
-standalone-client generator, and engine integration. The current SDK version is `0.8.0`.
+module-client generator, and engine integration. The current SDK version is `0.8.0`.
 Its bindings target the Dagger `v1.0.0-beta.27` API, and it runs on a `v1.0.0-beta.27` or
 a later 1.x engine, as [Engine compatibility](#engine-compatibility) describes.
 
@@ -115,11 +115,11 @@ installation and application usage.
 | Client API | Generated Core types and raw GraphQL over one owned asynchronous session |
 | Connection safety | Engine floor and API-view checks, checksum-verified CLI downloads, loopback-only authenticated transport, and credential-safe diagnostics |
 | Module support | Typed authoring attributes, descriptor generation, registration, dispatch, cancellation, and single-result publication |
-| Standalone clients | Complete Core plus at most one independently pinned module, reusing the public client lifecycle; the runtime refuses client scopes on stock engines until their generation there is defined |
+| Module clients | `dagger module client add` gives a Cargo package a typed client for each module it names, on the package's own session, and gives a module its dependencies |
 | Runtime | Installs on stock Dagger engines as an SDK module and builds its SDK content from its own commit |
 
 Module authors should start with [`docs/module-authoring.md`](docs/module-authoring.md).
-Standalone-client users should read [`docs/client-generation.md`](docs/client-generation.md).
+To call a module from a Cargo package, read [`docs/client-generation.md`](docs/client-generation.md).
 [`docs/architecture.md`](docs/architecture.md) records ownership and safety boundaries, while
 [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`docs/maintaining.md`](docs/maintaining.md) contain the
 pinned development and maintenance procedures.
@@ -319,7 +319,7 @@ changes. A review adds to the tests and to a person's review but cannot replace 
 because a pull request can carry text written to steer the model. Like `Function.withAgent`,
 the agent role is experimental in Dagger.
 
-The standalone application examples under [`examples`](examples) each have their own
+The application examples under [`examples`](examples) each have their own
 manifest; their exact commands are listed in [`examples/README.md`](examples/README.md).
 
 ## Engine compatibility

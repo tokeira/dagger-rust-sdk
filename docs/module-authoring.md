@@ -39,7 +39,11 @@ release or of any later 1.x release. To move a module to a new SDK release:
 3. Change the module's `Cargo.toml` dependency to the SDK that `<ref>` names, as
    [engine-integration.md](engine-integration.md#sdk-content) describes, then run
    `cargo update -p tokeira-dagger-sdk` in the module.
-4. Run `dagger generate`, then build the module and adapt it to the API changes that the
+4. Run `dagger module client add <source>` once for each dependency the module's
+   `dagger-module.toml` states and `dagger.toml` does not record as a client, as
+   [Dependencies](#dependencies) describes. Generation removes a dependency that is
+   not recorded.
+5. Run `dagger generate`, then build the module and adapt it to the API changes that the
    [changelog](../CHANGELOG.md) lists.
 
 From `v1.0.0-beta.26`, the engine names a module's types, functions, arguments, and enum
@@ -204,22 +208,103 @@ such field, and no other object declares one.
 ### Dependencies
 
 A module calls another module through typed bindings that `dagger generate` writes into
-its own crate. Declare the dependency in the module's `dagger-module.toml`, under the
-name the module will call it by:
+its own crate. Add the dependency from the module's directory, naming the other module
+by its path or its Git reference:
+
+```console
+cd .dagger/modules/gate
+dagger module client add ../greeter
+```
+
+The engine records the other module as a client of this one, in the workspace's
+`dagger.toml`:
+
+```toml
+[sdks.rust.scopes.".dagger/modules/gate"]
+is-module = true
+name = "gate"
+clients = ["./.dagger/modules/greeter"]
+```
+
+Generation then writes the client into the module's `dagger-module.toml` as a
+dependency, and regenerates the module's code:
 
 ```toml
 [[dependencies]]
-  name = "greeter"
-  source = "../greeter"
+name = "greeter"
+source = "../greeter"
 ```
 
-Then run `dagger generate`. Each type of the dependency is bound in a file of
-`src/dagger_generated/` and exported from `dagger_generated`. The engine names the types
-after the dependency: its main object is `Greeter`, and its other types begin with that
-name, such as `GreeterMessage` and `GreeterMode`. Run `dagger generate` again whenever the
-dependency's functions or types change, and commit the result. Bindings that no longer
-match the dependency still compile, and a call through them fails at run time with the
-engine's error.
+A module's dependencies are exactly its clients. Each time the module is generated, the
+`[[dependencies]]` tables of its `dagger-module.toml` are rewritten from the clients
+`dagger.toml` records for it:
+
+- A module in the workspace is written with its path from this module's directory, and
+  any other module with its Git reference. Neither is written with a pin: `dagger.lock`
+  holds the commit of a Git reference.
+- A new table is named after the module it adds. A table already there with the same
+  source is kept for the client, with its `name` and its other settings, and loses its
+  `pin`. So to call a dependency by another name, change the `name` generation wrote.
+- A table that is not a client is removed, one written by hand included.
+- The tables are ordered by the names of the clients' modules. Everything else in the
+  file stays as it is written, comments included.
+
+`dagger module client rm <module>` removes a dependency. Name the module as `dagger.toml`
+records it, such as `./.dagger/modules/greeter`. Generation removes its table and its
+generated bindings. A binding that has been edited stays as it is, but `mod.rs` no longer
+declares it and generation no longer tracks it: delete it, or move what you need into
+your own code. While it is there, adding the dependency again fails before anything is
+written:
+
+```text
+src/dagger_generated/greeter_message.rs contains user changes; refusing to overwrite it
+```
+
+A module written for an earlier release may have dependencies its author wrote into
+`dagger-module.toml` by hand. Before regenerating such a module with this release, run
+`dagger module client add <source>` once for each of them, with the `source` the table
+states. Each table is then kept, with its name. A dependency that is not recorded is
+removed by the next `dagger generate`, which shows the change before applying it.
+
+Generation refuses two clients whose modules have one name, and a kept `name` that is
+also another dependency's, since the engine loads a module's dependencies by name. It
+names both, and writes nothing.
+
+A module configured by `dagger.json` alone is generated as before while it has no
+dependencies and no clients. With either, generation fails before writing anything, and
+names the module by its path from the workspace root:
+
+```text
+the module is configured by dagger.json, where the Rust SDK does not write dependencies; run `dagger module migrate /.dagger/modules/gate`, which moves its configuration to dagger-module.toml and records its dependencies as clients, then `dagger generate`; a coding agent passes `-y` to apply each, or `--no-apply` to preview the migration
+```
+
+`dagger module migrate` writes the module's `dagger-module.toml` beside `dagger.json`,
+records each dependency that `dagger.json` lists as a client of the module in
+`dagger.toml`, and deletes `dagger.json`. A path that begins with `/` is read from the
+workspace root wherever the command runs, and `/` alone is a module at the root.
+`dagger generate` then writes the module's dependencies and regenerates its code, as
+Dagger's guide to migrating from `dagger.json` describes.
+
+`dagger module client add` in a module on `dagger.json` fails the same way, before
+writing anything: until the module is migrated, the engine takes its crate for a Cargo
+package, which would get a [module client](client-generation.md) instead of a
+dependency. The advice then ends with the command to run again:
+
+```text
+the module is configured by dagger.json, where the Rust SDK does not write dependencies; run `dagger module migrate /.dagger/modules/gate`, which moves its configuration to dagger-module.toml and records its dependencies as clients, then `dagger module client add` again; a coding agent passes `-y` to apply each, or `--no-apply` to preview the migration
+```
+
+When `dagger.json` is in a directory above the crate and its `source` names the crate's
+directory, the advice says to run the command again from the directory that holds
+`dagger.json`, which the migration records as the module's. From the crate's directory,
+the command would still add a package client.
+
+Each type of a dependency is bound in a file of `src/dagger_generated/` and exported
+from `dagger_generated`. The engine names the types after the dependency: its main
+object is `Greeter`, and its other types begin with that name, such as `GreeterMessage`
+and `GreeterMode`. Run `dagger generate` again whenever the dependency's functions or
+types change, and commit the result. Bindings that no longer match the dependency still
+compile, and a call through them fails at run time with the engine's error.
 
 The dependency's main object comes from the query root that the context holds:
 
@@ -299,8 +384,8 @@ Some rules follow from the engine and from Rust:
   redefine a method of the query root, and a dependency type that would be bound as
   `ModuleContext`, `ModuleQuery`, `ModuleLoadable`, or another name or file of the
   generated support. It also refuses a type of the module's own with the name of one of
-  a dependency's types. In each case, declare the dependency under another `name`, or
-  rename the local type.
+  a dependency's types. In each case, give the dependency another `name` in
+  `dagger-module.toml`, or rename the local type.
 - A dependency type called `Result`, `Option`, or `Vec` is written by its path,
   `dagger_generated::Result`, wherever the module names it as a field's type. The bare
   name is the standard type.
@@ -315,7 +400,6 @@ Compared with a Go module, these are left out:
 - A dependency's object cannot be returned through an interface the module declares.
 - A dependency's handle does not implement the traits of the Core interfaces it
   implements, such as `Node`. It still converts to their IDs.
-- The runtime refuses a module scope with clients recorded for it.
 - There is no `As<Interface>()` and no `Loaded[T]`. To use a value as an interface it
   implements, build the interface's handle from the value's ID:
   `context.query().r#ref::<GreeterNamedClient>(message.id().await?)`. The same call
@@ -336,16 +420,28 @@ of its target's Core API, and the types the engine adds for the module's depende
 Documentation that a later engine's copy of the target's view rewords, and fields and
 optional arguments it adds that the SDK does not bind, leave that identity unchanged, so
 the committed assets stay current on that engine. Checked mode compares committed assets
-directly. Regeneration is permitted only when one of those owning inputs changes, selects
-only the affected asset domain, and replaces or removes only paths proven by the prior
-compatible manifest. User-owned or unknown bytes are preserved and diagnosed.
+directly. Regeneration is permitted only when one of those owning inputs changes, and
+selects only the affected asset domain.
+
+Regeneration treats the files it generated as Dagger's Go SDK treats the files it
+records, with the prior compatible manifest, `.dagger/rust/operation-manifest.json`, as
+the record:
+
+- A file that is missing is written again.
+- A file with other bytes is replaced only while it has the bytes the manifest records,
+  or, when the manifest does not record it, while it begins with `// @generated`. Any
+  other stops generation before anything is written, with
+  `<path> contains user changes; refusing to overwrite it`.
+- A file that generation no longer writes is removed only while it has the bytes the
+  manifest records. An edited one stays as it is, and the new manifest no longer
+  records it.
 
 The generator's identity is the SDK source and toolchain the runtime seals, not the
 platform its tools were built for, so files generated on one engine platform are
 current on every other. A prior manifest is compatible when it covers the same
 operation and output root. A runtime upgrade changes the generator, and may change
-the target or SDK dependency; `dagger generate` then replaces exactly the files the
-prior manifest owns.
+the target or SDK dependency; `dagger generate` then regenerates the module's files by
+the same rule.
 
 ## Dispatch and errors
 

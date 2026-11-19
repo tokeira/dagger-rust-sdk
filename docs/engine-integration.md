@@ -72,7 +72,8 @@ those crates in a digest-pinned image, adds the runtime sources, `LICENSE`, and 
 and seals the result with `dagger-rust-engine package-content`.
 
 The reference the runtime is installed from decides what the modules it initializes
-depend on. This repository's tag for the release the content carries, `vX.Y.Z`, selects
+depend on, and what a Cargo package with [module clients](client-generation.md) depends
+on. This repository's tag for the release the content carries, `vX.Y.Z`, selects
 that release from crates.io, and an unversioned reference resolves to the latest release
 tag:
 
@@ -95,6 +96,11 @@ regenerated, with its `Cargo.toml` dependency changed by hand to match. Install 
 runtime from a tag or a commit. A runtime whose commit has
 `runtime/assets/sdk-dependency.json`, such as 0.1.0's, instead builds its content from the
 commit that file names, and its modules depend on that commit.
+
+A package's module clients are generated for the runtime the workspace installs, and
+generation writes that release or commit into the package's `Cargo.toml` each time, so
+the package's dependency follows the runtime. A runtime installed from a local path
+names neither a release nor a commit: it initializes no module and generates no client.
 
 ## Engine compatibility
 

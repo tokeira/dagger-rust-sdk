@@ -8,10 +8,10 @@ integration work.
 
 The packaged `dagger-rust-engine execute` command accepts only a canonical operation
 request, exact visible schema, immutable engine descriptor, and explicit project root.
-It invokes no caller-selected command or shell. Existing generated files may be
-replaced only when a compatible operation manifest proves their current digests, and
-that manifest becomes visible only after every artifact and bounded post-work action
-succeeds.
+It invokes no caller-selected command or shell. An existing file is replaced only
+while a compatible operation manifest records it with its current digest, or, when the
+manifest does not record it, while it begins with `// @generated`, and that manifest
+becomes visible only after every artifact and bounded post-work action succeeds.
 
 This crate is repository tooling rather than an application dependency. It is not
 published, and generated user projects depend only on the public `dagger-sdk` crate.
@@ -23,10 +23,11 @@ SDK, unscoped-generation, and distribution proposals are rejected before they ca
 rendered as executable work. See [`../../docs/module-authoring.md`](../../docs/module-authoring.md)
 for the boundary between this local record and completed-engine verification.
 
-For standalone clients, this crate also owns confined Cargo discovery, semantic
-amendments, workspace client preflight, manifest-authorized failure-atomic publication,
-and exact Cargo-process accounting. The planner reuses checked assets and one fixture
-SDK baseline when their owning inputs are current. Its consumer and contributor
-contract is in [`../../docs/client-generation.md`](../../docs/client-generation.md).
+For module clients, this crate also owns two operations. One writes a Cargo package's
+clients under `src/dagger_clients/`, with the package's exact SDK dependency and the
+ownership records that decide which files generation may replace or remove. The other
+rewrites a module's `[[dependencies]]` from the clients recorded for it. Each validates
+its whole request before the first write. The consumer and contributor contract is in
+[`../../docs/client-generation.md`](../../docs/client-generation.md).
 
 Licensed under Apache-2.0 as part of the Dagger repository.

@@ -28,22 +28,45 @@ The public package graph is deliberately closed and acyclic: an application depe
 `tokeira-dagger-sdk`, which pins `tokeira-dagger-sdk-macros` to the same exact version.
 Code generation, engine integration, and bootstrap crates cannot enter that graph.
 
-## Standalone-client generation
+## Module clients
 
-Standalone-client work is split across four fail-closed boundaries. `dagger-codegen`
-purely compiles complete Core plus at most one selected module into a typed Rust plan;
-it reuses the checked public Core catalog rather than regenerating Core. The private
-engine crate discovers or adopts one Cargo project, reconciles semantic amendments,
-and publishes only manifest-authorized generated files. The Go adapter translates
-transient engine objects into those data-only operations. Generated applications then
-use only the public `tokeira-dagger-sdk` lifecycle and transport.
+`dagger module client add` records a module as a client of a scope, and the engine hands
+each scope's complete client list to the runtime's `generateScope`. The scope is the
+nearest directory with a `Cargo.toml`, which the runtime's `findClientRoot` returns. The
+work is split across five boundaries.
 
-One client never absorbs transitive module dependencies. Each dependency is bound by
-an independent client, giving it a separate pin, namespace, schema, project, manifest,
-and regeneration boundary. Publication preserves unknown files and authored bytes;
-the ownership manifest is committed last so failure cannot expose a partial next
-generation. See [client-generation.md](client-generation.md) for the consumer and
-maintainer contract.
+- The renderer in `dagger-codegen` has a client surface beside the library and the
+  module surfaces. From the visible-schema plan of one module's client schema it renders
+  that module's client: a `mod.rs` with `Client`, `r#ref`, `load`, and `ClientLoadable`,
+  and one file for each type the module owns. Core is never rendered; the bindings name
+  Core's types through the package's SDK dependency.
+- The package-clients operation in `dagger-sdk-engine` writes a Cargo package's clients
+  under `src/dagger_clients/`. It checks every schema against its digest, renders and
+  formats every client, sets the package's exact SDK dependency in `Cargo.toml`, and
+  checks ownership, all before the first write. Each directory's `.dagger-generated.json`
+  records the files written there with their SHA-256. A file is replaced or removed only
+  when it begins with the generated marker and still has its recorded hash, so an edited
+  file stops generation and a removed client loses only its unchanged files.
+- The module-dependencies request in `dagger-sdk-engine` rewrites the `[[dependencies]]`
+  tables of a module's `dagger-module.toml` so that they are exactly the scope's clients,
+  and leaves the rest of the file as it is written. The module's code is then generated
+  as for any module, so a module calls a client's module as a dependency.
+- The Go adapter stays data-only. For a package it reads each client's name, address,
+  and pin, and its schema through `clientSchemaIntrospectionJson` with the SDK's target
+  release as `clientVersion`, mounts the package's `Cargo.toml`, the `Cargo.toml` of
+  each directory above it, and `src/dagger_clients/`, and applies the paths the
+  operation lists as written or removed. For a module it reads each client's name and
+  source, and writes the returned manifest. It never sets a client's engine version, so
+  a module keeps the names the engine serves it under.
+- `tokeira-dagger-sdk` serves the module at run time. A generated client's builder names
+  the module by address and pin, and every builder and handle derived from it carries
+  that requirement. Before the first such request, the session sends `serveModule` once
+  for each address and pin. Concurrent first requests wait for the one load, and a
+  failed load is tried again by the next request.
+
+See [client-generation.md](client-generation.md) for the consumer and maintainer
+contract, and the [Dependencies](module-authoring.md#dependencies) section of the module
+authoring guide for a module's clients.
 
 ## Module authoring and dispatch
 
@@ -174,15 +197,18 @@ engine calls into closed Rust operations and applies validated changesets; Cargo
 schema interpretation, generated ownership, diagnostics, runtime provenance, and
 security policy remain Rust-owned.
 
-Operation manifests—not filenames or Go symbol names—own generated files. Unknown
-content is preserved or rejected, never silently adopted. Runtime provenance is
+Operation manifests—not filenames or Go symbol names—record generated files, and
+generation treats them as Dagger's Go generator treats the files it records: a recorded
+file is replaced or removed only while it has its recorded digest, an unrecorded one is
+replaced only when it begins with `// @generated`, and any other content is preserved.
+Runtime provenance is
 two-phase so pre-build input validation cannot fabricate the post-strip binary digest,
 and the final container is rebuilt from a clean digest-pinned base without Cargo
 caches, source, credentials, or builder state.
 
 The private entrypoint proves registration and invocation hooks against the nested
 engine session. Those hooks cannot stand in for arbitrary module dispatch or complete
-standalone-client content, which remain separately scoped work. See
+module-client content, which remain separately scoped work. See
 [engine-integration.md](engine-integration.md) for the reproducible build audit and the
 stock-engine acceptance.
 

@@ -21,11 +21,11 @@ The crate owns the pure part of generation:
   fingerprints;
 - producing deterministic in-memory candidate artifacts and structured diagnostics.
 
-The standalone-client compiler is a separate pure projection over complete Core plus
-at most one selected module. It resolves Core references to the checked public SDK
-catalog by identity, emits a collision-free `dagger_client::<module>` namespace, and
-never merges a selected module's dependencies. Each dependency requires its own bound
-client and ownership manifest.
+The module-client renderer is a third surface of the dependency renderer, beside the
+library and the module. From one module's client schema it renders that module's typed
+client for a Cargo package: a `Client` with the module's constructor, `r#ref`, and
+`load`, and a file for each type the module owns. It renders nothing for Core, whose
+types the bindings name through the package's SDK dependency.
 
 It deliberately has no filesystem, process, network, engine-session, or publication
 authority. Repository input discovery, formatting, comparison,
@@ -59,5 +59,5 @@ Contributors should read the Rust SDK
 and
 [`docs/architecture.md`](https://github.com/tokeira/dagger-rust-sdk/blob/main/docs/architecture.md)
 before changing schema, projection, rendering, or publication boundaries.
-The end-to-end standalone-client ownership and checkpoint contract is documented in
+The end-to-end module-client ownership and checkpoint contract is documented in
 [`docs/client-generation.md`](https://github.com/tokeira/dagger-rust-sdk/blob/main/docs/client-generation.md).

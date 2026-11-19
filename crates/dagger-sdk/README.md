@@ -126,9 +126,10 @@ lives in `tokeira-dagger-sdk-macros`; applications should not add that companion
 The authoring syntax, state/dispatch model, and current verification boundary are
 documented in [`../../docs/module-authoring.md`](../../docs/module-authoring.md).
 
-Generated standalone clients also reuse this crate's owned lifecycle, Core bindings,
-transport, errors, and IDs by identity. Their `dagger_client` namespace adds one bound
-module without copying Core or merging dependency modules. See
+A Cargo package calls a Dagger module through a typed client that
+`dagger module client add` generates into the package, under `src/dagger_clients/`. The
+client uses this crate's session, Core types, errors, and IDs, and the session has the
+engine serve the module before the client's first request. See
 [`../../docs/client-generation.md`](../../docs/client-generation.md).
 
 ## Features
@@ -147,8 +148,8 @@ Disabling it never changes the raw request/response or client lifecycle contract
 
 Small examples are packaged with the crate. From the repository root, run the CI checks
 above against any Cargo project with
-`cargo run -p tokeira-dagger-sdk --example ci-checks -- path/to/project`. Standalone
-application examples live in [`../../examples`](../../examples).
+`cargo run -p tokeira-dagger-sdk --example ci-checks -- path/to/project`. Application
+examples with their own manifests live in [`../../examples`](../../examples).
 
 Development and verification commands are documented in
 [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md); generated-client maintenance and
