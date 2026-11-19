@@ -450,6 +450,10 @@ SDK contracts as Go, so that Rust participates in standard codegen and runtime f
    `GenerateModule` contract.
 3. WHEN the engine requests Rust client generation, THE Rust backend SHALL satisfy the
    `GenerateClient` contract.
+> **Superseded in part.** Criterion 3 no longer applies: client generation is reached
+> only through `generateScope`, and the `GenerateClient` hook is removed
+> ([Module clients](../rust-sdk-client-generation/requirements.md), Requirement 13).
+
 4. WHEN the engine requests a Rust module entrypoint, THE Rust backend SHALL satisfy
    the `GenerateEntrypoint` contract.
 5. WHEN the engine requests a module runtime, THE Module_SDK SHALL return a reproducible
@@ -522,6 +526,13 @@ Definitive_Go_SDK.
 ---
 
 ## Feature 7: Standalone Client and Dependency Generation
+
+> **Superseded.** Feature 7 now specifies module clients, which the engine drives
+> through `findClientRoot` and `generateScope`: a module's clients are its
+> dependencies, and a Cargo package gets one generated Rust module per client inside
+> the author's own package. Nothing generates a Core-only client or a separate Cargo
+> project. [Module clients](../rust-sdk-client-generation/requirements.md) states the current requirements; the criteria below record the
+> feature as first specified.
 
 ### Requirement 7.1: Complete Generated Client Projects
 

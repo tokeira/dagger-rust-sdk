@@ -624,6 +624,11 @@ The optional `introspectionJSON` input makes
 mode; a present file selects legacy private codegen, matching the target engine's
 module-backed adapter contract.
 
+> **Superseded in part.** `RequiredClientGenerationFiles`, `GenerateClient`, and
+> `dist/client-generation.json` are removed by Feature 7, whose package-client and
+> module-dependency requests go through the same private helper
+> ([Module clients](../rust-sdk-client-generation/requirements.md), Requirements 1 and 13).
+
 `InitModule`, `Codegen`, and `GenerateClient` call one private helper that:
 
 1. obtains the engine-scoped `Directory` and normalized subpaths from Dagger objects;

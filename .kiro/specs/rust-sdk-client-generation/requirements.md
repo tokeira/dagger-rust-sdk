@@ -1,684 +1,523 @@
-# Requirements Document: Rust SDK Standalone Client Generation
+# Requirements Document: Rust SDK Module Clients
 
 ## Introduction
 
-Feature 7 turns the bounded `GenerateClient` seam delivered by Feature 5 into a
-complete, idiomatic Rust client experience. A user must be able to initialize a Rust
-client in a Dagger workspace, bind it to one local or pinned remote module, regenerate
-it safely, use the complete Core API and the selected module's public API through
-normal Cargo workflows, and update generated artifacts without sacrificing authored
-files.
+Feature 7 gives Rust the module clients that the Dagger engine drives for every SDK.
+`dagger module client add <module>` records a target module against an SDK scope, and
+the SDK writes the code that calls it. In a Rust module, a client becomes a dependency
+with the typed bindings module authoring already generates. In any other Cargo package,
+a client becomes a typed Rust module that loads its target on first use.
 
-The Dagger engine at commit `25300124ca110612edc09c43f89cb5fad6028170` (the
-Target_Revision) is authoritative for workspace client records, initialization,
-module-source resolution, the `ClientGenerator` ABI, generator scoping, and the
-Client_Visible_Schema. The generated Go client and Go generator at that revision, plus
-`github.com/dagger/dagger-go-sdk` commit
-`1309520660f6a5b35ef97b4fbe151e32a06a8dc5`, define observable client and generation
-behaviour where the engine contract does not settle it. Go modules, packages, mutable
-overlay implementation, and global client helpers are evidence rather than a Rust
-project design.
+The Dagger engine at `v1.0.0-beta.27` (the Target_Release) is authoritative for the
+SDK-module interface, the client records in `dagger.toml`, the pins in `dagger.lock`,
+`serveModule`, and the client schema. Dagger's Go SDK defines observable behaviour
+where the engine contract does not settle it: the Go SDK module
+`github.com/dagger/go-sdk` at `bb23e8d`, its manifest helper
+`github.com/dagger/sdk-helpers` at `v1.0.12`, and Go's module transport in
+`sdk/go/module_client.go` of dagger/dagger at the Target_Release. Citations name a
+file and function in those trees. Go packages, `go.mod` handling, and the process-wide
+default session are evidence rather than a Rust design.
 
-Rust owns the public project and API shape. Generated projects use Cargo, the exact
-engine-selected `dagger-sdk` dependency, Rust 1.97.1, edition 2024, explicit ownership
-metadata, typed async operations, and the session and error model already delivered by
-Features 2–4. The generated client reuses the public Core_Schema bindings from
-`dagger-sdk`; it does not copy those bindings into a second incompatible runtime.
+Rust owns the public shape. Generated clients are ordinary Rust modules inside the
+author's Cargo package, use `tokeira-dagger-sdk`'s Core types, session, and error
+model, and follow the calling convention of the dependency bindings that module
+authoring generates. The workspace builds with Rust 1.99.1, edition 2024.
 
-The target engine makes one especially important distinction. Its executable
-client-schema path installs the selected module under a namespaced `Query` field and
-deliberately excludes that module's transitive dependencies. Feature 7 therefore uses
-**dependency-bound client** to mean an independently generated client whose selected
-module is itself a local or pinned remote dependency. It does not merge a selected
-module's dependency graph into one generated client. The older prose in
-`core/sdk.go:42-47` saying otherwise is contradicted by
-`core/schema/modulesource.go:3804-3842` and its exact integration test at
-`core/integration/generators_test.go:1236-1266`; the executable schema contract and
-test govern this specification.
+This specification replaces the earlier standalone-client contract, which described a
+client-initialization command, one generated Cargo project per client, and one module
+per client. None of that is reachable on a stock engine at the Target_Release, and
+Requirement 13 removes its implementation.
 
-Feature 7 depends on Feature 2's client ownership,
-Feature 3's transport and reliability, Feature 4's exact Core projection, Feature 5's
-engine operation and workspace seams, and Feature 6's module TypeDef surface. The bounded
-exact-target verification gate owns the engine-backed client cases. Feature 9 owns
-immutable Git-tagged distribution, release
-migration, release assets, and stable release presentation.
-
-Every Feature 7 implementation checkpoint is engine-free and Rust-first. Production
-schema composition, project reconciliation, formatting, compilation, query
-construction, workspace selection, diagnostics, and closure gates must be
-exercisable directly through Rust fixtures. Checked Core artifacts are reused unless
-an owning input digest changes. A Dagger engine is reserved for the final exact-target gate
-unless a direct model is proven insufficient and the exception is separately recorded
-and approved.
-
-This specification was reinstated after the removal of the deprecated
-completeness/evidence delivery machinery; the client-generation contract below is
-maintained, the retired ledger apparatus is not. Repository citations are pinned to
-the historical Target_Revision.
+Feature 7 depends on Feature 2's client ownership, Feature 3's transport, Feature 4's
+Core bindings, Feature 5's engine operation seam and Go adapter, and Feature 6's
+dependency bindings and module generation.
 
 ## Glossary
 
-- **Authored_File:** A file or manifest entry not proven to be owned by the current
-  Generated_Client_Manifest.
-- **Bound_Module:** The single local or pinned remote module selected by one
-  Workspace_Client_Record.
-- **Client_Initializer:** The Rust SDK implementation of the target engine's
-  `initClient(ws, path, module, ...) -> Changeset` contract.
-- **Client_Visible_Schema:** The engine-supplied introspection schema containing the
-  complete client-visible Core_Schema and, where the Bound_Module has a runtime, that
-  one module installed under its namespaced `Query` field.
-- **Core_Client_Surface:** The exact public Core_Schema bindings supplied by the
-  selected `dagger-sdk` dependency and reachable from a generated client.
-- **Dependency_Bound_Client:** A Standalone_Client_Project whose Bound_Module is a
-  selected local or pinned remote module dependency; it is still bound to exactly one
-  module.
-- **Exact_Target:** The Target_Descriptor selected by
-  `sdk/rust/codegen/target.json`, including Target_Revision, engine version
-  `v1.0.0-beta.10`, Rust SDK version `1.0.0-beta.10`, Rust 1.97.1, and edition 2024.
-- **Exact_Target_Matrix:** The later bounded exact-target gate that consumes the
-  matching Implementation_Closure record and runs only the real-engine cases that
-  direct Rust fixtures cannot prove.
-- **Feature_7_Local_Checkpoint:** Any implementation checkpoint, feature-end check, or
-  local regression command used to claim Feature 7 progress or closure.
-- **Generated_Client_Manifest:** The canonical record of a generated client's target,
-  Bound_Module, Client_Visible_Schema, SDK dependency, owned paths, semantic bindings,
-  artifact digests, and generator identity.
-- **Generated_Module_Surface:** The typed Rust bindings and root integration generated
-  for the Bound_Module coordinates in the Client_Visible_Schema.
-- **Implementation_Closure:** The boundary at which production Feature 7 logic,
-  engine-free client fixtures, scoped hygiene, security, and policy checks pass
-  without constructing or invoking a Dagger engine.
-- **Legacy_Client_Path:** The target-compatible ModuleSource client-generation path
-  that invokes `ClientGenerator.GenerateClient` directly.
-- **Modern_Workspace_Path:** The `dagger api client init` and workspace `GenerateClients`
-  path driven by SDK-owned client records in `dagger.toml`.
-- **Published_SDK_Dependency:** The exact registry version or immutable Git URL and
-  full revision selected by the engine-packaged Rust SDK; never an ambient path or
-  mutable branch.
-- **Standalone_Client_Project:** A path-confined Cargo project containing a reusable
-  Core_Client_Surface, one optional Generated_Module_Surface, and no module-runtime or
-  dispatch entrypoint.
-- **Target_Revision:** Dagger commit
-  `25300124ca110612edc09c43f89cb5fad6028170`.
-- **Workspace_Client_Record:** One engine-owned `SDKManagedClient` entry containing a
-  workspace-relative path, one module reference, its resolved pin when applicable, and
-  SDK-specific options.
-- **Wire_Name:** The exact case-sensitive GraphQL name used in schema coordinates,
-  selections, arguments, enum values, and response decoding.
+- **Client_Module:** The generated Rust module for one Client_Target, at
+  `src/dagger_clients/<name>/` in a Package_Scope.
+- **Client_Record:** One entry of a scope's `clients` list in `dagger.toml`, written
+  by the engine (`SDKScope` in `core/workspace/config.go`).
+- **Client_Root:** The nearest directory at or above the workspace's current location
+  that holds a `Cargo.toml`, as `findClientRoot` returns it.
+- **Client_Schema:** The introspection schema the engine builds for one Client_Target:
+  Core plus that module installed under its own name, without the module's
+  dependencies (`clientSchemaIntrospectionJSONFile` in
+  `core/schema/modulesource.go`).
+- **Client_Target:** A local or Git module that a Client_Record names, passed to
+  `generateScope` as a `ModuleSource`.
+- **Generated_Marker:** The prefix `// @generated`. A file is generated when its first
+  line begins with it, and every generated client file has such a first line.
+- **Module_Requirement:** The address and pin of the module a generated client needs
+  served before its requests run.
+- **Module_Scope:** A scope the engine passes with `isModule` true: a Rust module.
+- **Ownership_Record:** A `.dagger-generated.json` file listing generated files and
+  their SHA-256 digests.
+- **Package_Scope:** A scope the engine passes with `isModule` false: a Cargo package
+  that is not a Dagger module.
+- **SDK_Dependency:** The exact `tokeira-dagger-sdk` requirement of the runtime that
+  generates: `=X.Y.Z` for a registry release, or the Git URL and full revision of a
+  commit.
+- **Target_Release:** Dagger `v1.0.0-beta.27`, the release named by
+  `codegen/target.json`.
 
 ## Target State
 
-`dagger api client init rust <path> <module>` records one Rust-owned client in the
-workspace, calls the Rust Client_Initializer, and—unless generation is disabled—runs
-generation for only that newly initialized path. `--no-generate` leaves a valid,
-documented Cargo scaffold without pretending that bindings exist. Initialization can
-adopt a compatible existing Cargo project, but it never replaces unrelated manifest
-entries or Authored_Files.
+In a module, `dagger module client add ../greeter` makes the engine record the client
+in `dagger.toml`, and generation rewrites the module's `dagger-module.toml` so that
+its `[[dependencies]]` are exactly the recorded clients. Module code calls the
+dependency as before, through `context.query().greeter()`.
 
-Each Workspace_Client_Record resolves its Bound_Module against the workspace that owns
-the record. Local references remain workspace-relative. Remote references are bound to
-their resolved immutable pin. Generation below a workspace current directory selects
-only managed clients at or below that directory, orders them canonically, and keeps
-their module sources, schema identities, output roots, and changesets isolated.
+In a Cargo package that is not a module, the same command produces
+`src/dagger_clients/greeter/`. The author declares `mod dagger_clients;` once and
+writes:
 
-The Client_Visible_Schema contains every target-visible Core coordinate, including
-core types hidden from module-authoring schemas. If the Bound_Module has a runtime, it
-also contains that module's complete public TypeDef closure and one namespaced root
-field on `Query`. The module's own dependencies are absent. A caller wanting another
-module generates another client bound to that module.
+```rust
+use dagger_clients::greeter;
 
-The Standalone_Client_Project reuses `dagger-sdk` for the Core_Client_Surface,
-transport, connection ownership, telemetry, errors, scalar codecs, IDs, and query
-execution. It generates only the additional module-owned bindings and the smallest
-Rust-native integration needed to reach the namespaced module root. Module names,
-types, fields, arguments, optionality, enums, interfaces, inputs, IDs, documentation,
-deprecations, and query semantics remain faithful to the supplied schema while public
-ownership and namespacing remain idiomatic Rust.
-
-Generation is deterministic and transactional. The Generated_Client_Manifest is the
-only authority for replacement or deletion. Repeated generation with identical inputs
-is byte-identical; changed schemas remove obsolete generated artifacts; user files and
-unknown manifest entries survive; collisions, malformed manifests, path escapes,
-symlinks, stale targets, or ambiguous ownership fail before publication.
-
-The generated project composes with ordinary Cargo commands and a standard Rust async
-runtime under the documented `dagger-sdk` runtime policy. Engine-free fixtures compile
-the exact candidate, construct representative Core and module queries through a
-recording transport, and verify the emitted GraphQL contract. The Exact_Target_Matrix later proves
-workspace initialization, exact engine schema delivery, one local client, one pinned
-remote client, regeneration, and one real query without broadening local checkpoints.
-
-Feature 7 does not change module authoring or dispatch, duplicate Core bindings,
-publish a crate, run a platform matrix, claim transitive module-dependency generation,
-or treat a successful engine hook as proof of complete generated content.
-
-## Evidence From Current Code
-
-Repository citations use Target_Revision unless another revision is stated. Current
-Rust citations describe `main` after Feature 6 at commit
-`341515e2ec2f91da386c69d7c6371ec588c914fb`.
-
-- **Engine client ABI:** `core/sdk.go:13-81` defines standalone client generation,
-  finite required host files, the `modSource`, `introspectionJSON`, and `outputDir`
-  inputs, directory output, and the published-library expectation.
-- **Engine initialization ABI:** `core/sdk.go:113-140` defines
-  `initClient(ws, path, module, ...) -> Changeset` as the ClientInitializer contract.
-- **Workspace record contract:** `core/workspace/config.go:58-93` defines SDK-managed
-  clients as `path`, `module`, optional `pin`, and options under the installed SDK's
-  `as-sdk` role.
-- **Initialization behaviour:** `core/schema/workspace_client.go:26-155` validates path,
-  SDK, and module; resolves the target; records its pin; calls ClientInitializer;
-  creates the client directory; and returns a scope naming only the new client.
-  `core/integration/generators_test.go:623-661` proves automatic scoped generation and
-  `--no-generate` scaffolding.
-- **Client-source binding:** `core/current_module_as_sdk.go:102-220` binds each client
-  record to the workspace used for SDK discovery so local module resolution survives
-  persistence and reload.
-- **Client schema contract:** `core/schema/modulesource.go:3804-3842` starts from the
-  complete default Core schema, installs only the Bound_Module as a normal namespaced
-  module, and excludes transitive dependencies. The integration test at
-  `core/integration/generators_test.go:1236-1266` proves visibility of `Host` and
-  `EngineCache`, presence of `Query.<module>`, and absence of promoted module
-  functions.
-- **Workspace generation behaviour:** `core/integration/generators_test.go:319-428`
-  proves SDK-owned client discovery, local and remote records, pin visibility,
-  workspace-bound local resolution, list output, and generated paths.
-- **Definitive Go project evidence:** `cmd/codegen/generator/go/generate_client.go` at
-  Target_Revision creates a separate client module, pins the Dagger library to the
-  engine version, preserves an existing manifest semantically, avoids an unreleased
-  dependency network resolution during generation, and confines generated source to
-  the requested client directory. Cargo shape is Rust-owned.
-- **Definitive client lifecycle anchor:** `dagger.gen.go:15666` at the
-  Definitive_Go_SDK revision exposes `Workspace.WithInitClient`; it is recorded
-  as `behavior/go-client/init-client-lifecycle`.
-- **Current Feature 5 workspace seam:** `sdk/rust/runtime/main.go:93-143` discovers
-  Rust-managed clients, filters them by workspace current directory, resolves each
-  module source and Client_Visible_Schema, and dispatches `generate-client` into the
-  production Rust operation runner.
-- **Current Feature 5 direct hook:** `sdk/rust/runtime/main.go:293-329` exposes finite
-  required-file metadata and a confined `GenerateClient` implementation. There is no
-  Rust `InitClient` method, so `dagger api client init rust` cannot yet complete its
-  ClientInitializer contract.
-- **Current bounded renderer:**
-  `sdk/rust/crates/dagger-codegen/src/engine/client.rs:1-81` emits a fixed package name,
-  `Cargo.toml`, `src/lib.rs`, and operation-scoped bindings under
-  `src/dagger_generated`, but labels itself an engine-hook baseline and does not prove
-  final typed module-root composition, existing-project adoption, regeneration, or
-  usability.
-- **Current finite-input policy:**
-  `sdk/rust/crates/dagger-codegen/src/engine/metadata.rs:11-88` validates canonical
-  required-host-file metadata; the checked baseline currently requires no additional
-  ignored host files.
-- **Current schema compiler:**
-  `sdk/rust/crates/dagger-codegen/src/engine/visible.rs` validates the complete supplied
-  schema against the exact Core manifest and classifies operation-scoped extension
-  coordinates. `engine/render.rs` renders extension-owned types and a semantic binding
-  catalog but cannot add inherent methods to the Core `dagger_sdk::Query` type; Feature
-  7 must supply an idiomatic composition boundary rather than shadowing that type.
-- **Current public runtime:** `sdk/rust/crates/dagger-sdk/**` supplies the checked Core
-  bindings, Shared_Session, Query_Builder, connection lifecycle, typed errors,
-  transport, and observability reused by generated clients.
-- **Provisioning coverage correction:** the pinned Go `TestProvision`
-  (`sdk/go/provision_test.go:28-145`) proves concurrent CLI cache reuse and belongs to
-  Feature 3, whose requirements already ground that behaviour; it is not
-  standalone-client generation evidence.
-
-## Client Generation Policy Obligations
-
-These stable identifiers name the client generation's correctness obligations; their
-behaviours are specified throughout this document and enforced by the feature's test
-suites:
-
-```text
-policy/rust-policy/client-capability-scope
-policy/rust-policy/client-initialization
-policy/rust-policy/client-scoped-initial-generation
-policy/rust-policy/client-workspace-record
-policy/rust-policy/client-pinned-module-resolution
-policy/rust-policy/client-single-bound-module
-policy/rust-policy/client-transitive-dependency-exclusion
-policy/rust-policy/client-visible-schema-closure
-policy/rust-policy/client-core-runtime-reuse
-policy/rust-policy/client-module-root-composition
-policy/rust-policy/client-module-surface-closure
-policy/rust-policy/client-rust-namespace-isolation
-policy/rust-policy/client-cargo-project-adoption
-policy/rust-policy/client-immutable-sdk-dependency
-policy/rust-policy/client-generated-ownership-manifest
-policy/rust-policy/client-user-file-preservation
-policy/rust-policy/client-obsolete-artifact-removal
-policy/rust-policy/client-deterministic-regeneration
-policy/rust-policy/client-workspace-cwd-scoping
-policy/rust-policy/client-multi-client-isolation
-policy/rust-policy/client-query-usability
-policy/rust-policy/client-diagnostic-and-secret-safety
-policy/rust-policy/client-engine-free-local-checkpoint
-policy/rust-policy/client-exact-engine-signoff-boundary
+let client = dagger_sdk::connect().await?;
+let message = greeter::Client::new(&client)
+    .greeter_opts(&greeter::QueryGreeterOpts::default().with_greeting("hi"))
+    .hello("Ian")
+    .await?;
 ```
 
-The Feature 7 mapping artifact connects every retained and added capability to one
-requirement, implementation subject, allowed terminal status, and finite evidence
-domain. Added policy rows supplement rather than replace engine or Definitive_Go_SDK
-authority rows.
+A package may hold any number of clients, one Rust module each. The package's
+`Cargo.toml` carries the SDK_Dependency. Each client directory has an
+Ownership_Record, so regeneration never overwrites an edited file and removing a
+client deletes only its unchanged files. The first request through a client serves
+its module in the caller's session; a client older than its target fails with a
+message that says to regenerate it.
 
 ## Authority and Verification Boundary
 
-| Claim | Authority | Minimum implementation evidence | Engine evidence policy |
-|---|---|---|---|
-| Rust supports client initialization | Engine ClientInitializer and workspace contracts | Direct adapter fixture plus path-confined scaffold reconciliation | Exact CLI path in the Exact_Target_Matrix |
-| A supplied schema is client-visible | Engine client-schema construction and exact target manifest | Canonical schema fixture proving Core closure, one namespaced module, and dependency exclusion | Exact delivered schema in the Exact_Target_Matrix |
-| Generated Core behaviour is complete | Feature 4 Core bindings plus Features 2–3 runtime | Reuse identity plus existing Core property evidence | Not re-proved by copying symbols |
-| Generated module behaviour is complete | Bound_Module TypeDefs and Rust policy | Exhaustive semantic catalog, typed compile fixtures, and recording-transport query properties | One local and one pinned remote client in the Exact_Target_Matrix |
-| Existing Cargo state is preserved | Rust/Cargo policy plus target generator preservation behaviour | Permuted manifest and filesystem reconciliation properties | No engine required |
-| A client query is correct | Client_Visible_Schema Wire_Names plus public Rust runtime | Production generated API against a recording transport | One real representative query in the Exact_Target_Matrix |
-| Feature 7 is implementation-complete | This specification and Rust repository policy | Complete engine-free client harness plus scoped hygiene/security | No engine is started |
-
-## Contract Policy
-
-### Workspace Client Record
-
-| Field | Target policy | Error if invalid | Persistence or side-effect impact |
-|---|---|---|---|
-| `path` | Normalized workspace-relative client root below the workspace | Reject empty, absolute, escaping, symlink-escaping, or conflicting paths | Engine persists the normalized path; SDK writes only beneath it |
-| `module` | One local workspace-relative or canonical remote module reference | Reject empty, escaping local, unresolved, or non-module references | Engine persists the user-facing ref; generator resolves exactly one Bound_Module |
-| `pin` | Exact resolved pin for a remote Bound_Module; empty for mutable local source | Reject a remote record whose declared pin disagrees with resolution | Engine persists the pin; schema and manifest identity include it |
-| `options` | Closed Rust client-initialization options declared by this feature | Reject unknown, duplicate, or invalid values before scaffold publication | Persist only engine-supported options; never store credentials |
-
-### ClientInitializer Request
-
-| Input | Target policy | Error if invalid | Persistence or side-effect impact |
-|---|---|---|---|
-| `ws` | Required workspace bound to the engine-owned client record | Reject nil or inaccessible workspace | Read existing project state; return an SDK-owned Changeset only |
-| `path` | Same normalized root recorded by the engine | Reject any path outside the workspace or incompatible existing package | Scaffold only the selected client root |
-| `module` | Same user-facing module ref recorded by the engine | Reject a value inconsistent with the initialized record | May inform package naming and documentation; does not resolve a second module |
-| SDK args | Closed, versioned Rust initialization arguments | Reject unknown keys and invalid combinations | Affect only documented SDK-owned scaffold choices |
-
-### GenerateClient Request
-
-| Input | Target policy | Error if invalid | Persistence or side-effect impact |
-|---|---|---|---|
-| `modSource` | Exact implementation-scoped Bound_Module identity | Reject missing identity, invalid source path, or target mismatch | Source digest enters Generated_Client_Manifest |
-| `introspectionJSON` | Complete Client_Visible_Schema for Exact_Target | Reject malformed schema, missing/changed Core coordinates, multiple module roots, or unexpected dependency coordinates | Schema digest and semantic catalog enter the manifest |
-| `outputDir` | Normalized requested client root | Reject absolute, escaping, symlinked, or overlapping ownership | Candidate writes remain confined beneath the root |
-| Published SDK dependency | Exact registry version or immutable Git URL and full revision | Reject path, wildcard, tag-only, or branch-only sources | Exact descriptor is emitted into Cargo metadata and manifest |
-
-> **Superseded in part.** The schema may come from any engine that serves the target's
-> API view. A changed Core coordinate now means a change to its wire contract rather than
-> to its documentation or deprecation, and the manifest records the identity of the
-> schema the client consumed rather than that of the bytes the engine sent.
-> [Engine compatibility](../../../docs/engine-integration.md#engine-compatibility) states the
-> current rule.
-
-### Client-Visible Schema Surface
-
-| Surface | Required projection | Invalid state | Runtime impact |
-|---|---|---|---|
-| Core named types and fields | Reuse the exact public `dagger-sdk` Core_Client_Surface | Missing or incompatible target coordinate | Generation fails before publication |
-| Core types hidden from module schemas | Retain them because client schemas expose the complete Core contract | Missing target-visible type | Generation fails as schema drift |
-| Bound module root field | Expose one typed namespaced path from the generated client root | Missing, promoted, duplicate, or ambiguous root | Query selects exact `Query.<module>` Wire_Name |
-| Bound module objects | Generate typed lazy handles with exact fields and arguments | Unsupported wrapper, collision, or unresolved reference | Reuse the shared session and query builder |
-| Bound module interfaces | Generate an idiomatic trait and typed client handle | Incomplete implementation relation or collision | Preserve interface selection and expected-type semantics |
-| Bound module enums and scalars | Generate exact wire codecs under the module namespace | Duplicate/unknown member or unsupported scalar policy | Preserve exact JSON and GraphQL values |
-| Bound module input objects | Generate owned typed inputs with omission distinct from explicit values | Invalid recursion, wrapper, or field collision | Encode exact argument JSON |
-| Bound module documentation and stability metadata | Preserve semantic docs, deprecation, and experimental notices | Invalid metadata shape | Documentation only |
-| Bound module transitive dependencies | Exclude them from this client | Any dependency-owned coordinate appears | Require a separate Dependency_Bound_Client |
-
-### Generated Project and Ownership
-
-| Artifact class | New client root | Existing compatible client root | Invalid or conflicting state |
-|---|---|---|---|
-| `Cargo.toml` | Create a non-publishable package with Exact_Target edition, Rust version, metadata, and Published_SDK_Dependency | Semantically update SDK-owned keys while preserving unrelated package, dependency, feature, workspace, and profile entries | Return a typed manifest or dependency conflict |
-| User-facing library root | Create the documented stable import boundary | Preserve authored contents and apply only a previously declared SDK-owned edit | Return an ownership conflict rather than replace unknown content |
-| Generated bindings | Publish the complete Core integration and Bound_Module surface | Replace only paths owned by the previous compatible manifest | Reject unknown, escaped, or symlinked collisions |
-| Generated client manifest | Create exact target, source, schema, dependency, binding, path, and artifact identities | Validate before using it as ownership authority | Reject malformed, stale, incomplete, or target-mismatched manifests |
-| `Cargo.lock` | Leave dependency resolution to the consumer unless a reviewed generated-lock policy is selected | Preserve caller-owned resolution byte-for-byte | Never perform hidden network resolution or silent lockfile rewrite |
-| Toolchain file | Reuse a compatible enclosing policy or create the exact approved standalone declaration | Preserve a compatible caller-owned declaration | Return a typed toolchain conflict |
-| Documentation or quickstart | Create concise compile-and-query guidance with generated ownership markers | Refresh only the SDK-owned section | Preserve unrelated prose and reject ambiguous ownership |
-| Obsolete generated paths | None on first generation | Remove only paths proved obsolete by the previous manifest | Never infer ownership from filename or directory alone |
-
-### Local Checkpoint and Exact-Target Boundary
-
-| Activity | Feature 7 local policy | Deferred exact-target policy |
+| Claim | Authority | Evidence |
 |---|---|---|
-| Schema tests | Direct production compiler over Core-only, local-module, and dependency-bound fixtures | Confirm exact engine supplies the same schema classes |
-| Project tests | Temporary Cargo roots and semantic filesystem reconciliation | Confirm engine Changesets land at the intended workspace roots |
-| Compile and query tests | Exact generated candidate plus local package resolver and recording transport | Run one real Core and Bound_Module query path |
-| Regeneration | Invoke only when target, schema, module, dependency, generator, or ownership input changes | Confirm one update through the real CLI path |
-| Workspace selection | Pure Rust workspace records and cwd fixtures | Confirm one multi-client workspace selection case |
-| Rust hygiene | Scoped fmt, locked tests, warning-denied clippy/rustdoc, package policy, and security checks | Consume admitted closure evidence without replaying it |
-| Dagger engine | Not constructed, started, or invoked | Reuse the one Exact_Target artifact and engine service |
-| Other SDKs | Not built, tested, generated, or distributed | Build only the engine-required Go runtime content once |
+| Rust answers the engine's client calls | `findClientRoot` and `generateScope` in `core/sdkmodule/provider.go` | Go adapter request-document tests; acceptance |
+| A module's dependencies are its clients | `withLegacyRuntimeDependencies` and `prepareOutput` in `main.dang` of `github.com/dagger/sdk-helpers` at `v1.0.12` | Manifest-rule unit tests; acceptance `gate` module |
+| A client's API is the bound module only | `Client` in `generate_unified.go` of `github.com/dagger/go-sdk`; Feature 6 dependency bindings | Compile fixture with warnings denied |
+| A client loads its module once per session | `ensureModule` in `sdk/go/module_client.go` | Transport tests that mirror `sdk/go/module_client_test.go` |
+| A client uses the served names | `clientSchemaIntrospectionJSONFile` in `core/schema/modulesource.go` | Acronym-named schema fixture; adapter source test |
+| Edited files survive | `ownedOverlay` in `generator/ownership.go` and `runPruneClients` in `prune.go` of `github.com/dagger/go-sdk` | Ownership unit tests; acceptance |
+| A module's edited generated files survive | `ownedOverlay` in `generator/ownership.go` of `github.com/dagger/go-sdk`, with the operation manifest as the record | Ownership unit tests; module generation tests |
+| A `dagger.json` module is migrated before it has clients | `docs/current_docs/config/migrate-dagger-json.mdx` in `github.com/dagger/dagger` | Refusal unit test |
+| A package client runs against an engine | The Target_Release | Acceptance with one local and one Git target |
 
 ## Requirements
 
-### Requirement 2: Path-Confined Client Initialization
+### Requirement 1: Engine Control Plane
 
-**User Story:** As a Rust application author, I want `dagger api client init rust` to
-create or adopt a Cargo client safely, so that initialization fits an ordinary
-workspace without overwriting my project.
-
-#### Acceptance Criteria
-
-1. WHEN the engine queries the Rust SDK's client-initialization capability, THE Rust
-   adapter SHALL expose Client_Initializer.
-2. WHEN Client_Initializer receives a valid new client root, THE initializer SHALL
-   return a Changeset containing the documented Rust client scaffold.
-3. THE Client_Initializer SHALL leave the engine-owned workspace client record to the
-   engine.
-4. WHEN the client root contains a compatible Cargo project, THE initializer SHALL
-   preserve every unrelated manifest entry.
-5. WHEN the client root contains Authored_Files, THE initializer SHALL preserve their
-   bytes unless a reviewed SDK-owned edit covers them.
-6. IF a required scaffold path contains unknown incompatible content, THEN THE
-   initializer SHALL return a typed ownership conflict.
-7. IF an SDK initialization argument is unknown, THEN THE initializer SHALL return a
-   typed argument diagnostic.
-8. IF the requested path escapes the workspace, THEN THE initializer SHALL reject the
-   request before producing a Changeset.
-9. WHEN initialization runs with generation enabled, THE workspace SHALL generate only
-   the newly initialized client scope.
-10. WHEN initialization runs with `--no-generate`, THE workspace SHALL omit generated
-    bindings.
-11. WHEN initialization runs with `--no-generate`, THE initializer SHALL leave a
-    documented scaffold that explains the missing generation step.
-12. WHEN initialization fails, THE initializer SHALL avoid publishing a partial
-    scaffold.
-13. THE Client_Initializer SHALL avoid embedding the session token, registry
-    credentials, host paths, or other secrets in its output.
-
-### Requirement 3: Exact Bound-Module and Client-Schema Semantics
-
-**User Story:** As a generated-client user, I want its schema identity to match one
-selected module and my engine, so that types cannot silently come from another module,
-revision, or dependency graph.
+**User Story:** As a Dagger user, I want the engine's own client commands to work for
+Rust, so that I manage Rust clients as I manage any other SDK's.
 
 #### Acceptance Criteria
 
-1. WHEN a Workspace_Client_Record names a local module, THE generator SHALL resolve it
-   against the record's bound workspace.
-2. WHEN a Workspace_Client_Record names a remote module, THE generator SHALL resolve
-   the recorded immutable pin.
-3. IF a remote module resolves to a different pin, THEN THE generator SHALL return a
-   target-identity diagnostic.
-4. THE generator SHALL bind each Standalone_Client_Project to exactly one
-   Bound_Module.
-5. THE generator SHALL validate every target-visible Core coordinate in the
-   Client_Visible_Schema.
-6. THE generator SHALL retain Core types exposed only to client schemas.
-7. WHERE the Bound_Module has a runtime, THE Client_Visible_Schema SHALL expose one
-   namespaced module field on `Query`.
-8. WHERE the Bound_Module has a runtime, THE Client_Visible_Schema SHALL contain its
-   complete public TypeDef closure.
-9. THE Client_Visible_Schema SHALL exclude the Bound_Module's transitive dependencies.
-10. IF a transitive dependency coordinate appears in the supplied schema, THEN THE
-    generator SHALL return a schema-scope diagnostic.
-11. IF a module function is promoted directly onto the Query root, THEN THE generator
-    SHALL return a schema-scope diagnostic.
-12. WHEN the supplied schema contains no runtime-backed Bound_Module, THE generator
-    SHALL produce a Core-only client surface.
-13. THE Generated_Client_Manifest SHALL bind the target, module source, pin, schema,
-    and SDK dependency identities.
+1. THE Rust runtime SHALL expose client generation only through the SDK-module
+   functions `findClientRoot` and `generateScope`.
+2. WHEN the engine calls `findClientRoot`, THE runtime SHALL return the Client_Root,
+   or null when no `Cargo.toml` is at or above the current location.
+3. WHEN the engine calls `generateScope` for a Module_Scope, THE runtime SHALL
+   generate the scope as Requirements 2 and 3 state.
+4. WHEN the engine calls `generateScope` for a Package_Scope, THE runtime SHALL
+   generate the scope as Requirements 4 to 11 state.
+5. THE runtime SHALL treat the `clients` argument as the complete client set of the
+   scope.
+6. THE runtime SHALL leave `dagger.toml` and `dagger.lock` to the engine.
+7. THE runtime SHALL return every change as edits to the `Workspace` it received.
+8. WHEN `dagger module client add`, `dagger module client rm`,
+   `dagger module client update`, `dagger generate`, or `dagger lock update` reaches a
+   Rust scope, THE result SHALL be the scope's state for the client set the engine
+   passes.
+9. THE Go adapter SHALL carry data between the engine and the Rust operation and
+   SHALL hold no rendering, naming, ownership, or Cargo policy.
 
-### Requirement 4: Idiomatic Core and Module API Composition
+### Requirement 2: Module Scopes
 
-**User Story:** As a Rust consumer, I want one coherent typed client for Core and my
-selected module, so that module access feels native without introducing a parallel
-runtime.
+**User Story:** As a Rust module author, I want `dagger module client add` to give my
+module a dependency, so that I stop editing `dagger-module.toml` by hand.
 
 #### Acceptance Criteria
 
-1. THE Standalone_Client_Project SHALL reuse `dagger-sdk` for every Core_Client_Surface
-   symbol.
-2. THE Standalone_Client_Project SHALL reuse `dagger-sdk` for connection ownership and
-   query execution.
-3. THE generated project SHALL avoid emitting a duplicate Core object, interface,
-   enum, scalar, or input type.
-4. WHERE a Bound_Module is present, THE generated project SHALL expose one typed
-   module-root accessor selecting its exact Query Wire_Name.
-5. THE Generated_Module_Surface SHALL expose every public Bound_Module object field.
-6. THE Generated_Module_Surface SHALL expose every public Bound_Module interface
-   operation.
-7. THE Generated_Module_Surface SHALL expose every public Bound_Module enum member.
-8. THE Generated_Module_Surface SHALL expose every public Bound_Module input field.
-9. THE Generated_Module_Surface SHALL preserve every GraphQL wrapper and nullability
-   distinction.
-10. THE Generated_Module_Surface SHALL preserve omission separately from explicit
-    false, zero, empty-string, empty-list, and null values.
-11. THE Generated_Module_Surface SHALL preserve exact field and argument Wire_Names in
-    every query.
-12. THE Generated_Module_Surface SHALL preserve object and interface ID re-entry
-    semantics through the shared runtime.
-13. THE generated project SHALL place Bound_Module symbols in a deterministic Rust
-    namespace distinct from the Core_Client_Surface.
-14. IF two generated public names collide within that namespace, THEN THE generator
-    SHALL return a coordinate-bearing collision diagnostic.
-15. THE generated project SHALL avoid process-global mutable client or query state.
-16. THE generated project SHALL expose async operations through the documented
-    `dagger-sdk` runtime policy.
-17. THE generated public API SHALL carry semantic rustdoc for every public item whose
-    contract is not evident from its type.
+1. WHEN a Module_Scope is generated, THE runtime SHALL rewrite the `[[dependencies]]`
+   of its `dagger-module.toml` to exactly the scope's Client_Targets.
+2. WHEN a Client_Target is local, THE dependency's `source` SHALL be its path relative
+   to the module directory.
+3. WHEN a Client_Target is a Git module, THE dependency's `source` SHALL be the
+   target's `asString`.
+4. WHEN a Git Client_Target is the workspace's own module, THE runtime SHALL write it
+   as a local target. It is the workspace's own when
+   `ws.moduleSource("/" + sourceRootSubpath).asString` equals the target's `asString`;
+   an error from that lookup counts as not equal (`inWorkspace` in `main.dang` of
+   `github.com/dagger/sdk-helpers`).
+5. THE runtime SHALL write no `pin` on any dependency.
+6. WHEN no existing dependency has the target's source, THE new dependency's `name`
+   SHALL be the target's `moduleOriginalName`.
+7. WHEN an existing dependency has the same normalized source as a Client_Target, THE
+   runtime SHALL keep that dependency's name and other settings.
+8. WHEN such an existing dependency has no `name`, THE runtime SHALL give it the
+   target's `moduleOriginalName` and SHALL keep its other settings
+   (`adoptedDependency` in `main.dang` of `github.com/dagger/sdk-helpers`).
+9. WHEN an existing dependency matches no Client_Target, THE runtime SHALL remove it.
+10. THE runtime SHALL order dependencies by name, ascending.
+11. THE runtime SHALL keep every other part of the manifest, comments included, as
+    Requirement 3 states.
+12. WHEN the scope has no Client_Targets, THE runtime SHALL write an empty dependency
+    list.
+13. AFTER the manifest is written, THE runtime SHALL regenerate the module through the
+    engine's module code generation, which is Feature 6's except for the ownership of
+    the files it generates (criteria 16 and 17).
+14. THE rule SHALL apply both to a scope that already has a manifest and to one the
+    runtime has just scaffolded.
+15. WHEN a Module_Scope is configured by `dagger.json` and has dependencies or
+    Client_Targets, THE runtime SHALL refuse it before writing anything. The refusal
+    SHALL advise `dagger module migrate` with the module's path from the workspace
+    root, then `dagger generate`, and SHALL say that a coding agent passes `-y` to
+    apply each, or `--no-apply` to preview the migration.
+16. WHEN a Module_Scope is regenerated, THE runtime SHALL treat its generated files as
+    `ownedOverlay` in `generator/ownership.go` of `github.com/dagger/go-sdk` treats
+    the files it records, with the previous operation manifest,
+    `.dagger/rust/operation-manifest.json`, as the record. A missing file SHALL be
+    written. A file with other bytes SHALL be replaced only if the manifest records it
+    and it still has its recorded digest, or the manifest does not record it and its
+    first line begins with the Generated_Marker; otherwise generation SHALL fail with
+    `<path> contains user changes; refusing to overwrite it` before anything is
+    written. A recorded file that is no longer generated SHALL be removed only if it
+    still has its recorded digest; an edited one SHALL stay, and the new manifest
+    SHALL not record it.
+17. WHEN regeneration removes a file of a Module_Scope, THE runtime SHALL remove it
+    from the workspace.
 
-### Requirement 5: Cargo-Native Project and Dependency Policy
+### Requirement 3: Module Manifest Form
 
-**User Story:** As a Rust maintainer, I want generated clients to behave like normal
-Cargo projects, so that they can be checked, documented, and consumed without
-repository-specific patching.
-
-#### Acceptance Criteria
-
-1. WHEN no client manifest exists, THE generator SHALL create a valid Cargo package
-   manifest.
-2. THE generated manifest SHALL declare edition 2024.
-3. THE generated manifest SHALL declare Rust 1.97.1 as its minimum version.
-4. THE generated manifest SHALL mark the generated client package as non-publishable.
-5. THE generated manifest SHALL select the exact Published_SDK_Dependency.
-6. IF the SDK dependency is a registry dependency, THEN THE manifest SHALL use its
-   exact version requirement.
-7. IF the SDK dependency is a Git dependency, THEN THE manifest SHALL use its full
-   immutable revision.
-8. THE generated manifest SHALL reject an ambient path dependency for `dagger-sdk`.
-9. THE generated manifest SHALL reject a wildcard or branch-only dependency for
-   `dagger-sdk`.
-10. WHEN adopting an existing manifest, THE generator SHALL preserve unrelated
-    dependencies and features.
-11. WHEN adopting an existing manifest, THE generator SHALL preserve unrelated
-    workspace and profile configuration.
-12. IF an existing `dagger-sdk` dependency conflicts with the Published_SDK_Dependency,
-    THEN THE generator SHALL return a typed dependency conflict.
-13. THE generated package name SHALL be deterministic and valid under Cargo naming
-    rules.
-14. THE generation operation SHALL avoid network dependency resolution.
-15. THE generation operation SHALL avoid silently rewriting a caller-owned
-    `Cargo.lock`.
-16. IF no compatible toolchain policy applies, THEN THE initializer SHALL create the
-    exact standalone toolchain declaration.
-17. IF an enclosing toolchain policy is incompatible, THEN THE initializer SHALL
-    return a typed toolchain conflict.
-
-### Requirement 6: Transactional Ownership and Regeneration
-
-**User Story:** As a client maintainer, I want regeneration to update only generated
-artifacts, so that schema evolution never deletes my work or leaves stale bindings.
+**User Story:** As a Rust module author, I want generation to write my manifest the
+way Dagger's own tooling does, so that the two never reformat each other's output.
 
 #### Acceptance Criteria
 
-1. THE Generated_Client_Manifest SHALL enumerate every generator-owned path.
-2. THE Generated_Client_Manifest SHALL record a digest for every generator-owned
-   artifact.
-3. THE Generated_Client_Manifest SHALL record the semantic binding catalog.
-4. WHEN generation inputs are unchanged, THE generator SHALL emit byte-identical
-   artifacts.
-5. WHEN schema declaration order changes without semantic change, THE generator SHALL
-   emit byte-identical artifacts.
-6. WHEN an owned binding changes, THE generator SHALL replace only artifacts owned by
-   the previous compatible manifest.
-7. WHEN an owned binding disappears, THE generator SHALL remove its obsolete owned
-   artifacts.
-8. WHEN an Authored_File shares the client root, THE generator SHALL preserve its
-   bytes.
-9. IF an unknown file occupies a required generated path, THEN THE generator SHALL
-   return an ownership conflict.
-10. IF the previous manifest is malformed, THEN THE generator SHALL return a manifest
-    diagnostic before mutation.
-11. IF the previous manifest targets another Dagger revision, THEN THE generator SHALL
-    reject it as ownership authority.
-12. IF a generated path is absolute, escaping, or symlink-escaping, THEN THE generator
-    SHALL reject the candidate.
-13. WHEN any generation phase fails, THE operation SHALL publish no partial candidate.
-14. WHEN generation succeeds, THE operation SHALL publish artifacts and manifest as
-    one logical transaction.
-15. THE generator SHALL avoid inferring ownership solely from a filename or directory
-    name.
+1. THE runtime SHALL write each `[[dependencies]]` table without indentation, as
+   `github.com/dagger/sdk-helpers` at `v1.0.12` writes manifests (`main.dang`):
+   `name`, then `source`, then any other settings a kept dependency has.
+2. THE runtime SHALL place the dependency tables after `[runtime]`.
+3. THE runtime SHALL keep everything outside the dependency tables byte for byte.
+4. WHEN generation runs again with the same Client_Targets, THE manifest SHALL not
+   change.
+5. WHEN the runtime scaffolds a new module, ITS manifest SHALL have the `[runtime]`
+   table in the same unindented form.
 
-### Requirement 7: Workspace Selection and Multi-Client Isolation
+### Requirement 4: Package Scopes
 
-**User Story:** As a workspace maintainer, I want each managed Rust client generated
-from its own record and module, so that nested or multi-client workspaces cannot leak
-schemas or changes across outputs.
+**User Story:** As a Rust application author, I want each module I add to become a
+Rust module in my package, so that I can use several Dagger modules from one program.
 
 #### Acceptance Criteria
 
-1. WHEN workspace generation starts, THE Rust SDK SHALL discover clients from the
-   engine-owned SDK role data.
-2. THE Rust SDK SHALL select only clients at or below the workspace current directory.
-3. THE Rust SDK SHALL order selected clients canonically before generation.
-4. THE Rust SDK SHALL resolve each selected client's Bound_Module independently.
-5. THE Rust SDK SHALL derive each selected client's Client_Visible_Schema independently.
-6. THE Rust SDK SHALL confine each selected client's output to its registered path.
-7. THE Rust SDK SHALL keep each selected client's Generated_Client_Manifest distinct.
-8. IF selected client roots overlap, THEN THE Rust SDK SHALL reject the generation set
-   before rendering.
-9. WHEN two clients bind the same module at different paths, THE Rust SDK SHALL produce
-   independently owned outputs.
-10. WHEN two clients bind different modules, THE Rust SDK SHALL avoid sharing
-    module-owned schema coordinates between them.
-11. WHEN one client fails, THE workspace generator SHALL avoid publishing a partial
-    multi-client Changeset.
-12. THE workspace generator SHALL avoid regenerating SDK-managed modules during a
-    client-only operation.
-13. THE workspace generator SHALL avoid entering an unrelated SDK's generator.
-14. WHEN the Modern_Workspace_Path and Legacy_Client_Path receive equivalent inputs,
-    THE Rust backend SHALL produce semantically equivalent client content.
+1. WHEN a Package_Scope is generated, THE runtime SHALL write one Client_Module per
+   Client_Target under `src/dagger_clients/` of the Client_Root.
+2. THE Client_Module's name SHALL be the target's `moduleOriginalName` as a Rust
+   module identifier, so `engine-dev` becomes `engine_dev`.
+3. THE runtime SHALL write `src/dagger_clients/mod.rs`, which declares the
+   Client_Modules, one per line and sorted, and holds no other item.
+4. THE runtime SHALL never edit a file outside `src/dagger_clients/` other than the
+   package's `Cargo.toml`.
+5. THE author SHALL declare `mod dagger_clients;`; generation SHALL not add it.
+6. A Git target's address SHALL be its `asString` and its pin SHALL be its recorded
+   `pin`, unless the target is part of the Git workspace: in the workspace's
+   repository, at the workspace's commit and selector. Such a target SHALL be
+   addressed as a local target (`workspaceModule` in
+   `cmd/dagger-go-sdk-codegen/main.go` of `github.com/dagger/go-sdk`).
+7. A local target's address SHALL be `/` followed by its `sourceRootSubpath`, with an
+   empty pin.
+8. WHEN a Package_Scope has no Client_Targets and no Ownership_Records, THE runtime
+    SHALL change nothing.
+9. WHEN a Package_Scope has Client_Targets and its Client_Root holds `dagger.json`,
+   or a `dagger.json` in a directory above it, as far as the workspace root, names
+   the Client_Root as its module's `source`, THE runtime SHALL refuse it before
+   writing anything. The refusal SHALL give the advice of Requirement 2.15 with
+   `dagger module client add` in place of `dagger generate`, run again from the
+   directory that holds `dagger.json`.
 
-### Requirement 8: Typed Diagnostics and Security Boundaries
+### Requirement 5: Target Schemas and Naming
 
-**User Story:** As a Rust user, I want generation failures to be precise and safe, so
-that I can repair my project without exposing credentials or guessing what was
-overwritten.
-
-#### Acceptance Criteria
-
-1. THE Feature 7 diagnostic taxonomy SHALL assign a stable code to every declared
-   failure class.
-2. WHEN a schema failure has a coordinate, THE diagnostic SHALL include that exact
-   coordinate.
-3. WHEN a project failure has a path, THE diagnostic SHALL include a normalized
-   client-relative path.
-4. WHEN a manifest conflict names a key, THE diagnostic SHALL include its semantic
-   TOML key path.
-5. THE diagnostic renderer SHALL order multiple diagnostics deterministically.
-6. THE diagnostic renderer SHALL sanitize terminal control characters.
-7. THE diagnostic renderer SHALL redact session tokens and authorization values.
-8. THE diagnostic renderer SHALL redact registry and Git credentials.
-9. THE generated project SHALL contain no session token or authorization header.
-10. THE generated project SHALL contain no absolute repository or developer-machine
-    path.
-11. THE generated project SHALL contain no ambient local SDK dependency.
-12. THE generated library path SHALL contain no unsafe Rust.
-13. IF a dependency source is unapproved, THEN THE generator SHALL reject it before
-    publication.
-14. IF required host-file metadata is non-canonical, THEN THE adapter SHALL reject it
-    before mounting project content.
-
-### Requirement 9: Engine-Free Generated-Client Usability
-
-**User Story:** As a Rust application author, I want generated output proven through
-ordinary Rust tools before engine verification, so that routine defects are found quickly
-without an expensive build graph.
+**User Story:** As a Rust application author, I want a client to use the names the
+engine serves, so that every generated call resolves.
 
 #### Acceptance Criteria
 
-1. WHEN a Core-only client fixture is generated, THE candidate SHALL compile under the
-   Exact_Target toolchain.
-2. WHEN a local-module client fixture is generated, THE candidate SHALL compile under
-   the Exact_Target toolchain.
-3. WHEN a dependency-bound client fixture is generated, THE candidate SHALL compile
-   under the Exact_Target toolchain.
-4. THE generated candidate SHALL pass rustfmt checking.
-5. THE generated candidate SHALL pass warning-denied Clippy for its supported target
-   set.
-6. THE generated candidate SHALL pass warning-denied rustdoc.
-7. WHEN a generated Core query runs through a recording transport, THE request SHALL
-   match the exact expected GraphQL operation.
-8. WHEN a generated module query runs through a recording transport, THE request SHALL
-   select the exact namespaced module root.
-9. WHEN generated optional arguments are omitted, THE request SHALL omit their Wire_Names.
-10. WHEN generated optional arguments carry explicit values, THE request SHALL encode
-    those values without zero-value loss.
-11. THE generated quickstart SHALL compile without editing generated code.
-12. THE generated quickstart SHALL use the public connection and lifecycle API from
-    `dagger-sdk`.
-13. THE engine-free resolver fixture SHALL leave the generated dependency declaration
-    unchanged.
-14. THE generated-client harness SHALL exercise the production renderer and public
-    runtime rather than a test-only client implementation.
+1. THE runtime SHALL read a Client_Target only through
+   `clientSchemaIntrospectionJson`, with `clientVersion` set to the Target_Release.
+2. THE runtime SHALL never call `withEngineVersion` on a Client_Target.
+3. THE runtime SHALL fetch each target's Client_Schema separately.
+4. THE runtime SHALL verify each schema's digest before rendering from it.
+5. THE runtime SHALL render each Client_Module from its own schema only.
+6. Field selections, inline fragments, and `node(id:)` type names in a Client_Module
+   SHALL use exactly the wire names its Client_Schema carries.
+7. WHEN a target declares a type whose name has an acronym, such as `HTTPFetcher` in
+   a module `naming-app`, THE bindings SHALL select `NamingAppHTTPFetcher` as the
+   engine serves it.
 
-### Requirement 10: Engine-Free Checkpoints and Deferred Exact-Target Verification
+### Requirement 6: Generated Client API
 
-**User Story:** As a maintainer, I want fast Rust-first checkpoints separated from one
-bounded engine verification, so that development remains efficient without weakening the
-release claim.
+**User Story:** As a Rust application author, I want a generated client to read like
+the dependency bindings in a module, so that I learn one calling convention.
 
 #### Acceptance Criteria
 
-1. THE Feature_7_Local_Checkpoint SHALL run without constructing a Dagger engine.
-2. THE Feature_7_Local_Checkpoint SHALL run without invoking a Dagger module.
-3. THE Feature_7_Local_Checkpoint SHALL run without building or testing another SDK.
-4. THE Feature_7_Local_Checkpoint SHALL run without unscoped repository generation.
-5. THE Feature_7_Local_Checkpoint SHALL reuse checked Core artifacts when their owning
-   identity is unchanged.
-6. WHEN an owning generation input changes, THE checkpoint SHALL regenerate only the
-   affected Rust client fixture or checked artifact.
-7. THE Feature_7_Local_Checkpoint SHALL record commands and elapsed phase timings.
-8. THE Feature_7_Local_Checkpoint SHALL record the generated-asset reuse decision.
-9. IF a proposed local check requires an engine, THEN the exception record SHALL prove
-   why direct Rust fixtures are insufficient.
-10. IF a proposed local check requires an engine, THEN the exception SHALL require
-    explicit approval before execution.
-11. WHEN Implementation_Closure is evaluated, THE closure report SHALL require every
-    Feature 7 production, fixture, hygiene, security, and evidence gate.
-12. WHEN the Exact_Target_Matrix is evaluated, THE gate SHALL consume the matching
-    Implementation_Closure record without replaying local checks.
-13. THE Exact_Target_Matrix inventory SHALL include one initialized local-module client.
-14. THE Exact_Target_Matrix inventory SHALL include one pinned remote dependency-bound client.
-15. THE Exact_Target_Matrix inventory SHALL include one regeneration after a schema change.
-16. THE Exact_Target_Matrix inventory SHALL include one representative Core query.
-17. THE Exact_Target_Matrix inventory SHALL include one representative namespaced module query.
-18. THE Exact_Target_Matrix SHALL reuse one exact-target artifact, engine
-    service, and installed Rust baseline.
-19. IF any required case is absent, stale, skipped, or failed, THEN THE final
-    exact-target gate SHALL fail atomically.
+1. EACH Client_Module SHALL declare `pub struct Client` that is `Clone`.
+2. `Client::new(&<sdk>::Client)` SHALL build the client without any request.
+3. `Client` SHALL offer the bound module's constructor fields and no Core field.
+4. WHEN a constructor has optional arguments, THE Client_Module SHALL offer a
+   `<field>_opts` method and a `Query<Field>Opts` struct, as Feature 6 renders them.
+5. `Client` SHALL offer `r#ref` and `load` for every type that implements the
+   module's `ClientLoadable`.
+6. `ClientLoadable` SHALL be implemented for every Core handle and for every handle
+   the bound module owns.
+7. THE Client_Module SHALL declare one file per type the bound module owns, and SHALL
+   make each type reachable as `<name>::<Type>`.
+8. THE Client_Module SHALL render no Core type and SHALL refer to Core through the
+   package's SDK dependency key.
+9. Type, field, argument, enum, and option names SHALL be those Feature 6's
+   dependency renderer produces for the same schema.
+10. THE first line of every generated file SHALL begin with the Generated_Marker.
+11. Generated files SHALL be formatted by the SDK's rustfmt before they are written
+    and SHALL compile with warnings denied.
+
+### Requirement 7: The Author's Checks
+
+**User Story:** As a Rust application author, I want generated clients to pass my own
+formatting and lint checks, so that adding a client never breaks my build.
+
+#### Acceptance Criteria
+
+1. WHEN the author runs `cargo fmt --check` from the package root, THE generated
+   clients SHALL pass, whatever the author's rustfmt configuration or edition.
+2. WHEN the author runs `cargo clippy --all-targets -- -D warnings` from the package
+   root, THE generated clients SHALL pass.
+3. BOTH checks SHALL pass with no configuration, attribute, or exclusion added by
+   the author.
+4. BOTH checks SHALL pass in a binary crate that uses only part of one client.
+5. EACH Client_Module's `mod.rs` SHALL allow, for the whole client, dead code, the
+   lints that Feature 6's dependency bindings allow, and `clippy::module_inception`,
+   and SHALL allow `unused_imports` on each re-export of a type file.
+6. `src/dagger_clients/mod.rs` SHALL declare each Client_Module as
+   `#[rustfmt::skip] pub mod <name>;`.
+7. `src/dagger_clients/mod.rs` SHALL itself be stable under rustfmt's defaults.
+
+### Requirement 8: Run-Time Module Loading
+
+**User Story:** As a Rust application author, I want a client to load its module by
+itself, so that I do not write loading code.
+
+#### Acceptance Criteria
+
+1. EVERY request built from a `Client`, or from any handle reached from it, Core
+   handles included, SHALL carry the client's Module_Requirement.
+2. BEFORE such a request is sent, THE session SHALL serve the module with
+   `serveModule(address, refPin)`, once per live session and Module_Requirement.
+3. THE session SHALL send `refPin` always, as an empty string for a local target.
+4. WHEN several requests need the same load, THEY SHALL wait for the one load.
+5. WHEN a load fails, THE session SHALL report the failure to the waiting requests and
+   SHALL try again on the next request.
+6. WHEN a waiting request is dropped, THE load SHALL continue for the others.
+7. WHEN the request driving a load is dropped, A later request SHALL start the load
+   again.
+8. WHEN the session is closed, THE request SHALL fail as any request after close,
+   without sending `serveModule`.
+9. A request that sends nothing SHALL not load the module.
+10. Requests that carry no Module_Requirement SHALL behave as before.
+11. IF the engine's schema lacks `serveModule`, THEN THE error SHALL read
+    `the engine does not support generated module clients (serveModule is required)`.
+12. IF a load fails for any other reason, THEN THE error SHALL read
+    `load module "<address>"`.
+13. IF a request fails after the load because the schema lacks a field, THEN THE error
+    SHALL read `generated client for "<address>" is out of date; regenerate it`.
+14. THE schema lacks a field only when a GraphQL error has the extension code
+    `GRAPHQL_VALIDATION_FAILED`, no path, and a message that starts
+    `Cannot query field `.
+15. EACH of these errors SHALL keep its cause as `source()`, and SHALL not repeat the
+    cause in its message.
+
+### Requirement 9: Ownership and Regeneration
+
+**User Story:** As a Rust application author, I want generation to respect my edits,
+so that regenerating never destroys work.
+
+#### Acceptance Criteria
+
+1. EACH Client_Module directory SHALL hold an Ownership_Record for its files.
+2. `src/dagger_clients/` SHALL hold an Ownership_Record for `mod.rs`.
+3. AN Ownership_Record SHALL be
+   `{"version": 1, "files": {"<relative path>": "<sha256 hex>"}}` with sorted keys,
+   two-space indentation, and a trailing newline, and SHALL not list itself.
+4. THE digests SHALL be those of the final, formatted bytes.
+5. WHEN an existing file's bytes equal the new bytes, THE runtime SHALL accept it.
+6. WHEN an existing file differs, THE runtime SHALL overwrite it only if its first
+   line begins with the Generated_Marker and either is absent from the old record or still has
+   its recorded digest.
+7. IF an existing file may not be overwritten, THEN generation SHALL fail with
+   `<path> contains user changes; refusing to overwrite it`.
+8. WHEN a recorded file is no longer generated, THE runtime SHALL remove it only if
+   its first line begins with the Generated_Marker and it still has its recorded
+   digest.
+9. WHEN a directory under `src/dagger_clients/` has an Ownership_Record and is no
+   longer a Client_Module, THE runtime SHALL prune it by the same rule and SHALL
+   rewrite its record with no files.
+10. WHEN the client set becomes empty, THE runtime SHALL treat
+    `src/dagger_clients/mod.rs` by the same rule.
+11. THE runtime SHALL validate every write and removal of the scope before making
+    any.
+12. IF a generated path or a record's directory crosses a symbolic link, THEN
+    generation SHALL fail.
+13. IF an Ownership_Record is malformed or has an unsupported version, THEN
+    generation SHALL fail.
+14. Repeated generation with the same inputs SHALL produce the same bytes.
+
+### Requirement 10: Cargo Manifest
+
+**User Story:** As a Rust application author, I want generation to set the SDK
+dependency my clients need, so that the package builds without guesswork.
+
+#### Acceptance Criteria
+
+1. WHEN at least one Client_Module is generated, THE package's `Cargo.toml` SHALL
+   depend on `tokeira-dagger-sdk` at exactly the SDK_Dependency.
+2. WHEN `[dependencies]` already has an entry for `tokeira-dagger-sdk`, by key or by
+   `package`, THE runtime SHALL use that key.
+3. WHEN it has none, THE runtime SHALL add
+   `dagger-sdk = { package = "tokeira-dagger-sdk", … }`.
+4. THE runtime SHALL replace only the entry's source and requirement fields and SHALL
+   keep its other fields, such as `features` and `default-features`.
+5. THE runtime SHALL keep every other part of the manifest, comments included.
+6. WHEN the entry is `{ workspace = true }` and the Cargo workspace's
+   `[workspace.dependencies]` entry already states the SDK_Dependency, THE runtime
+   SHALL accept it unchanged.
+7. IF the inherited entry differs, THEN generation SHALL fail and SHALL state the
+   exact entry to write in the workspace manifest.
+8. IF the Client_Root's `Cargo.toml` has no `[package]`, THEN generation SHALL fail.
+9. THE runtime SHALL never read, write, or resolve `Cargo.lock`.
+10. WHEN no Client_Module is generated, THE runtime SHALL leave `Cargo.toml` alone.
+
+### Requirement 11: Refusals
+
+**User Story:** As a Rust application author, I want generation to refuse what it
+cannot do correctly, so that I never get half a client.
+
+#### Acceptance Criteria
+
+1. IF two Client_Targets of one scope have the same Client_Module name, THEN
+   generation SHALL fail and SHALL name both.
+2. IF a bound module owns a type named `Client` or `ClientLoadable`, THEN generation
+   SHALL fail and SHALL name the schema coordinate.
+3. IF a constructor would be named `new`, `ref`, or `load`, THEN generation SHALL fail
+   and SHALL name the schema coordinate.
+4. IF a Client_Target is neither a local nor a Git module, THEN generation SHALL fail.
+5. EVERY refusal of Feature 6's dependency renderer SHALL apply to a Client_Module.
+6. WHEN generation fails for any client of a scope, THE runtime SHALL write nothing
+   for that scope.
+7. EVERY refusal SHALL be a typed diagnostic with a stable code.
+8. Diagnostics SHALL carry no credential, session token, or host path.
+9. IF a Client_Module would be named `mod`, THEN generation SHALL fail, since Rust
+   would find its file both at `src/dagger_clients/mod.rs` and at
+   `src/dagger_clients/mod/mod.rs`.
+
+### Requirement 12: Staleness and Refresh
+
+**User Story:** As a Rust application author, I want a clear way to bring a client up
+to date, so that a changed module does not leave me with silent breakage.
+
+#### Acceptance Criteria
+
+1. WHEN `dagger module client update` moves a Git target to a new commit, THE
+   regenerated Client_Module SHALL embed the new pin.
+2. WHEN `dagger generate` or `dagger lock update` runs, THE runtime SHALL regenerate
+   the scope from the current Client_Schemas.
+3. WHEN an unedited generated file has been deleted, regeneration SHALL restore it.
+4. WHEN `dagger module client rm` removes a target, regeneration SHALL prune its
+   Client_Module as Requirement 9 states.
+5. WHEN a client calls a field its target no longer has, THE request SHALL fail with
+   the out-of-date error of Requirement 8.
+6. THE runtime SHALL keep no staleness state of its own beyond the Ownership_Records.
+
+### Requirement 13: Removal of the Legacy Path
+
+**User Story:** As an SDK maintainer, I want one client-generation path, so that no
+unreachable generator has to be kept correct.
+
+#### Acceptance Criteria
+
+1. THE runtime SHALL no longer expose `generateClient` or
+   `requiredClientGenerationFiles`.
+2. THE repository SHALL no longer contain the standalone-client compiler and
+   renderer, the client project reconciler, the client initializer, the client-set
+   planner, or their request kinds.
+3. THE packaged SDK content SHALL no longer contain `client-generation.json`.
+4. THE tests and fixtures of the removed code SHALL be removed with it.
+5. A type that remaining code still uses SHALL move to a module that outlives the
+   removal.
+6. THE runtime's content inputs SHALL still list every input the remaining operations
+   need.
+
+### Requirement 14: Verification
+
+**User Story:** As an SDK maintainer, I want each part proven where it is cheapest, so
+that the engine-backed acceptance stays small.
+
+#### Acceptance Criteria
+
+1. THE transport SHALL have engine-free tests for each case
+   `sdk/go/module_client_test.go` covers: shared loads, retry after failure, a
+   cancelled wait, lazy construction, and missing-field classification.
+2. THE renderer SHALL have a checked Client_Schema fixture fetched from an engine at
+   the Target_Release.
+3. A compile fixture SHALL build a generated client, with a caller that uses the
+   constructor with and without options, `r#ref`, and `load`, and a type the target
+   owns that no function returns, with warnings denied and without an engine.
+4. Ownership, the Cargo manifest rules, the module manifest rules, and each refusal
+   SHALL have engine-free unit tests.
+5. THE Go adapter SHALL have tests for its request documents and its address rule,
+   and a source test that no client path calls `WithEngineVersion`.
+6. A checked Client_Schema of a target with an acronym in a type name SHALL prove
+   that the bindings use the served wire names.
+7. A test SHALL build a binary package that uses part of a generated client and
+   SHALL run the two commands of Requirement 7 from its root.
+8. THE acceptance SHALL generate a Cargo package with one local and one Git client
+   and SHALL run it against an engine at the Target_Release.
+9. THE acceptance SHALL cover `client update`, `dagger generate` restoring a deleted
+   file, `client rm` pruning, and an edited file refused with nothing written.
+10. THE acceptance SHALL give a module its dependency through
+    `dagger module client add`.
+11. Client targets in the acceptance SHALL be Dang modules.
 
 ## Out of Scope
 
-- Generating a selected module's transitive dependency graph into one client.
-- Redesigning Feature 2 client ownership or Feature 3 transport and provisioning.
-- Reimplementing Core_Schema bindings already owned by Feature 4.
-- Changing Feature 5's engine ABI, runtime container, or generic operation runner.
-- Changing Feature 6 module authoring, TypeDef registration, or dispatch.
-- Running the full platform, cross-SDK, or complete engine conformance matrix.
-- Publishing crates, synchronizing release versions, or presenting the stable release.
-- Treating repository-relative dependency patches as valid generated output.
-- Claiming exact-target verification from engine-free Implementation_Closure alone.
+- Go's module layout with a Dang entrypoint and shared Core types in modules.
+- Package clients generated beside a module in a Module_Scope.
+- SDK settings for a scope, including Go's `lock` setting that writes dependency pins.
+- A process-wide default session; a client always receives a `Client`.
+- Retargeting to a later engine release.
+- Resolving or updating `Cargo.lock`.
+- Changing Feature 6's dependency bindings, or its module generation beyond the
+  ownership of the files it generates.
 
 ## Iteration and Feedback Notes
 
-- The umbrella Feature 7 wording that implies one client contains every transitive
-  dependency surface must be refined to the engine's one-Bound_Module contract when
-  these requirements are approved.
-- The final Rust API composition mechanism is intentionally deferred to design. It must
-  provide typed access to the namespaced module root without shadowing
-  `dagger_sdk::Query`, duplicating the Core surface, or copying Go's package layout.
-- `Cargo.lock` remains caller-owned in the requirements. If design research proves a
-  generated standalone lockfile is necessary, that change requires explicit review
-  because it introduces dependency resolution and update policy.
+- The earlier contract bound one module per generated Cargo project and exposed it
+  through an extension of the Core client. The engine at the Target_Release has no
+  command that reaches that path, so it is replaced rather than extended.
+- Rust passes `clientVersion` when it asks for a Client_Schema and Go does not
+  (`generateStandaloneClient` in `go-sdk.dang`). Rust's clients use the SDK's Core
+  types, which are generated for the Target_Release, so the schema's view of Core must
+  match them.
+- Go runs `go mod tidy` after setting its library requirement. Rust leaves
+  `Cargo.lock` to the author's next Cargo command.
+- Go's entry point is `Connect`, which may use a default session. Rust's is `new`
+  because it does no I/O and always receives the session.
+- Forcing a target's engine version renames its declarations by that version's casing
+  rules, so a client would say `NamingAppHttpFetcher` where the engine serves
+  `NamingAppHTTPFetcher`. `clientVersion` describes Core at the client's view and
+  leaves the module at the version it declares (`clientSchemaIntrospectionJSONFile`
+  in `core/schema/modulesource.go`).
+- In a binary crate `mod dagger_clients;` is private, so every generated item the
+  author does not call is dead code, and a type file's re-export is an unused import
+  when the author names none of its types. A module may own a type that none of its
+  functions returns, which nothing else names. The allowances of Requirement 7 exist
+  for these cases.

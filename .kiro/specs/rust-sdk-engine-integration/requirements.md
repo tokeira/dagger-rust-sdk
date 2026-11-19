@@ -333,6 +333,11 @@ This policy follows `core/sdk/loader.go:43-82,126-193,255-300` at the Target_Rev
 
 Every row accounts for a surface in `core/sdk.go:13-440` at the Target_Revision.
 
+> **Superseded in part.** The `ClientInitializer` and `ClientGenerator` rows, and
+> the client-generation criteria of the requirements below, describe hooks that
+> Feature 7 removes. Clients are generated only through `findClientRoot` and
+> `generateScope` ([Module clients](../rust-sdk-client-generation/requirements.md), Requirements 1 and 13).
+
 | Surface | Rust integration policy | Deferred content | Evidence boundary |
 |---|---|---|---|
 | SDK | Provide independently clonable engine integration state with explicit supported-surface queries | None | Clone and attachment isolation tests |
