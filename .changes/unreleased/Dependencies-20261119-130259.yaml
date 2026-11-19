@@ -1,0 +1,7 @@
+kind: Dependencies
+body: |
+    The SDK requires `zip` 9.0.5, which carries the fix for RUSTSEC-2026-0548: an archive could show `ZipArchive` one set of entry names and extract under others through `ZipStreamReader`. CLI provisioning reads its archive only through `ZipArchive`, so the advisory does not reach it.
+time: 2026-11-19T13:02:59Z
+custom:
+    Author: iw
+    PR: "57"
