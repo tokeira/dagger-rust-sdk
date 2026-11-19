@@ -10,6 +10,11 @@
 //! that module's coordinates with them. None changes what a caller sends, so generation
 //! accepts each of them there, where its definition places it, and refuses each of them
 //! on a coordinate of the reviewed Core API.
+//!
+//! The engine also stamps every type of a dependency with `@sourceMap(module:)`, its
+//! interfaces included, though the target's definition of the directive does not list
+//! interfaces among its locations. Generation accepts it there and nothing else that a
+//! definition does not place on an interface.
 
 mod support;
 
@@ -24,8 +29,9 @@ use dagger_codegen::target::CodegenTarget;
 use serde_json::Value;
 
 use support::{
-    CORE_SCHEMA_BYTES, TARGET_BYTES, add_dependency_with_directives, apply_field_directive,
-    apply_type_directive, directive_application, module_authoring_input, module_visible_schema,
+    CORE_SCHEMA_BYTES, TARGET_BYTES, add_dependency_with_directives, add_dependency_with_interface,
+    apply_field_directive, apply_type_directive, directive_application, module_authoring_input,
+    module_visible_schema,
 };
 
 /// Where a directive's definition lets the engine apply it.
@@ -214,6 +220,82 @@ fn a_module_generates_beside_a_dependency_that_carries_every_directive() {
     let binding = RelativeOperationPath::parse("candidate/src/dagger_generated/greeter.rs")
         .expect("expected path must parse");
     assert!(plan.artifacts().contains_key(&binding));
+}
+
+// The schema `dagger generate` is served for a module that depends on a module with an
+// interface: the engine names the interface's owner with `@sourceMap`, at a location
+// the directive's definition does not declare.
+#[test]
+fn a_module_generates_beside_a_dependency_that_declares_an_interface() {
+    let schema = add_dependency_with_interface(&module_visible_schema(0), &[]);
+    let output = RelativeOperationPath::parse("candidate").expect("fixture path must parse");
+    let module = ModuleProjectionInput {
+        name: "rust-probe".to_owned(),
+        original_name: "RustProbe".to_owned(),
+        source_subpath: RelativeOperationPath::parse("modules/rust-probe")
+            .expect("fixture path must parse"),
+        source_digest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            .to_owned(),
+    };
+    let dependency = PublishedSdkDependency::Registry {
+        registry: "crates-io".to_owned(),
+        exact_version: "1.0.0-beta.11.rust.5".to_owned(),
+    };
+    let plan = project_operation(OperationProjectionRequest {
+        target: &target(),
+        operation: OperationKind::GenerateModule,
+        visible_schema_json: &schema,
+        module: Some(&module),
+        output: &output,
+        sdk_dependency: &dependency,
+        authoring: Some(&module_authoring_input()),
+        engine_version: None,
+    })
+    .expect("a dependency's interface must not stop generation");
+    for bound in ["greeter.rs", "greeter_named.rs"] {
+        let binding =
+            RelativeOperationPath::parse(&format!("candidate/src/dagger_generated/{bound}"))
+                .expect("expected path must parse");
+        assert!(plan.artifacts().contains_key(&binding), "{bound}");
+    }
+}
+
+// The directive is recorded where the engine put it, as the interface's owner.
+#[test]
+fn a_source_map_is_accepted_on_a_dependency_interface_and_names_its_owner() {
+    let plan = project(&add_dependency_with_interface(CORE_SCHEMA_BYTES, &[]))
+        .expect("a dependency's interface must be accepted with its source map");
+    let interface = SchemaName::try_from("GreeterNamed").expect("fixture type name is valid");
+    let coordinate = SchemaCoordinate::named_type(&interface);
+    assert!(plan.extension_coordinates().contains(&coordinate));
+    assert_eq!(
+        plan.projection().directives().for_coordinate(&coordinate),
+        [DirectiveApplicationPolicy::SourceMap {
+            module: "greeter".to_owned(),
+        }]
+    );
+}
+
+// The exception is for the one directive the engine misplaces. Any other directive on
+// an interface, where its definition does not allow it, is refused as before.
+#[test]
+fn no_other_directive_is_accepted_where_its_definition_does_not_place_it() {
+    let misplaced = add_dependency_with_interface(
+        CORE_SCHEMA_BYTES,
+        &[directive_application("defaultPath", &[("path", "\"/\"")])],
+    );
+    let refused = project(&misplaced).expect_err("a directive stays where it is declared");
+    assert!(
+        refused.diagnostics().iter().any(|diagnostic| {
+            diagnostic.code == DiagnosticCode::SchemaDirectiveArgumentInvalid
+                && diagnostic.message == "directive is not valid at this schema location"
+                && diagnostic
+                    .coordinate
+                    .as_ref()
+                    .is_some_and(|coordinate| coordinate.as_str() == "GreeterNamed")
+        }),
+        "{refused:?}"
+    );
 }
 
 // The directives take no part in what a caller sends, so the dependency's binding is

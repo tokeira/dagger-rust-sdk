@@ -666,6 +666,37 @@ pub(crate) fn add_dependency_with_directives(
     serde_json::to_vec(&document).expect("extended schema fixture must encode")
 }
 
+/// Adds a module dependency that declares an interface, as the engine serves it: the
+/// object `Greeter`, the interface `GreeterNamed` that it implements and that its
+/// function `named` returns, and the `Query.greeter` constructor. The engine stamps the
+/// object and the interface with `@sourceMap(module:)`; the caller's directives go on
+/// the interface beside it.
+pub(crate) fn add_dependency_with_interface(schema: &[u8], on_interface: &[Value]) -> Vec<u8> {
+    let mut document: Value = serde_json::from_slice(schema).expect("schema fixture must decode");
+    add_interface_type(&mut document, "GreeterNamed", "Greeter");
+    let interface = schema_array_mut(&mut document, "types")
+        .last_mut()
+        .expect("the dependency interface was just added");
+    interface["directives"] = source_map_directives("greeter");
+    extend_directives(interface, on_interface);
+    add_object_type(
+        &mut document,
+        "Greeter",
+        vec![
+            object_field("id", scalar_type("ID", false), vec![]),
+            object_field("message", scalar_type("String", false), vec![]),
+            object_field("named", interface_type("GreeterNamed", false), vec![]),
+        ],
+    );
+    let greeter = schema_array_mut(&mut document, "types")
+        .last_mut()
+        .expect("the dependency type was just added");
+    greeter["directives"] = source_map_directives("greeter");
+    add_interface_to_object(&mut document, "Greeter", "GreeterNamed");
+    add_query_object_field(&mut document, "greeter", "Greeter");
+    serde_json::to_vec(&document).expect("extended schema fixture must encode")
+}
+
 /// Applies a directive to a field of the schema, or to one of the field's arguments.
 pub(crate) fn apply_field_directive(
     schema: &[u8],

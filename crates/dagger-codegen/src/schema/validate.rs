@@ -1344,6 +1344,16 @@ fn canonicalize_applications(
         // fields; every other undeclared location still fails.
         let allowed =
             allowed || (name.as_str() == "expectedType" && location == "INPUT_FIELD_DEFINITION");
+        // The target declares @sourceMap on objects, enums and their members, and not on
+        // interfaces, yet stamps the interface types of a module with it as it stamps
+        // the module's other types (the interface case of `namespaceTypeDef` in
+        // core/module.go and `InterfaceType.Install` in core/interface.go, served by
+        // `Interface.TypeDefinition` in dagql/interfaces.go
+        // @ 400b82d6f3c09ef096d2f59b3e920267b5969bf4). There it states the module that
+        // owns the interface, which is all the SourceMap policy reads and which takes
+        // no part in a coordinate's wire contract, so it is admitted on an interface
+        // type; every other undeclared location still fails.
+        let allowed = allowed || (name.as_str() == "sourceMap" && location == "INTERFACE");
         if !allowed {
             diagnostics.push(schema_error(
                 DiagnosticCode::SchemaDirectiveArgumentInvalid,
