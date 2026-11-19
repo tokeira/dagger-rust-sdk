@@ -480,6 +480,30 @@ impl QueryBuilder {
         }
     }
 
+    /// Starts a `node(id:)` selection on this builder's existing session that does
+    /// not keep the ID.
+    ///
+    /// A module's generated bindings build their own handles on the returned builder
+    /// for an ID that no query of this client returned for the object: one the engine
+    /// passed as an argument or as state, or one the caller supplies. Such an ID need
+    /// not be in the form the `id` field returns, so selecting `id` on the builder
+    /// asks the engine, as `reenter_generated_handle` does for a Core handle.
+    /// A lazy `id` is resolved when the request that uses the builder is built.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn generated_lazy_reentry_builder<T>(&self, id: IdInput<T>, concrete_type: &str) -> Self
+    where
+        T: 'static,
+    {
+        Self {
+            session: self.session.clone(),
+            selection: query()
+                .select("node")
+                .arg_id_input("id", id)
+                .inline_fragment(concrete_type),
+        }
+    }
+
     /// Records one direct target-typed identifier argument for deferred resolution.
     #[doc(hidden)]
     #[must_use]
