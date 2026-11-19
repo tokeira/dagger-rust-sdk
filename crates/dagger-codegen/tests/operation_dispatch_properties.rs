@@ -8,11 +8,11 @@ use std::sync::LazyLock;
 
 use dagger_codegen::diagnostic::{DiagnosticCode, DiagnosticSet};
 use dagger_codegen::engine::{
-    CandidateArtifact, CandidateArtifactKind, ClientGenerationMetadata, ClientRenderInput,
-    ContentDomain, EntrypointRenderInput, LibraryRenderInput, ModuleAuthoringInput,
-    ModuleProjectionInput, ModuleRenderInput, OperationKind, OperationRenderer,
-    PreparedOperationRequest, PublishedSdkDependency, RelativeOperationPath, RendererOutput,
-    VisibleSchemaPlan, dispatch_prepared_operation, project_visible_schema,
+    CandidateArtifact, CandidateArtifactKind, ContentDomain, EntrypointRenderInput,
+    LibraryRenderInput, ModuleAuthoringInput, ModuleProjectionInput, ModuleRenderInput,
+    OperationKind, OperationRenderer, PreparedOperationRequest, PublishedSdkDependency,
+    RelativeOperationPath, RendererOutput, VisibleSchemaPlan, dispatch_prepared_operation,
+    project_visible_schema,
 };
 use dagger_codegen::target::CodegenTarget;
 use proptest::prelude::*;
@@ -54,9 +54,6 @@ impl RecordingRenderer {
         let operation = call.operation;
         self.calls.borrow_mut().push(call);
         let mut rendered = self.output.clone();
-        if operation == OperationKind::GenerateClient {
-            rendered.client_generation = Some(ClientGenerationMetadata::baseline());
-        }
         if matches!(
             operation,
             OperationKind::GenerateModule | OperationKind::GenerateEntrypoint
@@ -99,18 +96,6 @@ impl OperationRenderer for RecordingRenderer {
         }))
     }
 
-    fn render_client(&self, input: ClientRenderInput<'_>) -> Result<RendererOutput, DiagnosticSet> {
-        Ok(self.record(RecordedCall {
-            operation: OperationKind::GenerateClient,
-            target_address: input.target as *const CodegenTarget as usize,
-            schema_address: input.schema as *const VisibleSchemaPlan as usize,
-            module: Some(input.module.clone()),
-            output: input.output.clone(),
-            sdk_dependency: input.sdk_dependency.clone(),
-            authoring: None,
-        }))
-    }
-
     fn render_entrypoint(
         &self,
         input: EntrypointRenderInput<'_>,
@@ -128,10 +113,9 @@ impl OperationRenderer for RecordingRenderer {
 }
 
 fn operation(discriminant: u8) -> OperationKind {
-    match discriminant % 4 {
+    match discriminant % 3 {
         0 => OperationKind::GenerateLibrary,
         1 => OperationKind::GenerateModule,
-        2 => OperationKind::GenerateClient,
         _ => OperationKind::GenerateEntrypoint,
     }
 }
@@ -209,7 +193,6 @@ proptest! {
         let valid = match operation {
             OperationKind::GenerateLibrary => !authoring_present,
             OperationKind::GenerateModule => module_present && authoring_present,
-            OperationKind::GenerateClient => module_present && !authoring_present,
             OperationKind::GenerateEntrypoint => module_present && authoring_present,
         };
         if !valid {

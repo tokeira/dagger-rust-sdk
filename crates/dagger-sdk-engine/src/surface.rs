@@ -12,8 +12,6 @@ pub enum AdapterSurface {
     ModuleInitializer,
     /// Module binding generation.
     CodeGenerator,
-    /// Standalone client generation hook.
-    ClientGenerator,
     /// Runtime container construction.
     Runtime,
     /// Module-backed SDK identity.
@@ -29,7 +27,6 @@ pub fn detect_adapter_surfaces<'a>(
     for (name, surface) in [
         ("initModule", AdapterSurface::ModuleInitializer),
         ("codegen", AdapterSurface::CodeGenerator),
-        ("generateClient", AdapterSurface::ClientGenerator),
         ("moduleRuntime", AdapterSurface::Runtime),
     ] {
         if names.contains(name) {

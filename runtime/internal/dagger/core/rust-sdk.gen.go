@@ -93,24 +93,14 @@ func (r *RustSDK) FindClientRoot(ctx context.Context, ws *Workspace) (string, er
 	return response, q.Execute(ctx)
 }
 
-// GenerateClient renders the standalone client only within the requested output
-// subtree of the scoped module context.
-func (r *RustSDK) GenerateClient(modSource *ModuleSource, introspectionJson *File, outputDir string) *Directory {
-	assertNotNil("modSource", modSource)
-	assertNotNil("introspectionJson", introspectionJson)
-	q := r.query.Select("generateClient")
-	q = q.Arg("modSource", modSource)
-	q = q.Arg("introspectionJson", introspectionJson)
-	q = q.Arg("outputDir", outputDir)
-
-	return &Directory{
-		query:     q,
-		refetchID: r.refetchID,
-	}
-}
-
-// GenerateScope reconciles the Rust SDK state of one workspace scope. A module
-// scope is scaffolded and given its module configuration on first use, then its
+// GenerateScope reconciles the Rust SDK state of one workspace scope.
+//
+// A scope that is not a module is a Cargo package with module clients: the engine
+// schedules it only to generate the clients recorded for it, and passes the scope
+// that FindClientRoot returned. Each client is generated into the package.
+//
+// A module scope is scaffolded and given its module configuration on first use.
+// Its dependencies are then made exactly the clients recorded for it, and its
 // generated code is refreshed through the engine's module code generation, which
 // calls back into Codegen with the module's visible schema.
 func (r *RustSDK) GenerateScope(ws *Workspace, isModule bool, name string, clients []*ModuleSource) *Workspace {
@@ -204,14 +194,4 @@ func (r *RustSDK) ModuleRuntime(modSource *ModuleSource, opts ...RustSDKModuleRu
 		query:     q,
 		refetchID: r.refetchID,
 	}
-}
-
-// RequiredClientGenerationFiles returns the renderer-owned finite host input set.
-func (r *RustSDK) RequiredClientGenerationFiles(ctx context.Context) ([]string, error) {
-	q := r.query.Select("requiredClientGenerationFiles")
-
-	var response []string
-
-	q = q.Bind(&response)
-	return response, q.Execute(ctx)
 }

@@ -17,9 +17,6 @@ const (
 	// releaseRepository publishes the SDK's crates.io releases, each from its tag.
 	// Forks carry the same tags, so only this repository's tags name a release.
 	releaseRepository = "https://github.com/tokeira/dagger-rust-sdk"
-	// clientGenerationSourcePath is the client-generation metadata that sealed
-	// content carries at clientGenerationPath.
-	clientGenerationSourcePath = "crates/dagger-codegen/assets/client-generation.json"
 )
 
 var fullRevision = regexp.MustCompile(`^[0-9a-f]{40}$`)
@@ -164,7 +161,7 @@ func sealWorkspaceContent(
 		Include: []string{
 			"Cargo.toml", "Cargo.lock", "rust-toolchain.toml",
 			"codegen/target.json", "codegen/schema.json", "codegen/generated.json",
-			"crates/**/Cargo.toml", "crates/**/src/**/*.rs", "crates/**/assets/**",
+			"crates/**/Cargo.toml", "crates/**/src/**/*.rs",
 		},
 	})
 	buildCtr := dag.Container(dagger.ContainerOpts{Platform: platform}).
@@ -186,7 +183,6 @@ func sealWorkspaceContent(
 		WithDirectory(sdkRuntimePath, runtimeSource).
 		WithFile(engineToolPath, buildCtr.File("/src/target/release/dagger-rust-engine"), dagger.DirectoryWithFileOpts{Permissions: 0o755}).
 		WithFile(formatterToolPath, buildCtr.File(rustfmtPath), dagger.DirectoryWithFileOpts{Permissions: 0o755}).
-		WithFile(clientGenerationPath, workspace.File(clientGenerationSourcePath)).
 		WithFile(runtimePolicyPath, workspace.File("runtime/assets/runtime-policy.json")).
 		WithFile("LICENSE", workspace.File("LICENSE")).
 		WithFile("NOTICE", workspace.File("NOTICE"))

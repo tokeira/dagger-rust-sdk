@@ -13,14 +13,13 @@ proptest! {
     // Placeholders and similarly named helpers cannot advertise an engine hook.
     #[test]
     fn property_15_engine_surfaces_report_only_implemented_hooks(
-        present in prop::collection::vec(any::<bool>(), 4),
+        present in prop::collection::vec(any::<bool>(), 3),
         placeholders in prop::collection::vec("[a-zA-Z][a-zA-Z0-9]{0,24}", 0..12),
     ) {
-        let hooks = ["initModule", "codegen", "generateClient", "moduleRuntime"];
+        let hooks = ["initModule", "codegen", "moduleRuntime"];
         let expected_surfaces = [
             AdapterSurface::ModuleInitializer,
             AdapterSurface::CodeGenerator,
-            AdapterSurface::ClientGenerator,
             AdapterSurface::Runtime,
         ];
         let mut names = placeholders;

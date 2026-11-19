@@ -9,7 +9,6 @@
 
 pub mod canonical;
 pub mod cli;
-pub mod client;
 pub mod descriptor;
 pub mod diagnostic;
 pub mod initialization;
@@ -30,17 +29,6 @@ pub mod surface;
 pub use canonical::{
     CanonicalError, DigestDomain, canonical_bytes, canonical_digest, decode_canonical,
 };
-pub use client::initialization::{execute_client_initialization, plan_client_initialization};
-pub use client::project::{
-    AmendmentCandidate, AuthoredFile, ClientDocumentationState, ClientProjectIdentityRequest,
-    ClientProjectPlan, ClientProjectRequest, ClientProjectSnapshot, discover_client_project,
-    reconcile_client_project, select_client_project_identity, semantic_amendment_digest,
-};
-pub use client::security::{ClientBoundaryArtifactKind, validate_client_boundary};
-pub use client::workspace::{
-    ClientOperationOutcome, ClientSetOutcome, admit_client_set, bind_client_module, plan_client_set,
-};
-pub use dagger_codegen::client::{CargoPackageName, RustIdentifier};
 pub use diagnostic::{EngineDiagnostic, EngineDiagnosticCode};
 pub use model::*;
 pub use module_dependencies::{

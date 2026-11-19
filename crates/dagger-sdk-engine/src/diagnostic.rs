@@ -62,16 +62,6 @@ pub enum EngineDiagnosticCode {
     RollbackFailed,
     /// Operation-specific input is absent, forbidden, or invalid.
     OperationInputInvalid,
-    /// Standalone-client initialization input or scaffold state is invalid.
-    ClientInitializationInvalid,
-    /// A stored remote client pin differs from the resolved module revision.
-    ClientPinMismatch,
-    /// Existing Cargo or toolchain policy conflicts with standalone-client adoption.
-    ClientProjectConflict,
-    /// Two managed standalone-client roots overlap or alias one another.
-    ClientRootOverlap,
-    /// A generated standalone-client fixture failed its scoped Rust phase.
-    ClientFixtureFailed,
     /// A child process was cancelled and reaped.
     OperationCancelled,
     /// Checked runtime generation is missing a required committed artifact.
@@ -124,11 +114,6 @@ impl EngineDiagnosticCode {
         Self::PublicationFailed,
         Self::RollbackFailed,
         Self::OperationInputInvalid,
-        Self::ClientInitializationInvalid,
-        Self::ClientPinMismatch,
-        Self::ClientProjectConflict,
-        Self::ClientRootOverlap,
-        Self::ClientFixtureFailed,
         Self::OperationCancelled,
         Self::GeneratedMissing,
         Self::GeneratedStale,

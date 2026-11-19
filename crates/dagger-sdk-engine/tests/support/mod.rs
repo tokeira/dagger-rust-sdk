@@ -16,10 +16,7 @@ pub struct ModelCorpus {
     pub target: TargetIdentity,
     pub schema: SchemaInput,
     pub module: ModuleOperationInput,
-    pub client_module: ClientModuleIdentity,
-    pub client_project: ClientProjectIdentity,
-    pub client_initialization: ClientInitializationRequest,
-    pub client_execution_request: EngineExecutionRequest,
+    pub execution_request: EngineExecutionRequest,
     pub dependency: PublishedSdkDependency,
     pub request: OperationRequest,
     pub candidate: CandidateArtifact,
@@ -29,10 +26,6 @@ pub struct ModelCorpus {
     pub generator: GeneratorIdentity,
     pub artifact_record: ArtifactRecord,
     pub manifest: OperationManifest,
-    pub amendment_coordinate: AmendmentCoordinate,
-    pub amendment_record: AmendmentRecord,
-    pub client_manifest: ClientManifestRecord,
-    pub client_operation_manifest: OperationManifest,
     pub engine_source: EngineSourceDescriptor,
     pub cargo_package: CargoPackage,
     pub toolchain: ToolchainSelection,
@@ -52,7 +45,7 @@ pub fn model_corpus() -> impl Strategy<Value = ModelCorpus> {
     (
         any::<u8>(),
         any::<bool>(),
-        0_u8..4,
+        0_u8..3,
         proptest::collection::vec(any::<u8>(), 0..24),
     )
         .prop_map(|(seed, use_registry, operation, content)| {
@@ -108,24 +101,9 @@ fn build_corpus(seed: u8, use_registry: bool, operation: u8, content: Vec<u8>) -
             package: value("tokeira-dagger-sdk"),
         }
     };
-    let client_module = ClientModuleIdentity::from(&module);
-    let client_project = ClientProjectIdentity {
-        package_name: value(&format!("client-{seed}")),
-        crate_name: value(&format!("client_{seed}")),
-    };
-    let client_initialization = ClientInitializationRequest {
-        format_version: FormatVersion,
-        target: target.clone(),
-        client_root: root.clone(),
-        package_name: client_project.package_name.clone(),
-        sdk_dependency: dependency.clone(),
-    };
-    let client_execution_request =
-        EngineExecutionRequest::InitializeClient(client_initialization.clone());
     let operation = match operation {
         0 => OperationKind::GenerateLibrary,
         1 => OperationKind::GenerateModule,
-        2 => OperationKind::GenerateClient,
         _ => OperationKind::GenerateEntrypoint,
     };
     let request = OperationRequest {
@@ -138,6 +116,7 @@ fn build_corpus(seed: u8, use_registry: bool, operation: u8, content: Vec<u8>) -
         output_root: output_root.clone(),
         engine_version: None,
     };
+    let execution_request = EngineExecutionRequest::Generate(request.clone());
     let candidate = CandidateArtifact {
         kind: ArtifactKind::RustSource,
         content,
@@ -197,33 +176,7 @@ fn build_corpus(seed: u8, use_registry: bool, operation: u8, content: Vec<u8>) -
         artifacts: artifact_records,
         post_work: vec![post_work_record.clone()],
         generator: generator.clone(),
-        amendments: BTreeMap::new(),
-        client: None,
     };
-    let amendment_coordinate =
-        AmendmentCoordinate::new(manifest_path.clone(), value("package.publish"));
-    let amendment_record = AmendmentRecord {
-        kind: AmendmentKind::CargoKey,
-        file: manifest_path.clone(),
-        coordinate: value("package.publish"),
-        semantic_digest: digest(seed, 15),
-    };
-    let client_manifest = ClientManifestRecord {
-        module: client_module.clone(),
-        package: client_project.clone(),
-        namespace: Some(ClientNamespaceRecord {
-            module_root_wire_name: value(&format!("module{seed}")),
-            namespace: value(&format!("module_{seed}")),
-            extension_trait_path: value(&format!("dagger_client::Module{seed}Ext")),
-        }),
-        binding_catalog_digest: digest(seed, 16),
-        binding_count: u64::from(seed) + 1,
-    };
-    let mut client_operation_manifest = manifest.clone();
-    client_operation_manifest
-        .amendments
-        .insert(amendment_coordinate.clone(), amendment_record.clone());
-    client_operation_manifest.client = Some(client_manifest.clone());
     let engine_source = EngineSourceDescriptor {
         format_version: FormatVersion,
         repository: target.repository.clone(),
@@ -341,10 +294,7 @@ fn build_corpus(seed: u8, use_registry: bool, operation: u8, content: Vec<u8>) -
         target,
         schema,
         module,
-        client_module,
-        client_project,
-        client_initialization,
-        client_execution_request,
+        execution_request,
         dependency,
         request,
         candidate,
@@ -354,10 +304,6 @@ fn build_corpus(seed: u8, use_registry: bool, operation: u8, content: Vec<u8>) -
         generator,
         artifact_record,
         manifest,
-        amendment_coordinate,
-        amendment_record,
-        client_manifest,
-        client_operation_manifest,
         engine_source,
         cargo_package,
         toolchain,

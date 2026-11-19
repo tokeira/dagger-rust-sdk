@@ -1,14 +1,13 @@
-//! Total operation dispatch across four independently replaceable renderer seams.
+//! Total operation dispatch across three independently replaceable renderer seams.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::diagnostic::{DiagnosticCode, DiagnosticSet};
 use crate::target::CodegenTarget;
 
-use super::metadata::ClientGenerationMetadata;
 use super::model::{
-    CandidateArtifact, CandidateArtifactKind, CargoBinaryTarget, ClientRenderIdentity,
-    ContentDomain, ModuleAuthoringInput, ModuleProjectionInput, OperationKind, OperationPlan,
+    CandidateArtifact, CandidateArtifactKind, CargoBinaryTarget, ContentDomain,
+    ModuleAuthoringInput, ModuleProjectionInput, OperationKind, OperationPlan,
     OperationProjectionRequest, PostWorkPlan, PublishedSdkDependency, RelativeOperationPath,
     operation_diagnostic,
 };
@@ -44,20 +43,6 @@ pub struct ModuleRenderInput<'a> {
     pub authoring: &'a ModuleAuthoringInput,
 }
 
-/// Inputs required by the bounded standalone-client baseline.
-pub struct ClientRenderInput<'a> {
-    /// Exact target inherited from the visible-schema plan.
-    pub target: &'a CodegenTarget,
-    /// Single immutable schema plan shared by all renderers.
-    pub schema: &'a VisibleSchemaPlan,
-    /// Exact engine-scoped module source identity.
-    pub module: &'a ModuleProjectionInput,
-    /// Normalized standalone-client root.
-    pub output: &'a RelativeOperationPath,
-    /// Immutable public SDK dependency rendered into Cargo metadata.
-    pub sdk_dependency: &'a PublishedSdkDependency,
-}
-
 /// Inputs required by the generic descriptor-bound module entrypoint.
 pub struct EntrypointRenderInput<'a> {
     /// Exact target inherited from the visible-schema plan.
@@ -87,12 +72,8 @@ pub struct RendererOutput {
     pub vcs_ignored: BTreeSet<RelativeOperationPath>,
     /// Bounded evidence domain represented by this content.
     pub content_domain: ContentDomain,
-    /// Rust-owned required-host-file policy, present only for client generation.
-    pub client_generation: Option<ClientGenerationMetadata>,
     /// Cargo binary amendment, present only when an entrypoint is generated.
     pub cargo_binary: Option<CargoBinaryTarget>,
-    /// Project/catalog identity, present only for complete standalone-client output.
-    pub client_render: Option<ClientRenderIdentity>,
 }
 
 impl RendererOutput {
@@ -105,9 +86,7 @@ impl RendererOutput {
             vcs_generated: BTreeSet::new(),
             vcs_ignored: BTreeSet::new(),
             content_domain,
-            client_generation: None,
             cargo_binary: None,
-            client_render: None,
         }
     }
 
@@ -133,7 +112,7 @@ impl RendererOutput {
     }
 }
 
-/// Four renderer seams over one already-validated visible-schema plan.
+/// Three renderer seams over one already-validated visible-schema plan.
 pub trait OperationRenderer {
     /// Renders reusable visible-schema binding artifacts.
     fn render_library(
@@ -143,9 +122,6 @@ pub trait OperationRenderer {
 
     /// Renders module-owned bindings and private runtime glue.
     fn render_module(&self, input: ModuleRenderInput<'_>) -> Result<RendererOutput, DiagnosticSet>;
-
-    /// Renders the bounded standalone-client baseline.
-    fn render_client(&self, input: ClientRenderInput<'_>) -> Result<RendererOutput, DiagnosticSet>;
 
     /// Renders the generic descriptor-bound module entrypoint.
     fn render_entrypoint(
@@ -227,13 +203,6 @@ pub fn dispatch_prepared_operation<R: OperationRenderer>(
             sdk_dependency: request.sdk_dependency,
             authoring: required_authoring(request.authoring)?,
         })?,
-        OperationKind::GenerateClient => renderer.render_client(ClientRenderInput {
-            target: request.target,
-            schema: request.schema,
-            module: required_module(request.module)?,
-            output: request.output,
-            sdk_dependency: request.sdk_dependency,
-        })?,
         OperationKind::GenerateEntrypoint => renderer.render_entrypoint(EntrypointRenderInput {
             target: request.target,
             schema: request.schema,
@@ -258,8 +227,6 @@ pub fn dispatch_prepared_operation<R: OperationRenderer>(
         vcs_ignored: output.vcs_ignored,
         projection_pass_limit: 1,
         content_domain: output.content_domain,
-        client_generation: output.client_generation,
-        client_render: output.client_render,
         cargo_binary: output.cargo_binary,
     })
 }
@@ -302,24 +269,11 @@ fn validate_renderer_metadata(
     operation: OperationKind,
     output: &RendererOutput,
 ) -> Result<(), DiagnosticSet> {
-    let metadata_matches = match operation {
-        OperationKind::GenerateClient => output.client_generation.is_some(),
-        _ => output.client_generation.is_none(),
-    };
-    if !metadata_matches {
-        return Err(DiagnosticSet::one(operation_diagnostic(
-            DiagnosticCode::OperationInputForbidden,
-            "operation.client-generation",
-            "client-generation metadata belongs only to GenerateClient output",
-        )));
-    }
     let binary_matches = match operation {
         OperationKind::GenerateModule | OperationKind::GenerateEntrypoint => {
             output.cargo_binary.is_some()
         }
-        OperationKind::GenerateLibrary | OperationKind::GenerateClient => {
-            output.cargo_binary.is_none()
-        }
+        OperationKind::GenerateLibrary => output.cargo_binary.is_none(),
     };
     if binary_matches {
         Ok(())

@@ -47,7 +47,7 @@ fn caller_control_characters_do_not_reach_cli_rendering() {
 #[test]
 fn client_diagnostics_are_bounded_and_credential_safe() {
     let diagnostic = Diagnostic::new(
-        DiagnosticCode::ClientSchemaScopeInvalid,
+        DiagnosticCode::ClientModuleRootInvalid,
         Some(DiagnosticCoordinate::new(format!(
             "Query.{}",
             "x".repeat(800)
@@ -58,7 +58,7 @@ fn client_diagnostics_are_bounded_and_credential_safe() {
         ),
     );
     let rendered = diagnostic.to_string();
-    assert!(rendered.contains("CLIENT_SCHEMA_SCOPE_INVALID"));
+    assert!(rendered.contains("CLIENT_MODULE_ROOT_INVALID"));
     assert!(!rendered.contains("secret"));
     assert!(!rendered.contains("example.invalid"));
     assert!(rendered.len() < 5_000);

@@ -8,7 +8,6 @@
 //! This crate accepts data and returns validated candidate source. It deliberately has
 //! no filesystem, process, network, engine-session, or completeness-ledger authority.
 
-pub mod client;
 pub mod diagnostic;
 pub mod directive;
 pub mod engine;

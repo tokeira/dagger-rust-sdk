@@ -7,7 +7,6 @@ fn wire_model_and_pure_compiler_share_one_closed_selector_type() {
     for operation in [
         OperationKind::GenerateLibrary,
         OperationKind::GenerateModule,
-        OperationKind::GenerateClient,
         OperationKind::GenerateEntrypoint,
     ] {
         let compiler_operation: dagger_codegen::engine::OperationKind = operation;

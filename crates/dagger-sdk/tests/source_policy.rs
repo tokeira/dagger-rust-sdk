@@ -201,19 +201,10 @@ fn module_authoring_foundations_have_no_unchecked_execution_escape_hatches() {
 #[test]
 fn client_foundations_have_no_unchecked_or_process_global_escape_hatches() {
     let crates = rust_workspace().join("crates");
-    let roots = [
-        crates.join("dagger-codegen/src/client"),
-        crates.join("dagger-sdk-engine/src/client"),
-    ];
-    let mut sources = roots
-        .iter()
-        .flat_map(|root| rust_sources(root))
-        .collect::<Vec<_>>();
-    sources.extend([
+    let sources = [
         crates.join("dagger-sdk/src/id_input.rs"),
         crates.join("dagger-sdk/src/query.rs"),
-    ]);
-    sources.sort();
+    ];
 
     for path in sources {
         let source = fs::read_to_string(&path).expect("client source must be UTF-8");

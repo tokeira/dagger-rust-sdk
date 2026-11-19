@@ -17,7 +17,6 @@ const (
 	engineToolPath          = "dist/dagger-rust-engine"
 	formatterToolPath       = "dist/rustfmt"
 	engineDescriptorPath    = "dist/engine-source.json"
-	clientGenerationPath    = "dist/client-generation.json"
 	runtimePolicyPath       = "dist/runtime-policy.json"
 	operationRequestPath    = "/var/lib/dagger/rust/request.json"
 	operationSchemaPath     = "/var/lib/dagger/rust/schema.json"
@@ -608,25 +607,6 @@ func (sdk *RustSDK) engineTool() *dagger.File {
 	return sdk.SDKSourceDir.File(engineToolPath)
 }
 
-// clientGenerationMetadata reads the client-generation metadata. Sealing copies it
-// unchanged from the SDK source, so a runtime that seals its own content reads the
-// source file and needs no module to name the content's dependency.
-func (sdk *RustSDK) clientGenerationMetadata(ctx context.Context) (metadata.ClientGeneration, error) {
-	packaged, err := sdk.packaged(ctx)
-	if err != nil {
-		return metadata.ClientGeneration{}, err
-	}
-	file := dag.CurrentModule().ContextDirectory().File(clientGenerationSourcePath)
-	if packaged {
-		file = sdk.SDKSourceDir.File(clientGenerationPath)
-	}
-	contents, err := file.Contents(ctx)
-	if err != nil {
-		return metadata.ClientGeneration{}, fmt.Errorf("read client-generation metadata: %w", err)
-	}
-	return metadata.DecodeClientGeneration([]byte(contents))
-}
-
 // Codegen compiles the engine-visible schema into the scoped module context and
 // returns the Rust-owned VCS policy emitted by the same operation plan. The engine
 // writes that policy into the module's own .gitattributes and .gitignore, so its
@@ -666,49 +646,6 @@ func (sdk *RustSDK) Codegen(
 	return dag.GeneratedCode(execution.project.Directory(operationWorkspaceRoot)).
 		WithVCSGeneratedPaths(generated).
 		WithVCSIgnoredPaths(ignored), nil
-}
-
-// RequiredClientGenerationFiles returns the renderer-owned finite host input set.
-func (sdk *RustSDK) RequiredClientGenerationFiles(ctx context.Context) ([]string, error) {
-	metadata, err := sdk.clientGenerationMetadata(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return metadata.RequiredHostFiles, nil
-}
-
-// GenerateClient renders the standalone client only within the requested output
-// subtree of the scoped module context.
-func (sdk *RustSDK) GenerateClient(
-	ctx context.Context,
-	modSource *dagger.ModuleSource,
-	introspectionJSON *dagger.File,
-	outputDir string,
-) (*dagger.Directory, error) {
-	sdk, resolveErr := sdk.resolved(ctx, moduleRuntimeSource(modSource))
-	if resolveErr != nil {
-		return nil, resolveErr
-	}
-	if introspectionJSON == nil {
-		return nil, fmt.Errorf("introspection JSON not provided")
-	}
-	identity, err := moduleIdentity(ctx, modSource, "current")
-	if err != nil {
-		return nil, err
-	}
-	outputRoot, err := rebasePath(outputDir)
-	if err != nil {
-		return nil, fmt.Errorf("client output directory: %w", err)
-	}
-	request, _, err := sdk.generationRequest(ctx, "generate-client", identity, introspectionJSON, outputRoot)
-	if err != nil {
-		return nil, err
-	}
-	execution, err := sdk.executeOperation(ctx, request, introspectionJSON, nil, modSource.ContextDirectory(), "generation")
-	if err != nil {
-		return nil, err
-	}
-	return execution.project.Directory(operationWorkspaceRoot), nil
 }
 
 type scopedModuleIdentity struct {

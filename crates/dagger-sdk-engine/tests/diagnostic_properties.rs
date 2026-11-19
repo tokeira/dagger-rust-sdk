@@ -1,11 +1,9 @@
-//! Total diagnostic and client-boundary security properties.
+//! Total, stable and credential-safe diagnostic properties.
 
 use std::collections::BTreeSet;
 
 use dagger_codegen::diagnostic::{Diagnostic, DiagnosticCode, DiagnosticCoordinate, DiagnosticSet};
-use dagger_sdk_engine::{
-    ClientBoundaryArtifactKind, EngineDiagnostic, EngineDiagnosticCode, validate_client_boundary,
-};
+use dagger_sdk_engine::{EngineDiagnostic, EngineDiagnosticCode};
 use proptest::prelude::*;
 
 fn property_config() -> ProptestConfig {
@@ -65,24 +63,18 @@ proptest! {
         prop_assert!(!set.to_string().contains(char::from(27)));
     }
 
-    // No credential, host path, local SDK path, private crate, unsafe block, or global client survives.
+    // No credential or host path in a coordinate or message survives rendering.
     #[test]
-    fn property_21_credentials_host_identity_never_cross_client_boundary(
+    fn property_21_credentials_host_identity_never_cross_the_diagnostic_boundary(
         seed in any::<u16>(),
         prefix in "[A-Za-z0-9_-]{0,24}",
     ) {
-        let (kind, hostile) = match seed % 8 {
-            0 => (ClientBoundaryArtifactKind::Request, format!(r#"{{"module":"https://user:{prefix}@example.invalid/repo"}}"#)),
-            1 => (ClientBoundaryArtifactKind::Environment, format!("DAGGER_SESSION_TOKEN={prefix}secret")),
-            2 => (ClientBoundaryArtifactKind::Dependency, "dagger-sdk = { path = \"../../sdk\" }".to_owned()),
-            3 => (ClientBoundaryArtifactKind::Diagnostic, format!("Authorization: Bearer {prefix}secret")),
-            4 => (ClientBoundaryArtifactKind::GeneratedRust, "pub unsafe fn cross_boundary() {}".to_owned()),
-            5 => (ClientBoundaryArtifactKind::GeneratedRust, "static CLIENT: OnceLock<Client> = OnceLock::new();".to_owned()),
-            6 => (ClientBoundaryArtifactKind::GeneratedManifest, "dagger-codegen = \"1\"".to_owned()),
-            _ => (ClientBoundaryArtifactKind::Control, format!("/Users/{prefix}/dagger")),
+        let hostile = match seed % 4 {
+            0 => format!(r#"{{"module":"https://user:{prefix}@example.invalid/repo"}}"#),
+            1 => format!("DAGGER_SESSION_TOKEN={prefix}secret"),
+            2 => format!("Authorization: Bearer {prefix}secret"),
+            _ => format!("/Users/{prefix}/dagger"),
         };
-        prop_assert!(validate_client_boundary(kind, hostile.as_bytes()).is_err());
-
         let rendered = EngineDiagnostic::new(
             EngineDiagnosticCode::OperationInputInvalid,
             Some(hostile),

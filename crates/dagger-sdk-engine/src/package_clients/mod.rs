@@ -272,7 +272,6 @@ pub async fn execute_package_clients_with_post_work<P: OperationPostWork>(
         operation_manifest: None,
         vcs_generated: BTreeSet::new(),
         vcs_ignored: BTreeSet::new(),
-        client_plan: None,
     })
 }
 

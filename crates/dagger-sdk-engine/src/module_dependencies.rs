@@ -121,7 +121,6 @@ pub fn execute_module_dependencies(
         operation_manifest: None,
         vcs_generated: BTreeSet::new(),
         vcs_ignored: BTreeSet::new(),
-        client_plan: None,
     })
 }
 

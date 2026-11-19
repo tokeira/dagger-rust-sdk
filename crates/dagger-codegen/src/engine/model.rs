@@ -9,12 +9,10 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-use crate::client::{ClientNamespaceRecord, ClientProjectIdentity};
 use crate::diagnostic::{Diagnostic, DiagnosticCode, DiagnosticCoordinate, DiagnosticSet};
 use crate::module::{ModuleSourceSnapshot, Sha256Digest as ModuleSha256Digest};
 use crate::target::CodegenTarget;
 
-use super::metadata::ClientGenerationMetadata;
 use super::visible::VisibleSchemaPlan;
 
 /// Closed set of pure code-generation operations.
@@ -25,8 +23,6 @@ pub enum OperationKind {
     GenerateLibrary,
     /// Render module-owned bindings and the private runtime entrypoint.
     GenerateModule,
-    /// Render the bounded standalone client baseline.
-    GenerateClient,
     /// Render the generic descriptor-bound module entrypoint.
     GenerateEntrypoint,
 }
@@ -37,7 +33,6 @@ impl OperationKind {
         match value {
             "generate-library" => Ok(Self::GenerateLibrary),
             "generate-module" => Ok(Self::GenerateModule),
-            "generate-client" => Ok(Self::GenerateClient),
             "generate-entrypoint" => Ok(Self::GenerateEntrypoint),
             _ => Err(DiagnosticSet::one(operation_diagnostic(
                 DiagnosticCode::OperationUnknown,
@@ -53,7 +48,6 @@ impl OperationKind {
         match self {
             Self::GenerateLibrary => "generate-library",
             Self::GenerateModule => "generate-module",
-            Self::GenerateClient => "generate-client",
             Self::GenerateEntrypoint => "generate-entrypoint",
         }
     }
@@ -65,11 +59,6 @@ impl OperationKind {
 pub struct RelativeOperationPath(String);
 
 impl RelativeOperationPath {
-    /// Constructs a path from a compile-time reviewed generator constant.
-    pub(super) fn from_reviewed_static(value: &'static str) -> Self {
-        Self(value.to_owned())
-    }
-
     /// Parses a non-empty, slash-normalized relative path.
     pub fn parse(value: &str) -> Result<Self, DiagnosticSet> {
         let invalid = value.is_empty()
@@ -220,10 +209,6 @@ pub enum ContentDomain {
     VisibleSchemaBindings,
     /// Module code-generation hook output, including its bounded private entrypoint.
     ModuleOperation,
-    /// Hook-valid baseline that does not claim sibling client-content completeness.
-    EngineHookBaseline,
-    /// Complete standalone-client generated subtree and semantic catalog.
-    StandaloneClient,
     /// Generic descriptor-bound module entrypoint content only.
     ModuleEntrypoint,
     /// One module's typed client for a Cargo package: its `Client` and the bindings of
@@ -238,21 +223,6 @@ pub struct CargoBinaryTarget {
     pub name: String,
     /// Package-relative generated source path.
     pub path: RelativeOperationPath,
-}
-
-/// Semantic identity emitted only by the complete standalone-client renderer.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ClientRenderIdentity {
-    /// Cargo and Rust crate names selected from the caller's bounded project snapshot.
-    pub project: ClientProjectIdentity,
-    /// Generated namespace roles, absent for a Core-only client.
-    pub namespace: Option<ClientNamespaceRecord>,
-    /// Exact module-root wire name, absent for a Core-only client.
-    pub module_root_wire_name: Option<String>,
-    /// Domain-separated digest of the exhaustive Core-plus-module binding catalog.
-    pub binding_catalog_digest: String,
-    /// Number of semantic bindings covered by the catalog digest.
-    pub binding_count: u64,
 }
 
 /// Complete immutable result of pure operation projection.
@@ -271,8 +241,6 @@ pub struct OperationPlan {
     pub(crate) vcs_ignored: BTreeSet<RelativeOperationPath>,
     pub(crate) projection_pass_limit: u8,
     pub(crate) content_domain: ContentDomain,
-    pub(crate) client_generation: Option<ClientGenerationMetadata>,
-    pub(crate) client_render: Option<ClientRenderIdentity>,
     pub(crate) cargo_binary: Option<CargoBinaryTarget>,
 }
 
@@ -353,18 +321,6 @@ impl OperationPlan {
     #[must_use]
     pub const fn content_domain(&self) -> ContentDomain {
         self.content_domain
-    }
-
-    /// Returns Rust-owned required-host-file metadata for client generation.
-    #[must_use]
-    pub const fn client_generation(&self) -> Option<&ClientGenerationMetadata> {
-        self.client_generation.as_ref()
-    }
-
-    /// Returns the complete standalone-client project and catalog identity.
-    #[must_use]
-    pub const fn client_render(&self) -> Option<&ClientRenderIdentity> {
-        self.client_render.as_ref()
     }
 
     /// Returns the exact Cargo binary amendment required by this operation.

@@ -90,12 +90,10 @@ pub enum DiagnosticCode {
     OperationInputForbidden,
     /// Two renderer outputs attempted to own the same normalized artifact path.
     OperationArtifactCollision,
-    /// Client-generation metadata contains an invalid or duplicate relative path.
+    /// An operation path is not a normalized, non-empty relative path.
     RequiredHostFileInvalid,
-    /// The selected module root is missing, promoted, duplicated, or malformed.
+    /// A client schema holds no module to generate a client for.
     ClientModuleRootInvalid,
-    /// A non-Core coordinate lies outside the selected module's reachable closure.
-    ClientSchemaScopeInvalid,
 }
 
 impl DiagnosticCode {
@@ -140,7 +138,6 @@ impl DiagnosticCode {
         Self::OperationArtifactCollision,
         Self::RequiredHostFileInvalid,
         Self::ClientModuleRootInvalid,
-        Self::ClientSchemaScopeInvalid,
     ];
 }
 

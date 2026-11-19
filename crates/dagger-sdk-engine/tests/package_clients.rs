@@ -340,7 +340,6 @@ fn the_adapters_documents_are_the_request_and_result_models() {
         operation_manifest: None,
         vcs_generated: Default::default(),
         vcs_ignored: Default::default(),
-        client_plan: None,
     };
     assert_eq!(
         String::from_utf8(canonical_bytes(&result).unwrap()).unwrap(),

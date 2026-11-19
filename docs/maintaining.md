@@ -103,9 +103,6 @@ renderer work:
      in `core/moddeps.go` and `TypesHiddenFromModuleSDKs` in `core/env.go` at the target
      revision; a coordinate the engine hides that they omit fails module generation
      with `SCHEMA_CORE_COORDINATE_MISSING`.
-   - The checked generated-client fixtures: regenerate through the sanctioned path
-     (`DAGGER_UPDATE_GENERATED_CLIENT_FIXTURE=1 cargo test -p dagger-codegen
-     --test client_renderer`), then run the workspace formatter.
    - The checked dependency bindings in
      `crates/dagger-codegen/tests/fixtures/dependency_bindings/`, which the bindings
      renderer for a module's dependencies must match:
@@ -126,7 +123,6 @@ renderer work:
      part is not the checked schema.
    - Target-derived engine fixtures and compile-contract goldens outside the generated
      set: update the core-schema digest in
-     `crates/dagger-sdk-engine/tests/client_usability_properties.rs` and
      `crates/dagger-sdk-engine/tests/module_generation_properties.rs`, which a version
      sweep does not find, and refresh any generated public-type lists in
      `crates/dagger-sdk/tests/generated-ui/` from the wrapper-free compiler output.

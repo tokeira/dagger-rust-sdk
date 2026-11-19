@@ -1,19 +1,18 @@
-//! Fixed operation-matrix, production-renderer, and client-metadata regressions.
+//! Fixed operation-matrix and production-renderer regressions.
 
 mod support;
 
 use dagger_codegen::diagnostic::DiagnosticCode;
 use dagger_codegen::engine::{
-    BASELINE_CLIENT_GENERATION_JSON, ClientGenerationMetadata, ContentDomain,
-    ModuleProjectionInput, OperationKind, OperationProjectionRequest, ProductionRenderers,
-    PublishedSdkDependency, REQUIRED_CLIENT_HOST_FILES, RelativeOperationPath, project_operation,
+    ContentDomain, ModuleProjectionInput, OperationKind, OperationProjectionRequest,
+    ProductionRenderers, PublishedSdkDependency, RelativeOperationPath, project_operation,
     project_operation_with,
 };
 use dagger_codegen::target::CodegenTarget;
 
 use support::{
-    CORE_SCHEMA_BYTES, ClientSchemaCase, MODULE_AUTHORING_SOURCE, TARGET_BYTES, VisibleSchemaCase,
-    client_visible_schema, module_authoring_input, module_authoring_input_from,
+    CORE_SCHEMA_BYTES, MODULE_AUTHORING_SOURCE, TARGET_BYTES, VisibleSchemaCase,
+    minimal_module_schema, module_authoring_input, module_authoring_input_from,
     module_visible_schema, visible_schema,
 };
 
@@ -39,39 +38,21 @@ fn dependency() -> PublishedSdkDependency {
     }
 }
 
-fn client_module() -> ModuleProjectionInput {
-    ModuleProjectionInput {
-        name: "minimal".to_owned(),
-        original_name: "Minimal".to_owned(),
-        source_subpath: RelativeOperationPath::parse("modules/minimal")
-            .expect("fixture path must parse"),
-        source_digest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-            .to_owned(),
-    }
-}
-
 #[test]
 fn production_renderers_emit_bounded_operation_specific_artifacts() {
     let target = target();
     let module = module();
-    let client_module = client_module();
     let dependency = dependency();
     let authoring = module_authoring_input();
     let output = RelativeOperationPath::parse("candidate").expect("fixture path must parse");
     for operation in [
         OperationKind::GenerateLibrary,
         OperationKind::GenerateModule,
-        OperationKind::GenerateClient,
         OperationKind::GenerateEntrypoint,
     ] {
-        let schema = if operation == OperationKind::GenerateClient {
-            client_visible_schema(ClientSchemaCase::Valid, 0)
-        } else {
-            visible_schema(VisibleSchemaCase::EngineModuleExtension, 0)
-        };
+        let schema = visible_schema(VisibleSchemaCase::EngineModuleExtension, 0);
         let selected_module = match operation {
             OperationKind::GenerateLibrary => None,
-            OperationKind::GenerateClient => Some(&client_module),
             OperationKind::GenerateModule | OperationKind::GenerateEntrypoint => Some(&module),
         };
         let selected_authoring = matches!(
@@ -107,7 +88,6 @@ fn production_renderers_emit_bounded_operation_specific_artifacts() {
                             .expect("expected path must parse")
                     )
                 );
-                assert!(plan.client_generation().is_none());
             }
             OperationKind::GenerateModule => {
                 assert_eq!(plan.content_domain(), ContentDomain::ModuleOperation);
@@ -174,25 +154,6 @@ fn production_renderers_emit_bounded_operation_specific_artifacts() {
                     .expect("module operation must declare its Cargo target");
                 assert_eq!(binary.name, "dagger-module");
                 assert_eq!(binary.path.as_str(), "src/bin/dagger-module.rs");
-            }
-            OperationKind::GenerateClient => {
-                assert_eq!(plan.content_domain(), ContentDomain::StandaloneClient);
-                assert!(plan.artifacts().keys().any(|path| {
-                    path.as_str() == "candidate/src/dagger_client/generated/binding-catalog.json"
-                }));
-                assert!(
-                    !plan
-                        .artifacts()
-                        .keys()
-                        .any(|path| path.as_str().ends_with("Cargo.toml"))
-                );
-                assert_eq!(
-                    plan.client_generation()
-                        .expect("client output must carry metadata")
-                        .required_host_files
-                        .len(),
-                    REQUIRED_CLIENT_HOST_FILES.len()
-                );
             }
             OperationKind::GenerateEntrypoint => {
                 assert_eq!(plan.content_domain(), ContentDomain::ModuleEntrypoint);
@@ -288,7 +249,7 @@ fn dependency_bindings(alias: &str) -> std::collections::BTreeMap<String, String
     let plan = project_operation(OperationProjectionRequest {
         target: &target(),
         operation: OperationKind::GenerateModule,
-        visible_schema_json: &client_visible_schema(ClientSchemaCase::Valid, 0),
+        visible_schema_json: &minimal_module_schema(),
         module: Some(&module()),
         output: &output,
         sdk_dependency: &dependency(),
@@ -413,22 +374,6 @@ fn module_visibility_accepts_only_the_target_introspection_scrub() {
         String::from_utf8_lossy(&formatted.stderr)
     );
 
-    let diagnostics = project_operation(OperationProjectionRequest {
-        target: &target,
-        operation: OperationKind::GenerateClient,
-        visible_schema_json: &schema,
-        module: Some(&module),
-        output: &output,
-        sdk_dependency: &dependency,
-        authoring: None,
-        engine_version: None,
-    })
-    .expect_err("client generation requires the complete client-visible core");
-    assert!(
-        diagnostics.contains(DiagnosticCode::SchemaCoreCoordinateMissing)
-            || diagnostics.contains(DiagnosticCode::SchemaReferenceInvalid)
-    );
-
     let mut unexpected: serde_json::Value =
         serde_json::from_slice(&schema).expect("module-visible fixture must decode");
     let query = unexpected["__schema"]["types"]
@@ -463,17 +408,11 @@ fn operation_matrix_rejects_missing_and_forbidden_inputs_before_rendering() {
     let dependency = dependency();
     let authoring = module_authoring_input();
     let output = RelativeOperationPath::parse("candidate").expect("fixture path must parse");
-    let renderer = ProductionRenderers::baseline();
+    let renderer = ProductionRenderers;
 
     for (operation, module, authoring, expected) in [
         (
             OperationKind::GenerateModule,
-            None,
-            None,
-            DiagnosticCode::OperationInputMissing,
-        ),
-        (
-            OperationKind::GenerateClient,
             None,
             None,
             DiagnosticCode::OperationInputMissing,
@@ -553,67 +492,6 @@ impl FixtureRoot {
     assert!(
         primary.message.starts_with("module.foreign-type: "),
         "authoring failure must carry the compiler diagnostic: {diagnostics}"
-    );
-}
-
-#[test]
-fn client_generation_metadata_accepts_only_the_reviewed_canonical_set() {
-    let finite = ClientGenerationMetadata::try_new(REQUIRED_CLIENT_HOST_FILES)
-        .expect("reviewed finite set must validate");
-    assert_eq!(
-        finite
-            .required_host_files
-            .iter()
-            .map(RelativeOperationPath::as_str)
-            .collect::<Vec<_>>(),
-        REQUIRED_CLIENT_HOST_FILES
-    );
-    for invalid in [
-        Vec::new(),
-        vec!["**/Cargo.toml"],
-        REQUIRED_CLIENT_HOST_FILES.into_iter().rev().collect(),
-        vec![
-            "**/.gitattributes",
-            "**/Cargo.toml",
-            "**/Cargo.toml",
-            "**/rust-toolchain",
-            "**/rust-toolchain.toml",
-            "**/src/lib.rs",
-        ],
-        vec![
-            "**/.gitattributes",
-            "**/Cargo.lock",
-            "**/README.md",
-            "**/rust-toolchain",
-            "**/rust-toolchain.toml",
-            "**/src/lib.rs",
-        ],
-    ] {
-        let diagnostics = ClientGenerationMetadata::try_new(invalid)
-            .expect_err("alternate host projection must fail");
-        assert!(diagnostics.contains(DiagnosticCode::RequiredHostFileInvalid));
-        assert_eq!(
-            diagnostics.diagnostics()[0]
-                .coordinate
-                .as_ref()
-                .map(|coordinate| coordinate.as_str()),
-            Some("client-generation.required-host-files")
-        );
-    }
-    for invalid_json in [
-        br#"{"format_version":2,"required_host_files":[]}"#.as_slice(),
-        br#"{"format_version":1,"required_host_files":["/Cargo.toml"]}"#.as_slice(),
-        br#"{"format_version":1,"required_host_files":["Cargo.toml","Cargo.toml"]}"#.as_slice(),
-    ] {
-        assert!(serde_json::from_slice::<ClientGenerationMetadata>(invalid_json).is_err());
-    }
-
-    let packaged = BASELINE_CLIENT_GENERATION_JSON;
-    assert_eq!(
-        packaged.strip_suffix(b"\n").unwrap_or(packaged),
-        ClientGenerationMetadata::baseline()
-            .encode()
-            .expect("baseline metadata must encode")
     );
 }
 

@@ -1,8 +1,6 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -68,55 +66,6 @@ func TestGenerationRequestKeepsAuthoringSemanticsInRust(t *testing.T) {
 	if body["operation"] != "generate-module" || body["output_root"] != "workspace/module" {
 		t.Fatalf("closed operation selectors were not forwarded exactly: %#v", body)
 	}
-}
-
-func TestProperty19ModernLegacyGenerationSemanticallyConverge(t *testing.T) {
-	descriptor := metadata.EngineSource{
-		FormatVersion: 1, Repository: "https://github.com/dagger/dagger",
-		DaggerRevision: strings.Repeat("a", 40), EngineVersion: "1.0.0-beta.11.rust.5",
-		RustSDKVersion: "1.0.0-beta.11.rust.5", RustToolchain: "1.99.1",
-		CoreSchemaDigest: "sha256:" + strings.Repeat("b", 64),
-		SDKDependency: metadata.PublishedSDKDependency{
-			Source: "registry", Registry: "crates-io", Package: "tokeira-dagger-sdk", ExactVersion: "1.0.0-beta.11.rust.5",
-		},
-	}
-	for seed := 0; seed < 256; seed++ {
-		pin := ""
-		if seed%2 == 0 {
-			pin = strings.Repeat(fmt.Sprintf("%x", seed%16), 40)
-		}
-		identity := scopedModuleIdentity{
-			Name: fmt.Sprintf("module-%d", seed), OriginalName: fmt.Sprintf("Module %d", seed),
-			SourceSubpath: fmt.Sprintf("workspace/module-%d", seed),
-			SourceDigest:  metadata.DigestModuleSource(fmt.Sprintf("source-%d", seed)),
-			ConfigFormat:  "current", ResolvedPin: pin,
-		}
-		schema := []byte(fmt.Sprintf(`{"fixture":%d}`, seed))
-		modern := generationRequestDocument(descriptor, "generate-client", identity, schema, "workspace/client", "")
-		identity.ConfigFormat = "legacy"
-		legacy := generationRequestDocument(descriptor, "generate-client", identity, schema, "workspace/client", "")
-		if reflect.DeepEqual(modern, legacy) {
-			t.Fatalf("adapter variants did not exercise their control-path distinction for seed %d", seed)
-		}
-		if !reflect.DeepEqual(clientGenerationSemantics(modern), clientGenerationSemantics(legacy)) {
-			t.Fatalf("equivalent adapters diverged for seed %d", seed)
-		}
-	}
-}
-
-func clientGenerationSemantics(document map[string]any) map[string]any {
-	encoded, err := json.Marshal(document)
-	if err != nil {
-		panic(err)
-	}
-	var normalized map[string]any
-	if err := json.Unmarshal(encoded, &normalized); err != nil {
-		panic(err)
-	}
-	request := normalized["request"].(map[string]any)
-	module := request["module"].(map[string]any)
-	delete(module, "config_format")
-	return normalized
 }
 
 func TestCheckedRuntimeAPIImplementsTheSDKModuleInterface(t *testing.T) {
