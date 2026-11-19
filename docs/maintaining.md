@@ -116,7 +116,7 @@ renderer work:
      engine at the new target, with `dagger -c 'module-source <module> |
      client-schema-introspection-json --client-version <target> | export <name>.json'`
      in a workspace that holds the two as Dang modules named `greeter` and
-     `naming-app` (their sources are `.dagger/modules/ci/acceptance/greeter.dang` and
+     `naming-app` (their sources are `.dagger/modules/ci/acceptance/greeter/main.dang` and
      `naming-app.dang` beside the fixtures). Then reduce the captures with
      `DAGGER_UPDATE_MODULE_CLIENT_SCHEMA_FIXTURES=<directory> cargo test -p
      dagger-codegen --locked --test module_client`, which refuses a capture whose Core

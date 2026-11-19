@@ -1,5 +1,5 @@
 {
-  "descriptor_digest": "sha256:c38ae0bd2ea35aab8884d1c62533e0b1640034433bff7cfbc14a006d9e3a1a58",
+  "descriptor_digest": "sha256:b188b40ca011d410c1d35e8e97678fbb1f3b24789be3567af02fe6ae7c39550c",
   "documentation": "Continuous integration for the Rust SDK for Dagger, built with the SDK itself.\n\nEvery function runs inside the Dagger engine, so the same calls work from a laptop, a CI\nrunner, or a managed engine. Orchestration, secrets, and engine provisioning stay outside\nthe module, in `.dagger/engine.sh` and the pipelines that call it. The one engine the\nmodule starts itself is the later-engine step's, a service of the engine that runs it.\nPublishing stays outside too: `package` prepares a release's archives, and `published`\nproves the release afterwards.",
   "format_version": 1,
   "types": {
@@ -21,7 +21,7 @@
               "optional": false,
               "source": {
                 "column": 9,
-                "line": 116,
+                "line": 129,
                 "path": "src/lib.rs"
               },
               "ty": {
@@ -37,7 +37,7 @@
           },
           "constructor": false,
           "deprecation": null,
-          "documentation": "Runs the stock-engine acceptance of docs/engine-integration.md for a pushed commit:\nthe runtime installed from it, a module that depends on another module initialized,\nregenerated, loaded and called, its calls to that module, a module that depends on\nit, collections, plain clients, a refused client scope, an existing crate adopted,\nthe refusals of broken modules and unsafe initializations,\na legacy module, the README module's test and build, a plain client's query through a\nlost keepalive reply, and the later-engine step. It needs an engine of the release the\ncommit targets.",
+          "documentation": "Runs the stock-engine acceptance of docs/engine-integration.md for a pushed commit:\nthe runtime installed from it, a module initialized, given another module as its\ndependency with `dagger module client add`, regenerated, loaded and called, its calls\nto that module, a module that depends on it, collections, plain clients, a Cargo\npackage that calls two modules through generated clients, an existing crate adopted,\nthe refusals of broken modules and unsafe initializations,\na legacy module, the README module's test and build, a plain client's query through a\nlost keepalive reply, and the later-engine step. It needs an engine of the release the\ncommit targets.",
           "return_type": {
             "kind": "named",
             "name": "String",
@@ -46,7 +46,7 @@
           "role": "ordinary",
           "source": {
             "column": 18,
-            "line": 112,
+            "line": 125,
             "path": "src/lib.rs"
           },
           "wire_name": "acceptance"
@@ -67,7 +67,7 @@
           "role": "ordinary",
           "source": {
             "column": 18,
-            "line": 92,
+            "line": 104,
             "path": "src/lib.rs"
           },
           "wire_name": "gates"
@@ -84,7 +84,7 @@
               "optional": false,
               "source": {
                 "column": 9,
-                "line": 180,
+                "line": 199,
                 "path": "src/lib.rs"
               },
               "ty": {
@@ -109,7 +109,7 @@
           "role": "ordinary",
           "source": {
             "column": 18,
-            "line": 176,
+            "line": 195,
             "path": "src/lib.rs"
           },
           "wire_name": "laterEngine"
@@ -126,7 +126,7 @@
               "optional": false,
               "source": {
                 "column": 9,
-                "line": 206,
+                "line": 225,
                 "path": "src/lib.rs"
               },
               "ty": {
@@ -151,7 +151,7 @@
           "role": "ordinary",
           "source": {
             "column": 18,
-            "line": 200,
+            "line": 219,
             "path": "src/lib.rs"
           },
           "wire_name": "package"
@@ -168,7 +168,7 @@
               "optional": false,
               "source": {
                 "column": 89,
-                "line": 225,
+                "line": 244,
                 "path": "src/lib.rs"
               },
               "ty": {
@@ -193,7 +193,7 @@
           "role": "ordinary",
           "source": {
             "column": 18,
-            "line": 222,
+            "line": 241,
             "path": "src/lib.rs"
           },
           "wire_name": "published"
@@ -203,7 +203,7 @@
       "kind": "object",
       "source": {
         "column": 12,
-        "line": 70,
+        "line": 82,
         "path": "src/lib.rs"
       },
       "wire_name": "Ci"
@@ -230,7 +230,7 @@
               "optional": true,
               "source": {
                 "column": 9,
-                "line": 84,
+                "line": 96,
                 "path": "src/lib.rs"
               },
               "ty": {
@@ -255,7 +255,7 @@
           "role": "ordinary",
           "source": {
             "column": 12,
-            "line": 78,
+            "line": 90,
             "path": "src/lib.rs"
           },
           "wire_name": "ci"
@@ -265,7 +265,7 @@
       "kind": "object",
       "source": {
         "column": 12,
-        "line": 78,
+        "line": 90,
         "path": "src/lib.rs"
       },
       "wire_name": "Query"

@@ -47,9 +47,21 @@ const GATE_DESCRIPTION: &str = "Release-gate module authored after initializatio
     Its crate documentation describes the module, which the acceptance reads back.";
 /// Introduces the README's module block, which the acceptance runs as written.
 const README_MARKER: &str = "<!-- The ci module's acceptance runs the module below as written. -->";
-/// The manifest of the application that asks for a Rust client scope.
-const APP_MANIFEST: &str =
-    "[package]\nname = \"app\"\nversion = \"0.0.0\"\nedition = \"2024\"\npublish = false\n";
+/// The manifest of the application that gets module clients, before it has any.
+const APP_MANIFEST: &str = "[package]\nname = \"app\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\
+    publish = false\n\n[dependencies]\n\
+    tokio = { version = \"1.35.1\", features = [\"macros\", \"rt-multi-thread\"] }\n";
+/// The line the application prints once both of its clients answered: the greeter's
+/// greeting, then the URL and the retries of naming-app's fetcher.
+const APP_ANSWER: &str = "ACCEPTANCE-MODULE-CLIENTS-OK hi, app; https://example.invalid 3";
+/// The application's local client as `dagger.toml` records it, from the workspace root.
+const NAMING_APP: &str = "./.dagger/modules/naming-app";
+/// The source of naming-app in the commit's tree, beside the renderer's fixtures of it.
+const NAMING_APP_SOURCE: &str =
+    "crates/dagger-codegen/tests/fixtures/module_clients/naming-app.dang";
+/// The one dependency of a module whose only client is the greeter, as generation writes
+/// it in the module's `dagger-module.toml`.
+const GREETER_DEPENDENCY: &str = "[[dependencies]]\nname = \"greeter\"\nsource = \"../greeter\"\n";
 /// The manifest of an existing crate that `dagger module init` adopts, with a dependency
 /// of its own.
 const EXISTING_MANIFEST: &str = "[package]\nname = \"existing\"\nversion = \"0.1.0\"\n\
@@ -101,9 +113,10 @@ impl Ci {
     }
 
     /// Runs the stock-engine acceptance of docs/engine-integration.md for a pushed commit:
-    /// the runtime installed from it, a module that depends on another module initialized,
-    /// regenerated, loaded and called, its calls to that module, a module that depends on
-    /// it, collections, plain clients, a refused client scope, an existing crate adopted,
+    /// the runtime installed from it, a module initialized, given another module as its
+    /// dependency with `dagger module client add`, regenerated, loaded and called, its calls
+    /// to that module, a module that depends on it, collections, plain clients, a Cargo
+    /// package that calls two modules through generated clients, an existing crate adopted,
     /// the refusals of broken modules and unsafe initializations,
     /// a legacy module, the README module's test and build, a plain client's query through a
     /// lost keepalive reply, and the later-engine step. It needs an engine of the release the
@@ -132,6 +145,7 @@ impl Ci {
         tokio::try_join!(
             module_flows(&cli, &fixtures, &runtime, &dependency),
             plain_clients(dag, &cli, &fixtures, &tree, &engine),
+            package_clients(dag, &cli, &fixtures, &tree, &runtime, &dependency, &commit),
             adoption(&cli, &fixtures, &runtime, &dependency),
             load_refusals(&cli, &fixtures, &runtime),
             init_refusals(&cli, &fixtures, &runtime, &commit),
@@ -141,8 +155,9 @@ impl Ci {
             later_engine_step(dag, &cli, &fixtures, &tree, &runtime),
         )?;
         Ok(format!(
-            "{commit} passed on {engine}: the runtime installed; a module that depends on \
-             another module initialized, regenerated, loaded and answered calls, Core enums, \
+            "{commit} passed on {engine}: the runtime installed; a module initialized, got \
+             another module as its dependency through dagger module client add, regenerated, \
+             loaded and answered calls, Core enums, \
              scalars and defaults included, and its agent was listed and composed; it \
              constructed its dependency and called it, kept the dependency's object and \
              enum in private state between calls, and answered a module that depends on \
@@ -150,7 +165,11 @@ impl Ci {
              collections answered the engine's operations, kept their bases and had their \
              items selected by a check, as did a module whose main object is an enum-keyed collection; plain clients \
              made each kind of Core call, \
-             met each kind of failure and exported an image; a Rust client scope was refused; an \
+             met each kind of failure and exported an image; a Cargo package got a client \
+             of a module in its workspace and one of a module at the commit, ran both, and \
+             kept the name of a type with an acronym; updating its client changed nothing, \
+             a deleted generated file was restored, a removed client's files were pruned \
+             and an edited generated file was refused; an \
              existing crate was adopted and one without a root object refused; modules with \
              missing or stale generated files, too old a toolchain, a misshapen agent or \
              a function that takes its dependency's object \
@@ -464,10 +483,10 @@ async fn dagger_cli(dag: &Query) -> Result<Container, ModuleError> {
         .with_env_variable("GIT_COMMITTER_EMAIL", "acceptance@example.invalid"))
 }
 
-/// Steps 1 to 5 and 7 of the acceptance: install the runtime, initialize a module that
-/// depends on another module, load it before regeneration, regenerate it twice, call its
-/// exports, among them the ones that call its dependency, call it from a module that
-/// depends on it, and refuse a client scope.
+/// Steps 1 to 5 of the acceptance: install the runtime, initialize a module, load it before
+/// regeneration, give it another module as its dependency with `dagger module client add`,
+/// regenerate it twice, call its exports, among them the ones that call its dependency, and
+/// call it from a module that depends on it.
 async fn module_flows(
     cli: &Container,
     fixtures: &Directory,
@@ -500,15 +519,13 @@ async fn module_flows(
             "left out of the greeter's default directory\n",
             "/ws/notes.md",
         );
-    let workspace = with_caller(
-        &with_greeter(&workspace, fixtures, "/ws", "gate").await?,
-        fixtures,
-        "/ws",
-        "gate",
-    );
+    let workspace = with_caller(&workspace, fixtures, "/ws", "gate");
+    // The authored source is newer than the generated files until the client is added,
+    // which regenerates the module.
     let note = ["call", "gate", "note", "--source", "gate-input", "contents"];
     refused(&workspace, &note, "run `dagger generate`").await?;
 
+    let workspace = with_greeter(Via::NewSession, &workspace, fixtures, "/ws", "gate").await?;
     let workspace = commit_all(
         &dagger(&workspace, &["generate", "-y"]),
         "regenerate gate module",
@@ -576,8 +593,7 @@ async fn module_flows(
         composed(&workspace, &["flip"], &["expert"]),
     )?;
     dependency_calls(&workspace).await?;
-    collections(&workspace).await?;
-    client_scope_refused(&workspace).await
+    collections(&workspace).await
 }
 
 /// Step 5: the gate module constructs the greeter, the Dang module it depends on, with and
@@ -946,40 +962,231 @@ async fn queried_via(
     }
 }
 
-/// Step 7: adding a Rust client scope is refused before anything is written.
-async fn client_scope_refused(workspace: &Container) -> Result<(), ModuleError> {
-    let app = commit_all(
-        &workspace
-            .with_new_file(APP_MANIFEST, "/ws/app/Cargo.toml")
-            .with_new_file("fn main() {}\n", "/ws/app/src/main.rs"),
-        "client app",
+/// Step 7: a Cargo package that is not a module calls two modules through clients that
+/// `dagger module client add` generates into it: naming-app, a Dang module in its workspace
+/// with an acronym in a type's name, and the greeter, loaded from the repository at the
+/// commit. The package's program runs against the engine with both. Then updating the
+/// greeter's client changes nothing, generation restores a deleted file, removing
+/// naming-app's client prunes its files, and generation refuses to overwrite an edited
+/// file. A repository of its own, since it syncs other contents than the modules' flows.
+async fn package_clients(
+    dag: &Query,
+    cli: &Container,
+    fixtures: &Directory,
+    tree: &Directory,
+    runtime: &str,
+    dependency: &str,
+    commit: &str,
+) -> Result<(), ModuleError> {
+    let root = "/clients";
+    let app = "/clients/app";
+    let clients = "/clients/app/src/dagger_clients";
+    let greeter = format!("{REPOSITORY}/.dagger/modules/ci/acceptance/greeter@{commit}");
+    let cli = cli
+        .with_mounted_cache(
+            dag.cache_volume("cargo-registry"),
+            "/usr/local/cargo/registry",
+        )
+        // The package depends on the SDK at the commit, which Cargo fetches from the
+        // repository.
+        .with_mounted_cache(dag.cache_volume("cargo-git"), "/usr/local/cargo/git")
+        // Outside the workspace, which holds only what the author commits.
+        .with_env_variable("CARGO_TARGET_DIR", "/app-target");
+    let package = commit_all(
+        &installed(&cli, root, runtime)
+            .with_new_file(
+                dang_manifest("naming-app"),
+                "/clients/.dagger/modules/naming-app/dagger-module.toml",
+            )
+            .with_file(
+                "/clients/.dagger/modules/naming-app/main.dang",
+                tree.file(NAMING_APP_SOURCE),
+            )
+            .with_new_file(APP_MANIFEST, "/clients/app/Cargo.toml")
+            .with_new_file("fn main() {}\n", "/clients/app/src/main.rs"),
+        "application and a module beside it",
     )
-    .with_workdir("/ws/app/src");
-    let refusal = refused(
-        &app,
-        &[
-            "-y",
-            "module",
-            "client",
-            "add",
-            "../../.dagger/modules/gate",
-        ],
-        "the Rust SDK does not generate module clients",
-    )
-    .await?;
-    unchanged(&refusal, "the refused client scope").await?;
-    let config = refusal
-        .file("/ws/dagger.toml")
-        .contents()
-        .await
-        .map_err(step_failure)?;
-    if config.contains("clients") {
+    .with_workdir(app);
+
+    let add_local = [
+        "module",
+        "client",
+        "add",
+        "-y",
+        "../.dagger/modules/naming-app",
+    ];
+    let add_git = ["module", "client", "add", "-y", greeter.as_str()];
+    let added = dagger(&dagger(&package, &add_local), &add_git);
+    let check = "dagger module client add in a Cargo package";
+    let (mut entries, manifest, config, fetcher) = tokio::try_join!(
+        directory_entries(&added, clients),
+        file_contents(&added, "/clients/app/Cargo.toml"),
+        file_contents(&added, "/clients/dagger.toml"),
+        file_contents(
+            &added,
+            format!("{clients}/naming_app/naming_app_http_fetcher.rs")
+        ),
+    )?;
+    entries.sort();
+    if entries
+        != [
+            ".dagger-generated.json",
+            "greeter/",
+            "mod.rs",
+            "naming_app/",
+        ]
+    {
         return Err(check_failed(
-            "the refused client scope",
-            format!("dagger.toml records it:\n{config}"),
+            check,
+            format!(
+                "src/dagger_clients holds {entries:?}, not a record, mod.rs and one directory \
+                 for each client"
+            ),
         ));
     }
-    Ok(())
+    let expected = format!("{APP_MANIFEST}{dependency}\n");
+    if manifest != expected {
+        return Err(check_failed(
+            check,
+            format!("the package's Cargo.toml did not gain exactly `{dependency}`:\n{manifest}"),
+        ));
+    }
+    let mut recorded = recorded_clients(&config, "app");
+    recorded.sort();
+    if recorded != [NAMING_APP, greeter.as_str()] {
+        return Err(check_failed(
+            check,
+            format!(
+                "dagger.toml records {recorded:?} for the scope app, not {NAMING_APP} and \
+                 {greeter}:\n{config}"
+            ),
+        ));
+    }
+    // The engine serves the type under this name, which a client must send as it is.
+    if !fetcher.contains("\"NamingAppHTTPFetcher\"") {
+        return Err(check_failed(
+            check,
+            format!("naming-app's client does not name its type NamingAppHTTPFetcher:\n{fetcher}"),
+        ));
+    }
+
+    // The author declares the clients' module and calls them. Generation edits neither.
+    let authored = commit_all(
+        &added
+            .with_file("/clients/app/src/main.rs", fixtures.file("app.rs"))
+            .with_exec(vec!["cargo", "generate-lockfile", "--quiet"]),
+        "application that calls its clients",
+    );
+    let run = client_run(
+        &authored.with_exec(vec!["cargo", "build", "--quiet", "--locked"]),
+        "app",
+        ContainerWithExecOpts::default(),
+        APP_ANSWER,
+    )
+    .await?;
+
+    // The client is pinned to a commit, which no later commit replaces.
+    let updated = dagger(
+        &run,
+        &["module", "client", "update", "-y", greeter.as_str()],
+    );
+    unchanged(
+        &updated,
+        "dagger module client update of a client at a commit",
+    )
+    .await?;
+
+    let style = format!("{clients}/greeter/greeter_style.rs");
+    let restored = dagger(
+        &updated
+            .with_exec(vec!["rm", style.as_str()])
+            .with_workdir(root),
+        &["generate", "-y"],
+    );
+    // The committed file is the one generation wrote, so no change means the same bytes.
+    unchanged(
+        &restored,
+        "dagger generate after a generated file was deleted",
+    )
+    .await?;
+
+    let remove = ["module", "client", "rm", "-y", NAMING_APP];
+    let removed = dagger(&restored.with_workdir(app), &remove);
+    let check = format!("dagger {}", remove.join(" "));
+    let (left, record, declared, config) = tokio::try_join!(
+        directory_entries(&removed, format!("{clients}/naming_app")),
+        file_contents(
+            &removed,
+            format!("{clients}/naming_app/.dagger-generated.json")
+        ),
+        file_contents(&removed, format!("{clients}/mod.rs")),
+        file_contents(&removed, "/clients/dagger.toml"),
+    )?;
+    let record: Value = serde_json::from_str(&record).map_err(|error| {
+        check_failed(&check, format!("left a record that is not JSON: {error}"))
+    })?;
+    if left != [".dagger-generated.json"] || record["files"] != serde_json::json!({}) {
+        return Err(check_failed(
+            &check,
+            format!(
+                "left {left:?} in src/dagger_clients/naming_app with the record {record}, not \
+                 the emptied record alone"
+            ),
+        ));
+    }
+    if declared.contains("naming_app") || !declared.contains("pub mod greeter;") {
+        return Err(check_failed(
+            &check,
+            format!("src/dagger_clients/mod.rs does not declare the greeter alone:\n{declared}"),
+        ));
+    }
+    let recorded = recorded_clients(&config, "app");
+    if recorded != [greeter.as_str()] {
+        return Err(check_failed(
+            &check,
+            format!(
+                "dagger.toml records {recorded:?} for the scope app, not {greeter} alone:\n{config}"
+            ),
+        ));
+    }
+
+    let generated = file_contents(&removed, style.as_str()).await?;
+    let edited = commit_all(
+        &removed
+            .with_new_file(format!("{generated}// Edited by hand.\n"), style.as_str())
+            .with_workdir(root),
+        "client without naming-app, and an edited generated file",
+    );
+    let refusal = refused(
+        &edited,
+        &["generate", "-y"],
+        "src/dagger_clients/greeter/greeter_style.rs contains user changes; refusing to \
+         overwrite it",
+    )
+    .await?;
+    unchanged(&refusal, "the refused generation over an edited file").await
+}
+
+/// The clients that the workspace configuration `config` records for the Rust SDK's scope
+/// `scope`, as it writes them.
+fn recorded_clients(config: &str, scope: &str) -> Vec<String> {
+    let headers = [
+        format!("[sdks.rust.scopes.{scope}]"),
+        format!("[sdks.rust.scopes.\"{scope}\"]"),
+    ];
+    let table: Vec<&str> = config
+        .lines()
+        .skip_while(|line| !headers.iter().any(|header| line.trim() == header))
+        .skip(1)
+        .take_while(|line| !line.trim_start().starts_with('['))
+        .collect();
+    // An array of TOML's basic strings without escapes reads as JSON.
+    table
+        .join("\n")
+        .split_once("clients = ")
+        .and_then(|(_, list)| list.split_once(']'))
+        .and_then(|(list, _)| serde_json::from_str(&format!("{list}]")).ok())
+        .unwrap_or_default()
 }
 
 /// Steps 6 and 12: plain clients, built from the commit, run under `dagger run`. One makes
@@ -1244,17 +1451,14 @@ async fn load_refusals(
     };
 
     // The engine refuses a dependency's type in a module's own function when it loads the
-    // module, as it does for every SDK, and the author sees its reason. Generation binds
-    // the type and accepts the function.
+    // module, as it does for every SDK, and the author sees its reason. Adding the client
+    // regenerates the module: generation binds the type and accepts the function.
     let external = async {
         let module = initialized(cli, "lender", runtime).with_file(
             "/lender/.dagger/modules/lender/src/lib.rs",
             fixtures.file("lender.rs"),
         );
-        let module = dagger(
-            &with_greeter(&module, fixtures, "/lender", "lender").await?,
-            &["generate", "-y"],
-        );
+        let module = with_greeter(Via::NewSession, &module, fixtures, "/lender", "lender").await?;
         refused(
             &module,
             &["functions", "lender"],
@@ -1719,8 +1923,9 @@ async fn later_module(
                 fixtures.file("gate.rs"),
             )
             .with_new_file("rust module gate\n", "/gate/gate-input/note.txt");
-        // The gate module's source calls the greeter, so it is generated beside it here too.
-        let workspace = with_greeter(&workspace, fixtures, "/gate", "gate").await?;
+        // The gate module's source calls the greeter, so it gets the greeter as its client
+        // here too.
+        let workspace = with_greeter(via, &workspace, fixtures, "/gate", "gate").await?;
         let workspace = commit_all(
             &dagger_via(via, &workspace, &["generate", "-y"]),
             "regenerate gate module",
@@ -2252,56 +2457,88 @@ async fn declares_target(
 }
 
 /// Gives the module `name`, in the repository at `root`, a dependency on `greeter`, the
-/// acceptance's Dang module, so the dependency needs no Rust build. beta.27's CLI installs a
-/// module only into the workspace, so the module's `dagger-module.toml` declares it.
+/// acceptance's Dang module, so the dependency needs no Rust build. It copies the greeter
+/// beside the module and runs `dagger module client add ../greeter` from the module's
+/// directory, with `dagger` reaching its engine `via`. The command records the greeter as
+/// a client of the module's scope in `dagger.toml`, and generation then makes the scope's
+/// clients the module's dependencies and regenerates the module.
 async fn with_greeter(
+    via: Via,
     workspace: &Container,
     fixtures: &Directory,
     root: &str,
     name: &str,
 ) -> Result<Container, ModuleError> {
-    let path = format!("{root}/.dagger/modules/{name}/dagger-module.toml");
-    let manifest = workspace
-        .file(path.as_str())
-        .contents()
-        .await
-        .map_err(step_failure)?;
-    let greeter = format!("{root}/.dagger/modules/greeter");
-    Ok(workspace
-        .with_new_file(
+    let module = format!("{root}/.dagger/modules/{name}");
+    let args = ["module", "client", "add", "-y", "../greeter"];
+    let added = dagger_via(
+        via,
+        &workspace
+            .with_directory(
+                format!("{root}/.dagger/modules/greeter"),
+                fixtures.directory("greeter"),
+            )
+            .with_workdir(module.as_str()),
+        &args,
+    )
+    .with_workdir(root);
+    let (manifest, config) = tokio::try_join!(
+        file_contents(&added, format!("{module}/dagger-module.toml")),
+        file_contents(&added, format!("{root}/dagger.toml")),
+    )?;
+    let check = format!("dagger {} in .dagger/modules/{name}", args.join(" "));
+    // Exactly one table, with nothing more in it.
+    let sole = manifest.matches("[[dependencies]]").count() == 1
+        && manifest
+            .split_once(GREETER_DEPENDENCY)
+            .is_some_and(|(before, after)| {
+                before.ends_with('\n') && (after.is_empty() || after.starts_with(['\n', '[']))
+            });
+    if !sole {
+        return Err(check_failed(
+            &check,
             format!(
-                "name = \"greeter\"\n{}\n[runtime]\n  source = \"dang\"\n",
-                target_declaration()
+                "the module's dagger-module.toml does not have exactly the dependency \
+                 {GREETER_DEPENDENCY:?}:\n{manifest}"
             ),
-            format!("{greeter}/dagger-module.toml"),
-        )
-        .with_file(
-            format!("{greeter}/main.dang"),
-            fixtures.file("greeter.dang"),
-        )
-        .with_new_file(
+        ));
+    }
+    let recorded = recorded_clients(&config, &format!(".dagger/modules/{name}"));
+    if recorded != ["./.dagger/modules/greeter"] {
+        return Err(check_failed(
+            &check,
             format!(
-                "{manifest}\n[[dependencies]]\n  name = \"greeter\"\n  source = \"../greeter\"\n"
+                "dagger.toml records {recorded:?} for the module's scope, not \
+                 ./.dagger/modules/greeter alone:\n{config}"
             ),
-            path,
-        ))
+        ));
+    }
+    Ok(added)
 }
 
 /// Adds `caller`, the acceptance's Dang module, to the repository at `root`, with a
 /// dependency on the module `name` there. No workspace configuration names it, so a
-/// command loads it with `-m`.
+/// command loads it with `-m` and generation never rewrites its dependency.
 fn with_caller(workspace: &Container, fixtures: &Directory, root: &str, name: &str) -> Container {
     let caller = format!("{root}/.dagger/modules/caller");
     workspace
         .with_new_file(
             format!(
-                "name = \"caller\"\n{}\n[runtime]\n  source = \"dang\"\n\n[[dependencies]]\n  \
-                 name = \"{name}\"\n  source = \"../{name}\"\n",
-                target_declaration()
+                "{}\n[[dependencies]]\nname = \"{name}\"\nsource = \"../{name}\"\n",
+                dang_manifest("caller")
             ),
             format!("{caller}/dagger-module.toml"),
         )
         .with_file(format!("{caller}/main.dang"), fixtures.file("caller.dang"))
+}
+
+/// The manifest of a Dang module named `name` that declares the release the SDK targets,
+/// in the form Dagger's manifest helper writes.
+fn dang_manifest(name: &str) -> String {
+    format!(
+        "name = \"{name}\"\n{}\n[runtime]\nsource = \"dang\"\n",
+        target_declaration()
+    )
 }
 
 /// The manifest of a crate named `name` with no dependencies.
@@ -2506,6 +2743,24 @@ async fn unchanged(container: &Container, check: &str) -> Result<(), ModuleError
             format!("changed the workspace:\n{status}"),
         ))
     }
+}
+
+/// The contents of the file at `path` in `container`.
+async fn file_contents(
+    container: &Container,
+    path: impl Into<String>,
+) -> Result<String, ModuleError> {
+    let file = container.file(path.into());
+    file.contents().await.map_err(step_failure)
+}
+
+/// The entries of the directory at `path` in `container`, a directory's with a final `/`.
+async fn directory_entries(
+    container: &Container,
+    path: impl Into<String>,
+) -> Result<Vec<String>, ModuleError> {
+    let directory = container.directory(path.into());
+    directory.entries().await.map_err(step_failure)
 }
 
 /// The JSON document at `path` in `tree`.

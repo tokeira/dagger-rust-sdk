@@ -10,7 +10,7 @@
 //! client, captured from an engine at v1.0.0-beta.27 with
 //! `dagger -c 'module-source <module> | client-schema-introspection-json
 //! --client-version v1.0.0-beta.27 | export <name>.json'`. `greeter` is the
-//! acceptance's module (`.dagger/modules/ci/acceptance/greeter.dang`), and `naming-app`
+//! acceptance's module (`.dagger/modules/ci/acceptance/greeter/main.dang`), and `naming-app`
 //! has a type with an acronym in its name (`naming-app.dang` beside the fixtures). The
 //! Core part of each capture is the checked `codegen/schema.json`, so the fixtures keep
 //! the module's part alone and the tests splice it back. Refresh them from a directory

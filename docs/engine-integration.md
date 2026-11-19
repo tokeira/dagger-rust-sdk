@@ -166,17 +166,19 @@ needs a Git workspace:
    `dagger-module.toml`, and seals the SDK content. The module's `Cargo.toml` depends on
    `<commit>`.
 3. Author exports that take and return Core types: objects, enums, and scalars, with
-   defaults, an agent function, and a collection. Give the module a dependency on a Dang
-   module in the workspace, declared under `[[dependencies]]` in its
-   `dagger-module.toml`. The dependency has a constructor with an optional argument, a
+   defaults, an agent function, and a collection. Author exports that call a Dang module
+   in the workspace as well, and an object that keeps that module's object and enum in
+   private state. The Dang module has a constructor with an optional argument, a
    function with a required and an optional argument, an object of its own with fields,
    an enum, an interface that the object implements and a function returns, and a
    function that takes and returns a Core object. Another of its functions takes a
    directory that the engine fills in when a call omits it, so the engine serves the
-   function's argument with `@defaultPath` and `@ignorePatterns`. Author exports that
-   call each of them, and an object that keeps the dependency's object and enum in
-   private state. Loading the module before regeneration fails with a diagnostic that
-   names `dagger generate`.
+   function's argument with `@defaultPath` and `@ignorePatterns`. Loading the module
+   before regeneration fails with a diagnostic that names `dagger generate`. Then
+   `dagger module client add ../greeter`, run in the module's directory, makes the Dang
+   module its dependency: `dagger.toml` records the client for the module's scope, the
+   module's `dagger-module.toml` gains it as its one `[[dependencies]]` table, and the
+   module is regenerated.
 4. `dagger generate` regenerates, and the generated files bind the dependency's types.
    A second run changes nothing, and the module's `.gitattributes` stays scoped to the
    module.
@@ -199,8 +201,21 @@ needs a Git workspace:
 6. Plain clients built against the commit's crates run under `dagger run`. One makes
    Void calls and exports an image; the other makes each kind of generated Core call and
    meets each kind of failure the client reports.
-7. Adding a Rust client scope with `dagger module client add` is refused before
-   anything is written.
+7. A Cargo package that is not a module gets two clients with
+   `dagger module client add`, run in its directory: one of a Dang module in the
+   workspace, which has a type with an acronym in its name, and one of the Dang module
+   of step 3 in this repository at `<commit>`. Generation writes
+   `src/dagger_clients`, with `mod.rs`, an ownership record and a directory for each
+   client, adds the SDK dependency on `<commit>` to the package's `Cargo.toml`, and
+   keeps the acronym as the engine serves it. `dagger.toml` records both clients for
+   the package's scope. The package declares `mod dagger_clients;` and runs under
+   `dagger run`: it calls the constructor of the module at `<commit>` with its optional
+   argument and one of its functions, and loads the other module's object again from
+   its ID. `dagger module client update` for the client at `<commit>` changes nothing.
+   `dagger generate` restores a deleted generated file, byte for byte.
+   `dagger module client rm` for the client in the workspace removes its files, keeps
+   its emptied ownership record, and drops it from `mod.rs`. `dagger generate` then
+   refuses to overwrite a generated file that was edited, and writes nothing.
 8. `dagger module init rust --name existing` adopts an existing crate at
    `.dagger/modules/existing` whose source declares a root object and
    `pub mod dagger_generated;`. Its source is unchanged, its own dependencies stay, its
