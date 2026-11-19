@@ -1,5 +1,5 @@
 {
-  "descriptor_digest": "sha256:1d66f6754ad2958e3b25db3cfc4606c95ac5e43794918c4908e2f384e2e79e9a",
+  "descriptor_digest": "sha256:c38ae0bd2ea35aab8884d1c62533e0b1640034433bff7cfbc14a006d9e3a1a58",
   "documentation": "Continuous integration for the Rust SDK for Dagger, built with the SDK itself.\n\nEvery function runs inside the Dagger engine, so the same calls work from a laptop, a CI\nrunner, or a managed engine. Orchestration, secrets, and engine provisioning stay outside\nthe module, in `.dagger/engine.sh` and the pipelines that call it. The one engine the\nmodule starts itself is the later-engine step's, a service of the engine that runs it.\nPublishing stays outside too: `package` prepares a release's archives, and `published`\nproves the release afterwards.",
   "format_version": 1,
   "types": {
