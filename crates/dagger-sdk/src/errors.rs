@@ -837,6 +837,91 @@ impl Error for RequestError {
     }
 }
 
+/// How a generated module client's request failed on account of its module.
+#[non_exhaustive]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ModuleClientErrorKind {
+    /// The engine has no `serveModule` field, so it cannot serve a client's module.
+    Unsupported,
+    /// The engine could not load the module the client is bound to.
+    Load,
+    /// The module no longer has a field the client was generated with.
+    OutOfDate,
+}
+
+/// A generated module client's failure to have its module served, or to match it.
+///
+/// The message names the module by the address the client was generated for, in the
+/// wording of Dagger's Go SDK. Go appends the cause to its message; here the cause is
+/// the error's source, as elsewhere in this crate, so a printer of the whole chain
+/// shows it once. The cause is the query error of the request that failed: the load's,
+/// or for [`ModuleClientErrorKind::OutOfDate`] the client's own.
+#[derive(Clone)]
+pub struct ModuleClientError {
+    kind: ModuleClientErrorKind,
+    address: String,
+    cause: Arc<QueryError>,
+}
+
+impl ModuleClientError {
+    pub(crate) fn new(kind: ModuleClientErrorKind, address: &str, cause: QueryError) -> Self {
+        Self {
+            kind,
+            address: address.to_owned(),
+            cause: Arc::new(cause),
+        }
+    }
+
+    /// Returns the stable failure category.
+    pub const fn kind(&self) -> ModuleClientErrorKind {
+        self.kind
+    }
+
+    /// Returns the address of the module the client is bound to.
+    pub fn address(&self) -> &str {
+        &self.address
+    }
+
+    /// Returns the query error of the request that failed.
+    pub fn cause(&self) -> &QueryError {
+        &self.cause
+    }
+}
+
+impl fmt::Display for ModuleClientError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.kind {
+            ModuleClientErrorKind::Unsupported => formatter.write_str(
+                "the engine does not support generated module clients (serveModule is required)",
+            ),
+            // Debug formatting quotes and escapes the address as Go's `%q` does.
+            ModuleClientErrorKind::Load => write!(formatter, "load module {:?}", self.address),
+            ModuleClientErrorKind::OutOfDate => write!(
+                formatter,
+                "generated client for {:?} is out of date; regenerate it",
+                self.address
+            ),
+        }
+    }
+}
+
+impl fmt::Debug for ModuleClientError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ModuleClientError")
+            .field("kind", &self.kind)
+            .field("address", &self.address)
+            .field("cause", &self.cause)
+            .finish()
+    }
+}
+
+impl Error for ModuleClientError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        Some(self.cause.as_ref())
+    }
+}
+
 /// Failure while building or decoding a generated/compositional query.
 #[non_exhaustive]
 #[derive(Clone)]
@@ -859,6 +944,10 @@ pub enum QueryError {
     },
     /// Selected response data did not match the requested Rust type.
     Decode(ResponseDecodingError),
+    /// A generated module client's module could not be served, or no longer matches it.
+    ///
+    /// The message is the [`ModuleClientError`]'s, and the source is its cause.
+    ModuleClient(ModuleClientError),
 }
 
 impl fmt::Display for QueryError {
@@ -869,6 +958,7 @@ impl fmt::Display for QueryError {
             Self::GraphQl { .. } => "the engine returned GraphQL errors",
             Self::Exec { .. } => "the engine execution failed",
             Self::Decode(_) => "the selected GraphQL data could not be decoded",
+            Self::ModuleClient(error) => return error.fmt(formatter),
         })
     }
 }
@@ -890,6 +980,9 @@ impl fmt::Debug for QueryError {
                 .field("data_kind", &response.data().kind_name())
                 .finish(),
             Self::Decode(error) => formatter.debug_tuple("Decode").field(error).finish(),
+            Self::ModuleClient(error) => {
+                formatter.debug_tuple("ModuleClient").field(error).finish()
+            }
         }
     }
 }
@@ -902,6 +995,7 @@ impl Error for QueryError {
             Self::Decode(error) => Some(error),
             Self::GraphQl { .. } => None,
             Self::Exec { error, .. } => Some(error),
+            Self::ModuleClient(error) => Some(error.cause()),
         }
     }
 }

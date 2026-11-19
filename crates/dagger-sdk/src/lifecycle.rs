@@ -16,8 +16,9 @@ use tokio::sync::Notify;
 
 use crate::connection::EngineConnection;
 use crate::connector::map_connection_error;
-use crate::errors::{CloseError, RequestError};
+use crate::errors::{CloseError, QueryError, RequestError};
 use crate::graphql::{RawRequest, RawResponse};
+use crate::module_load::{ModuleLoads, ModuleRequirement, Turn};
 
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -49,6 +50,7 @@ pub(crate) struct SharedSession {
     connection: Arc<dyn EngineConnection>,
     http_connect_timeout: Option<Duration>,
     execution_timeout: Option<Duration>,
+    modules: ModuleLoads,
 }
 
 impl SharedSession {
@@ -66,6 +68,7 @@ impl SharedSession {
             connection: Arc::from(connection),
             http_connect_timeout,
             execution_timeout,
+            modules: ModuleLoads::default(),
         })
     }
 
@@ -205,6 +208,52 @@ impl SharedSession {
         }
     }
 
+    /// Has the engine serve `requirement`'s module to this session, once.
+    ///
+    /// The first request for a module sends `serveModule` and the requests that arrive
+    /// meanwhile wait for its outcome. A failure reaches all of them and leaves nothing
+    /// behind, so the next request loads again. When the request that sends
+    /// `serveModule` is dropped, one of the waiting requests sends it afresh.
+    async fn ensure_module(&self, requirement: &ModuleRequirement) -> Result<(), QueryError> {
+        loop {
+            // A closed session refuses a module client's request as it refuses any
+            // other, before any load is claimed or joined.
+            if self.state() != LifecycleState::Open {
+                return Err(QueryError::Request(RequestError::ClientClosed));
+            }
+            match self.modules.turn(requirement) {
+                Turn::Loaded => return Ok(()),
+                Turn::Wait(waiter) => {
+                    if let Some(outcome) = waiter.outcome().await {
+                        return outcome;
+                    }
+                }
+                Turn::Drive(driver) => {
+                    let result = self
+                        .serve_module(requirement)
+                        .await
+                        .map_err(|cause| requirement.load_error(cause));
+                    return driver.finish(result);
+                }
+            }
+        }
+    }
+
+    async fn serve_module(&self, requirement: &ModuleRequirement) -> Result<(), QueryError> {
+        // Go's SDK always sends the pin, empty for a local module. Both strings are
+        // encoded as every other argument literal is.
+        let selection = crate::query::query()
+            .select("serveModule")
+            .arg("address", requirement.address())
+            .arg("refPin", requirement.pin());
+        let document = selection.build().await.map_err(QueryError::Build)?;
+        let response = self
+            .execute(RawRequest::new(document))
+            .await
+            .map_err(QueryError::Request)?;
+        selection.decode::<serde_json::Value>(response).map(drop)
+    }
+
     fn final_lease_dropped(self: &Arc<Self>) {
         if !self.elect_close() {
             return;
@@ -237,8 +286,13 @@ impl Drop for SharedSession {
 }
 
 /// One externally observable lease on a shared engine session.
+///
+/// A lease taken for a generated module client also names the module its requests
+/// need. Every lease cloned from it names the same module, so the requirement reaches
+/// each builder and handle derived from the client's.
 pub(crate) struct SessionHandle {
     shared: Arc<SharedSession>,
+    module: Option<Arc<ModuleRequirement>>,
 }
 
 impl SessionHandle {
@@ -249,7 +303,43 @@ impl SessionHandle {
     ) -> Self {
         Self {
             shared: SharedSession::new(connection, http_connect_timeout, execution_timeout),
+            module: None,
         }
+    }
+
+    /// Takes another lease whose requests need the module at `address` and `pin`.
+    pub(crate) fn requiring_module(&self, address: &str, pin: &str) -> Self {
+        let mut lease = self.clone();
+        lease.module = Some(Arc::new(ModuleRequirement::new(address, pin)));
+        lease
+    }
+
+    /// Executes one generated or compositional request.
+    ///
+    /// This is the one path from a selection to the connection. A lease that names a
+    /// module has the session serve it first, and names the failure when the response
+    /// shows the client's bindings no longer match that module. `decode` turns the
+    /// response into the caller's value or its query error.
+    pub(crate) async fn execute_query<D>(
+        &self,
+        request: RawRequest,
+        decode: impl FnOnce(RawResponse) -> Result<D, QueryError>,
+    ) -> Result<D, QueryError> {
+        let Some(module) = self.module.as_deref() else {
+            let response = self
+                .shared
+                .execute(request)
+                .await
+                .map_err(QueryError::Request)?;
+            return decode(response);
+        };
+        self.shared.ensure_module(module).await?;
+        self.shared
+            .execute(request)
+            .await
+            .map_err(QueryError::Request)
+            .and_then(decode)
+            .map_err(|error| module.request_error(error))
     }
 
     pub(crate) async fn execute(&self, request: RawRequest) -> Result<RawResponse, RequestError> {
@@ -295,6 +385,7 @@ impl Clone for SessionHandle {
         }
         Self {
             shared: Arc::clone(&self.shared),
+            module: self.module.clone(),
         }
     }
 }

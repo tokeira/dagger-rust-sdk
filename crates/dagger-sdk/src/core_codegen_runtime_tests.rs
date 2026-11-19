@@ -507,6 +507,7 @@ fn result_coordinate(result: Result<i64, QueryError>) -> String {
         Err(QueryError::GraphQl { .. }) => "graphql".to_owned(),
         Err(QueryError::Exec { error, .. }) => format!("exec:{:?}", error.exit_code()),
         Err(QueryError::Decode(_)) => "decode".to_owned(),
+        Err(QueryError::ModuleClient(error)) => format!("module-client:{:?}", error.kind()),
     }
 }
 

@@ -42,6 +42,19 @@ impl Client {
         QueryBuilder::new(self.session.clone())
     }
 
+    /// Starts a query for a generated module client bound to the module at `address`.
+    ///
+    /// `address` is a git ref or a local module's path in its workspace, and `pin` is
+    /// the commit a git ref is pinned to, empty for a local module. Construction
+    /// performs no I/O. Before the first request built from the returned builder, or
+    /// from any builder or handle derived from it, the session has the engine serve
+    /// the module, once for each address and pin.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn generated_module_query_builder(&self, address: &str, pin: &str) -> QueryBuilder {
+        QueryBuilder::new(self.session.requiring_module(address, pin))
+    }
+
     /// Returns a fresh generated root query on this client's shared session.
     ///
     /// Root construction performs no I/O. Generated handles derived from the root own

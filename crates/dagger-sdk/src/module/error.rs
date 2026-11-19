@@ -212,6 +212,12 @@ impl From<QueryError> for ModuleError {
                     return Self::from(cause.clone());
                 }
             }
+            // The message names the module, then says what its cause would say alone.
+            QueryError::ModuleClient(module) => {
+                let mut mapped = Self::from(module.cause().clone());
+                mapped.message = format!("{module}: {}", mapped.message);
+                return mapped;
+            }
             _ => {}
         }
         Self::new(sdk_causes(&error))
@@ -337,6 +343,24 @@ mod tests {
             error: ExecError::from_response(&response).expect("the response is an exec failure"),
             response,
         }
+    }
+
+    #[test]
+    fn a_module_client_failure_names_the_module_before_the_engine_message() {
+        let response = RawResponse::new(ResponseData::Null).with_errors(vec![
+            GraphQlError::new(r#"Cannot query field "hi" on type "Greeter"."#).with_extensions(
+                Map::from_iter([("code".to_owned(), json!("GRAPHQL_VALIDATION_FAILED"))]),
+            ),
+        ]);
+        let requirement = crate::module_load::ModuleRequirement::new("/greeter", "");
+
+        let error = ModuleError::from(requirement.request_error(QueryError::GraphQl { response }));
+
+        assert_eq!(
+            error.message(),
+            r#"generated client for "/greeter" is out of date; regenerate it: Cannot query field "hi" on type "Greeter"."#
+        );
+        assert_eq!(error.details().len(), 1);
     }
 
     #[test]

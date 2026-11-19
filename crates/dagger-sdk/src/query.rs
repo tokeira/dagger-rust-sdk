@@ -169,11 +169,9 @@ impl Selection {
         // The document inlines every argument literal, including secret
         // plaintexts, so it must never reach telemetry; observability stops at
         // the session boundary, which sees sizes and categories only.
-        let response = session
-            .execute(RawRequest::new(document))
+        session
+            .execute_query(RawRequest::new(document), |response| self.decode(response))
             .await
-            .map_err(QueryError::Request)?;
-        self.decode(response)
     }
 
     /// Executes a selection whose GraphQL type is `Void`.

@@ -112,6 +112,7 @@ fn production_source_is_panic_free() -> bool {
         include_str!("client.rs"),
         include_str!("connector.rs"),
         include_str!("lifecycle.rs"),
+        include_str!("module_load.rs"),
         include_str!("query.rs"),
         include_str!("graphql.rs"),
         include_str!("connection.rs"),

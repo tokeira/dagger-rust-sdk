@@ -172,6 +172,7 @@ mod target_generated;
 
 mod client;
 mod lifecycle;
+mod module_load;
 // Plans carry native environment values and owned connection resources. Keeping the
 // type private prevents callers from manufacturing a state which bypasses preflight.
 mod preflight;
@@ -194,10 +195,10 @@ pub use connection::{EngineConnection, EngineConnectionError, EngineConnectionEr
 pub use diagnostic::{Diagnostic, DiagnosticSink, DiagnosticSinkError, DiagnosticStream};
 pub use errors::{
     CliDiscoveryError, CliDiscoveryErrorKind, CloseError, ConfigError, ConfigOption, ConnectError,
-    DiscoveryPathRole, ExistingSessionError, ExistingSessionErrorKind, PlatformError,
-    PlatformErrorKind, QueryBuildError, QueryBuildErrorKind, QueryError, RequestEncodingError,
-    RequestEncodingErrorKind, RequestError, ResponseDecodingError, ResponseDecodingErrorKind,
-    TargetError, TargetErrorKind, TimeoutPhase,
+    DiscoveryPathRole, ExistingSessionError, ExistingSessionErrorKind, ModuleClientError,
+    ModuleClientErrorKind, PlatformError, PlatformErrorKind, QueryBuildError, QueryBuildErrorKind,
+    QueryError, RequestEncodingError, RequestEncodingErrorKind, RequestError,
+    ResponseDecodingError, ResponseDecodingErrorKind, TargetError, TargetErrorKind, TimeoutPhase,
 };
 pub use graphql::{
     GraphQlError, GraphQlLocation, GraphQlPathSegment, RawRequest, RawResponse, ResponseData,
@@ -314,6 +315,9 @@ mod lifecycle_tests;
 
 #[cfg(all(test, feature = "gen"))]
 mod query_tests;
+
+#[cfg(all(test, feature = "gen"))]
+mod module_client_tests;
 
 #[cfg(all(test, feature = "gen"))]
 mod public_api_tests;
