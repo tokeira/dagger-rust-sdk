@@ -42,7 +42,7 @@ pub use metadata::{
 pub use model::*;
 pub use projection::{ModuleProjections, ProjectionCompiler};
 pub use regeneration::{RegenerationPlan, RegenerationPlanner};
-pub(crate) use render::{GENERATED_SUPPORT_MODULES, GENERATED_SUPPORT_NAMES};
+pub(crate) use render::{GENERATED_SUPPORT_MODULES, GENERATED_SUPPORT_NAMES, MODULE_QUERY_METHODS};
 pub use render::{
     ModuleRenderRequest, ModuleRenderer, RenderedModuleAssets, manifest_digest, validate_manifest,
 };

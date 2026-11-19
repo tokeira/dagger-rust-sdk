@@ -28,6 +28,28 @@ impl ::core::convert::From<Clock> for dagger_sdk::IdInput<dagger_sdk::NodeClient
         dagger_sdk::IdInput::generated_lazy(value)
     }
 }
+impl super::ModuleLoadable for Clock {
+    fn __module_ref(__query: &dagger_sdk::QueryBuilder, __id: dagger_sdk::IdInput<Self>) -> Self {
+        Self::__from_query(__query.generated_lazy_reentry_builder(__id, "Clock"))
+    }
+    fn __module_load(
+        __query: &dagger_sdk::QueryBuilder,
+        __id: dagger_sdk::IdInput<Self>,
+    ) -> impl ::core::future::Future<Output = ::core::result::Result<Self, dagger_sdk::QueryError>>
+    + ::core::marker::Send {
+        let __query = ::core::clone::Clone::clone(__query);
+        async move {
+            let __id: dagger_sdk::Id = __query
+                .generated_lazy_reentry_builder(__id, "Clock")
+                .select("id")
+                .execute()
+                .await?;
+            ::core::result::Result::Ok(Self::__from_query(
+                __query.generated_reentry_builder(__id, "Clock"),
+            ))
+        }
+    }
+}
 impl Clock {
     #[doc(hidden)]
     pub fn __from_query(query: dagger_sdk::QueryBuilder) -> Self {
@@ -50,5 +72,16 @@ impl Clock {
     ) -> ::core::result::Result<::std::string::String, dagger_sdk::QueryError> {
         let __query = self.query.select("now");
         __query.execute().await
+    }
+}
+impl super::ModuleQuery {
+    #[cfg_attr(
+        not(doctest),
+        doc = "Client fixture field clock.\n\nSelects GraphQL field `clock` on `Query`."
+    )]
+    #[must_use]
+    pub fn clock(&self) -> super::Clock {
+        let __query = self.__query_builder().select("clock");
+        super::Clock::__from_query(__query)
     }
 }

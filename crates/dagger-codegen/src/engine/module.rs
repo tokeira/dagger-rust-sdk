@@ -11,13 +11,14 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::diagnostic::{DiagnosticCode, DiagnosticSet};
 use crate::module::{
     GENERATED_SUPPORT_MODULES, GENERATED_SUPPORT_NAMES, GeneratedAssetPath, GeneratedTypeBinding,
-    GeneratedTypeKind, GeneratedTypeRegistry, ModuleCompilation, ModuleCompilationRequest,
-    ModuleCompiler, ModuleDiagnosticSet, ModuleTarget, Sha256Digest as ModuleDigest, TargetValue,
-    WireName,
+    GeneratedTypeKind, GeneratedTypeRegistry, MODULE_QUERY_METHODS, ModuleCompilation,
+    ModuleCompilationRequest, ModuleCompiler, ModuleDiagnosticSet, ModuleTarget,
+    Sha256Digest as ModuleDigest, TargetValue, WireName,
 };
 use crate::naming::NameContext;
 use crate::projection::types::{ScalarKind, TypeProjection};
 
+use super::dependency::{BindingSurface, constructor_fields, method_name};
 use super::model::{CandidateArtifactKind, ContentDomain, PostWorkPlan, operation_diagnostic};
 use super::render::{rust_source_paths, visible_binding_artifacts};
 use super::renderers::{EntrypointRenderInput, ModuleRenderInput, RendererOutput};
@@ -192,6 +193,40 @@ fn refuse_support_collisions(
             }
         }
     }
+    // A dependency's constructor becomes a method of the module's query root, named
+    // after the dependency. A dependency named like a method written there by hand
+    // would define that method a second time, and so would two constructors that the
+    // renderer's escape of prelude method names brings to one name.
+    let mut constructors = BTreeMap::new();
+    for (field, target) in constructor_fields(schema) {
+        let owner = schema.dependency_module(target).unwrap_or_default();
+        for method in [Some(method_name(field)), field.options_method_name.clone()]
+            .into_iter()
+            .flatten()
+        {
+            let stated = method.strip_prefix("r#").unwrap_or(&method);
+            if MODULE_QUERY_METHODS.contains(&method.as_str()) {
+                diagnostics.push(operation_diagnostic(
+                    DiagnosticCode::RustNameCollision,
+                    field.coordinate.as_str(),
+                    &format!(
+                        "the constructor of module dependency `{owner}` would be bound as `ModuleQuery::{stated}`, which the module's query root defines; declare the dependency under another name"
+                    ),
+                ));
+            } else if let Some(previous) = constructors.insert(method.clone(), &field.coordinate)
+                && previous != &field.coordinate
+            {
+                diagnostics.push(operation_diagnostic(
+                    DiagnosticCode::RustNameCollision,
+                    field.coordinate.as_str(),
+                    &format!(
+                        "the constructor of module dependency `{owner}` would be bound as `ModuleQuery::{stated}`, as `{}` already is; declare the dependency under another name",
+                        previous.as_str()
+                    ),
+                ));
+            }
+        }
+    }
     DiagnosticSet::new(diagnostics).map_or(Ok(()), Err)
 }
 
@@ -291,7 +326,7 @@ fn checked_binding_assets(
     alias: &str,
 ) -> Result<BTreeMap<GeneratedAssetPath, Vec<u8>>, DiagnosticSet> {
     let root = RelativeOperationPath::parse("src/dagger_generated")?;
-    visible_binding_artifacts(schema, &root, alias)?
+    visible_binding_artifacts(schema, &root, alias, BindingSurface::Module)?
         .into_iter()
         .filter(|(path, artifact)| {
             artifact.kind == CandidateArtifactKind::RustSource

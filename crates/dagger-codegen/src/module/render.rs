@@ -321,6 +321,7 @@ pub(crate) const GENERATED_SUPPORT_NAMES: &[&str] = &[
     "ModuleContext",
     "ModuleError",
     "ModuleErrorDetail",
+    "ModuleLoadable",
     "ModuleQuery",
     "TelemetryContext",
 ];
@@ -353,7 +354,7 @@ fn render_mod(alias: &str, checked_bindings: &BTreeMap<GeneratedAssetPath, Vec<u
          #[doc(hidden)]\npub use module_dispatch::GeneratedDispatchRegistry;\n\
          #[doc(hidden)]\npub use module_registration::GeneratedRegistrationSink;\n\n\
          pub use ::{alias}::{{CurrentCall, ModuleCancellation, ModuleError, ModuleErrorDetail, TelemetryContext}};\n\
-         pub use module_context::{{ModuleContext, ModuleQuery}};\n"
+         pub use module_context::{{ModuleContext, ModuleLoadable, ModuleQuery}};\n"
     );
     for path in checked_bindings.keys().filter(|path| {
         path.as_str().starts_with("src/dagger_generated/")
@@ -377,12 +378,31 @@ fn render_mod(alias: &str, checked_bindings: &BTreeMap<GeneratedAssetPath, Vec<u
     source.into_bytes()
 }
 
+/// The public methods that `render_context` writes on `ModuleQuery`. A module
+/// dependency's constructor is rendered as a method of `ModuleQuery` named after the
+/// dependency, so a dependency may not project to one of these names, and operation
+/// rendering refuses one that does. A unit test below holds the list to what
+/// `render_context` emits.
+pub(crate) const MODULE_QUERY_METHODS: &[&str] = &["load", "r#ref"];
+
+// `ModuleQuery` holds the session twice over: as the SDK's `Query`, for Core's own
+// fields, and as the `QueryBuilder` on which the bindings of a dependency's types
+// select the dependency's fields. The SDK's `Query::r#ref` and `Query::load` accept
+// only Core handles, whose constructor is sealed inside the SDK, so `ModuleQuery`
+// defines both over a trait of its own, which the SDK's handles implement here and a
+// dependency's handles implement in their bindings. The inherent methods come before
+// the ones `Deref` reaches, so one spelling loads either, as `Ref` and `Load` of
+// Dagger's Go SDK do (cmd/codegen/generator/go/templates/src/_dagger.gen.go/defs.go.tmpl
+// at the target). Nothing here depends on the visible schema.
 fn render_context(alias: &str) -> Vec<u8> {
     format!(
         "//! Generated call-scoped context for the checked visible schema.\n\n\
          /// Call-scoped access to the active module session and runtime context.\n#[derive(Clone)]\npub struct ModuleContext {{\n    inner: {alias}::__private::ModuleContextBase,\n    query: ModuleQuery,\n}}\n\n\
-         /// Query root bound to the same active session as the current call.\n#[derive(Clone)]\npub struct ModuleQuery {{\n    root: {alias}::Query,\n}}\n\n\
-         impl ModuleContext {{\n    #[doc(hidden)]\n    pub fn from_base(inner: {alias}::__private::ModuleContextBase) -> Self {{\n        let query = ModuleQuery {{ root: inner.query_builder().generated_query_root() }};\n        Self {{ inner, query }}\n    }}\n\n    /// Borrows the generated query root for the active session.\n    pub fn query(&self) -> &ModuleQuery {{ &self.query }}\n    /// Returns the active engine function-call handle without reconnecting.\n    pub fn current_function_call(&self) -> {alias}::FunctionCall {{ self.query.current_function_call() }}\n    /// Returns the module currently served by this active session.\n    pub fn current_module(&self) -> {alias}::CurrentModule {{ self.query.current_module() }}\n    /// Returns the engine-held receiver for this instance call.\n    pub fn current_node(&self) -> {alias}::NodeClient {{ self.query.current_node() }}\n    /// Borrows this call's monotonic cancellation signal.\n    pub fn cancellation(&self) -> &{alias}::ModuleCancellation {{ self.inner.cancellation() }}\n    /// Borrows the telemetry context inherited by this call.\n    pub fn telemetry_context(&self) -> &{alias}::TelemetryContext {{ self.inner.telemetry_context() }}\n    /// Borrows stable coordinates for the current call.\n    pub fn current_call(&self) -> &{alias}::CurrentCall {{ self.inner.current_call() }}\n}}\n\n\
+         /// Query root bound to the same active session as the current call.\n///\n/// It dereferences to the SDK's `Query` for the Core API, and has one method for each\n/// module this module depends on, which constructs that module's main object.\n#[derive(Clone)]\npub struct ModuleQuery {{\n    root: {alias}::Query,\n    builder: {alias}::QueryBuilder,\n}}\n\n\
+         /// A generated object or interface handle that `ModuleQuery::r#ref` and\n/// `ModuleQuery::load` build from an ID: a Core handle, or a handle of a module this\n/// module depends on.\n///\n/// Generated code implements this trait; its methods are not part of the module's API.\npub trait ModuleLoadable: Sized {{\n    #[doc(hidden)]\n    fn __module_ref(query: &{alias}::QueryBuilder, id: {alias}::IdInput<Self>) -> Self;\n    #[doc(hidden)]\n    fn __module_load(\n        query: &{alias}::QueryBuilder,\n        id: {alias}::IdInput<Self>,\n    ) -> impl ::core::future::Future<Output = Result<Self, {alias}::QueryError>> + Send;\n}}\n\n\
+         impl<T> ModuleLoadable for T\nwhere\n    T: {alias}::Loadable + Send + 'static,\n{{\n    fn __module_ref(query: &{alias}::QueryBuilder, id: {alias}::IdInput<Self>) -> Self {{\n        query.generated_query_root().r#ref(id)\n    }}\n\n    fn __module_load(\n        query: &{alias}::QueryBuilder,\n        id: {alias}::IdInput<Self>,\n    ) -> impl ::core::future::Future<Output = Result<Self, {alias}::QueryError>> + Send {{\n        let root = query.generated_query_root();\n        async move {{ root.load(id).await }}\n    }}\n}}\n\n\
+         impl ModuleContext {{\n    #[doc(hidden)]\n    pub fn from_base(inner: {alias}::__private::ModuleContextBase) -> Self {{\n        let builder = inner.query_builder();\n        let query = ModuleQuery {{ root: builder.generated_query_root(), builder }};\n        Self {{ inner, query }}\n    }}\n\n    /// Borrows the generated query root for the active session.\n    pub fn query(&self) -> &ModuleQuery {{ &self.query }}\n    /// Returns the active engine function-call handle without reconnecting.\n    pub fn current_function_call(&self) -> {alias}::FunctionCall {{ self.query.current_function_call() }}\n    /// Returns the module currently served by this active session.\n    pub fn current_module(&self) -> {alias}::CurrentModule {{ self.query.current_module() }}\n    /// Returns the engine-held receiver for this instance call.\n    pub fn current_node(&self) -> {alias}::NodeClient {{ self.query.current_node() }}\n    /// Borrows this call's monotonic cancellation signal.\n    pub fn cancellation(&self) -> &{alias}::ModuleCancellation {{ self.inner.cancellation() }}\n    /// Borrows the telemetry context inherited by this call.\n    pub fn telemetry_context(&self) -> &{alias}::TelemetryContext {{ self.inner.telemetry_context() }}\n    /// Borrows stable coordinates for the current call.\n    pub fn current_call(&self) -> &{alias}::CurrentCall {{ self.inner.current_call() }}\n}}\n\n\
+         impl ModuleQuery {{\n    /// Borrows the builder on which generated bindings select a dependency's fields.\n    #[doc(hidden)]\n    pub(super) fn __query_builder(&self) -> &{alias}::QueryBuilder {{ &self.builder }}\n\n    /// Returns a lazy reference to the object with this ID, without a request.\n    ///\n    /// The handle asks the engine for its ID when it is used as one.\n    pub fn r#ref<T: ModuleLoadable>(&self, id: impl Into<{alias}::IdInput<T>>) -> T {{\n        T::__module_ref(self.__query_builder(), id.into())\n    }}\n\n    /// Loads the object with this ID after checking that it exists and has this type.\n    pub async fn load<T: ModuleLoadable>(\n        &self,\n        id: impl Into<{alias}::IdInput<T>>,\n    ) -> Result<T, {alias}::QueryError> {{\n        T::__module_load(self.__query_builder(), id.into()).await\n    }}\n}}\n\n\
          impl ::core::ops::Deref for ModuleQuery {{\n    type Target = {alias}::Query;\n\n    fn deref(&self) -> &Self::Target {{ &self.root }}\n}}\n"
     )
     .into_bytes()
@@ -1301,7 +1321,10 @@ fn singleton(diagnostic: ModuleDiagnostic) -> ModuleDiagnosticSet {
 mod tests {
     use std::collections::{BTreeMap, BTreeSet};
 
-    use super::{GENERATED_SUPPORT_MODULES, GENERATED_SUPPORT_NAMES, checked_source, render_mod};
+    use super::{
+        GENERATED_SUPPORT_MODULES, GENERATED_SUPPORT_NAMES, MODULE_QUERY_METHODS, checked_source,
+        render_context, render_mod,
+    };
 
     #[test]
     fn malformed_generated_rust_is_rejected_before_publication() {
@@ -1351,5 +1374,46 @@ mod tests {
         let listed = |list: &[&str]| list.iter().map(|name| (*name).to_owned()).collect();
         assert_eq!(names, listed(GENERATED_SUPPORT_NAMES));
         assert_eq!(modules, listed(GENERATED_SUPPORT_MODULES));
+    }
+
+    // A dependency's constructor is refused when it would redefine a method that the
+    // query root has by hand, by a list that must name each of them.
+    #[test]
+    fn the_query_method_list_names_every_public_method_of_the_query_root() {
+        let source = String::from_utf8(render_context("dagger_sdk"))
+            .expect("the generated context is UTF-8");
+        let file = syn::parse_file(&source).expect("the generated context is valid Rust");
+        let methods = file
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                syn::Item::Impl(implementation)
+                    if implementation.trait_.is_none()
+                        && matches!(
+                            implementation.self_ty.as_ref(),
+                            syn::Type::Path(path) if path.path.is_ident("ModuleQuery")
+                        ) =>
+                {
+                    Some(&implementation.items)
+                }
+                _ => None,
+            })
+            .flatten()
+            .filter_map(|item| match item {
+                syn::ImplItem::Fn(function)
+                    if matches!(function.vis, syn::Visibility::Public(_)) =>
+                {
+                    Some(function.sig.ident.to_string())
+                }
+                _ => None,
+            })
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            methods,
+            MODULE_QUERY_METHODS
+                .iter()
+                .map(|name| (*name).to_owned())
+                .collect()
+        );
     }
 }

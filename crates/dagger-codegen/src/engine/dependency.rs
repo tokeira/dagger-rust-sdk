@@ -59,6 +59,18 @@ use crate::schema::canonical::{FieldDefinition, SchemaCoordinate, SchemaName, Ty
 
 use super::visible::VisibleSchemaPlan;
 
+/// Where a set of bindings is compiled, which decides what a binding may name beside
+/// the SDK and its sibling bindings.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum BindingSurface {
+    /// A library of bindings with no query root of its own.
+    Library,
+    /// A module's `dagger_generated`, beside the `ModuleQuery` and `ModuleLoadable`
+    /// that the module compiler renders there. A dependency's bindings add its
+    /// constructor to that query root and make its handles loadable from an ID.
+    Module,
+}
+
 /// One rendered dependency type: its wire name, the Rust module that holds it, and the
 /// module's source below the generated header.
 pub(super) struct DependencyBinding {
@@ -74,8 +86,9 @@ pub(super) fn render_dependency_type(
     plan: &VisibleSchemaPlan,
     projection: &TypeProjection,
     sdk: &str,
+    surface: BindingSurface,
 ) -> Result<Option<DependencyBinding>, DiagnosticSet> {
-    let renderer = Renderer::new(plan, sdk).map_err(DiagnosticSet::one)?;
+    let renderer = Renderer::new(plan, sdk, surface).map_err(DiagnosticSet::one)?;
     let rendered = match projection {
         TypeProjection::Object(object) if plan.is_dependency_type(&object.wire_name) => Some((
             object.wire_name.to_string(),
@@ -132,10 +145,15 @@ enum MethodForm {
 struct Renderer<'a> {
     plan: &'a VisibleSchemaPlan,
     sdk: Ident,
+    surface: BindingSurface,
 }
 
 impl<'a> Renderer<'a> {
-    fn new(plan: &'a VisibleSchemaPlan, sdk: &str) -> Result<Self, Diagnostic> {
+    fn new(
+        plan: &'a VisibleSchemaPlan,
+        sdk: &str,
+        surface: BindingSurface,
+    ) -> Result<Self, Diagnostic> {
         let sdk = syn::parse_str::<Ident>(sdk).map_err(|_| {
             Diagnostic::new(
                 DiagnosticCode::RustNameInvalid,
@@ -143,7 +161,7 @@ impl<'a> Renderer<'a> {
                 "the module's SDK dependency name is not a Rust identifier",
             )
         })?;
-        Ok(Self { plan, sdk })
+        Ok(Self { plan, sdk, surface })
     }
 
     fn object(&self, object: &ObjectProjection) -> Result<TokenStream, Diagnostic> {
@@ -164,6 +182,8 @@ impl<'a> Renderer<'a> {
         let support = self.handle_support(&object.wire_name, &name, object.has_id)?;
         let methods = self.inherent_methods(&fields)?;
         let interfaces = self.interface_impls(&object.wire_name, &name)?;
+        let loadable = self.loadable(&object.wire_name, &name, object.has_id);
+        let constructors = self.constructors(object)?;
         let sdk = &self.sdk;
         Ok(quote! {
             #attributes
@@ -174,6 +194,7 @@ impl<'a> Renderer<'a> {
 
             #options
             #support
+            #loadable
 
             impl #name {
                 #[doc(hidden)]
@@ -185,6 +206,7 @@ impl<'a> Renderer<'a> {
             }
 
             #interfaces
+            #constructors
         })
     }
 
@@ -225,6 +247,7 @@ impl<'a> Renderer<'a> {
         let methods = self.inherent_methods(&fields)?;
         let own_impl = self.trait_impl(&trait_name, &client_name, &fields)?;
         let parents = self.interface_impls(&interface.wire_name, &client_name)?;
+        let loadable = self.loadable(&interface.wire_name, &client_name, interface.has_id);
         let sdk = &self.sdk;
         Ok(quote! {
             #trait_attributes
@@ -240,6 +263,7 @@ impl<'a> Renderer<'a> {
 
             #options
             #support
+            #loadable
 
             impl #client_name {
                 #[doc(hidden)]
@@ -477,12 +501,18 @@ impl<'a> Renderer<'a> {
         refuse_duplicate_methods(fields)?;
         let methods = fields
             .iter()
-            .map(|field| self.inherent_method(field))
+            .map(|field| self.inherent_method(field, &quote! { self.query }))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(quote! { #(#methods)* })
     }
 
-    fn inherent_method(&self, field: &FieldProjection) -> Result<TokenStream, Diagnostic> {
+    /// Renders the method of `field`, and its `_opts` variant, on the type whose query
+    /// is `receiver`.
+    fn inherent_method(
+        &self,
+        field: &FieldProjection,
+        receiver: &TokenStream,
+    ) -> Result<TokenStream, Diagnostic> {
         let sdk = &self.sdk;
         let attributes = self.method_attributes(field)?;
         let name = ident(&method_name(field), &field.coordinate)?;
@@ -490,7 +520,7 @@ impl<'a> Renderer<'a> {
         let required = self.required_parameters(field, MethodForm::Inherent)?;
         let output = self.output_type(field)?;
         let lazy = matches!(field.strategy, FieldStrategy::LazyHandle { .. });
-        let setup = self.setup(field, quote! { self.query }, false)?;
+        let setup = self.setup(field, receiver, false)?;
         let body = self.execution(field)?;
         let ordinary = if lazy {
             quote! {
@@ -514,7 +544,7 @@ impl<'a> Renderer<'a> {
             return Ok(ordinary);
         };
         let options_attributes = self.options_method_attributes(field)?;
-        let setup = self.setup(field, quote! { self.query }, true)?;
+        let setup = self.setup(field, receiver, true)?;
         let options = if lazy {
             quote! {
                 #options_attributes
@@ -631,14 +661,14 @@ impl<'a> Renderer<'a> {
             }
         };
         let ordinary = render(
-            self.setup(field, quote! { self.query }, false)?,
+            self.setup(field, &quote! { self.query }, false)?,
             quote! { fn #name(&self #(, #required)*) },
         );
         let Some((options_method, options_type)) = self.options_names(field)? else {
             return Ok(ordinary);
         };
         let options = render(
-            self.setup(field, quote! { self.query }, true)?,
+            self.setup(field, &quote! { self.query }, true)?,
             quote! { fn #options_method(&self, #(#required,)* #opts: &super::#options_type) },
         );
         Ok(quote! { #ordinary #options })
@@ -673,6 +703,87 @@ impl<'a> Renderer<'a> {
             implementations.push(self.trait_impl(&trait_name, implementor, &fields)?);
         }
         Ok(quote! { #(#implementations)* })
+    }
+
+    /// The constructors of `object` on the module's query root: one method for each
+    /// field the object's dependency adds to `Query`.
+    ///
+    /// The engine installs a dependency's constructor as a field of `Query` named
+    /// after the dependency, with the arguments of the constructor its author wrote
+    /// (`ModuleObject.Install` in core/object.go at the target). Dagger's Go SDK
+    /// renders it as a method on the query root that its `dag` embeds
+    /// (cmd/codegen/generator/go/templates/src/internal/dagger/_dep.gen.go.tmpl). The
+    /// field is recognised by what it returns, since `Query` itself is a Core type:
+    /// a field outside the reviewed Core API that returns a dependency's object.
+    fn constructors(&self, object: &ObjectProjection) -> Result<TokenStream, Diagnostic> {
+        if self.surface != BindingSurface::Module {
+            return Ok(TokenStream::new());
+        }
+        let fields = constructor_fields(self.plan)
+            .filter(|(_, target)| *target == &object.wire_name)
+            .map(|(field, _)| field)
+            .collect::<Vec<_>>();
+        if fields.is_empty() {
+            return Ok(TokenStream::new());
+        }
+        let options = self.options(self.plan.canonical().query(), &fields)?;
+        let methods = fields
+            .iter()
+            .map(|field| self.inherent_method(field, &quote! { self.__query_builder() }))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(quote! {
+            #options
+
+            impl super::ModuleQuery {
+                #(#methods)*
+            }
+        })
+    }
+
+    /// Makes a handle loadable from an ID through the module's query root.
+    ///
+    /// `ModuleQuery::r#ref` and `ModuleQuery::load` are generic over the trait this
+    /// implements, as `Ref` and `Load` of Dagger's Go SDK are generic over every
+    /// generated object and interface client
+    /// (cmd/codegen/generator/go/templates/src/_dagger.gen.go/defs.go.tmpl). A
+    /// reference keeps no ID, since the caller's ID need not be in the form `id`
+    /// returns. A load asks for `id` through the type's inline fragment, which fails
+    /// for a node that is missing or of another type, and keeps the ID it is given
+    /// back.
+    fn loadable(&self, wire_name: &SchemaName, handle: &Ident, has_id: bool) -> TokenStream {
+        if self.surface != BindingSurface::Module || !has_id {
+            return TokenStream::new();
+        }
+        let sdk = &self.sdk;
+        let graphql_name = wire_name.as_str();
+        quote! {
+            impl super::ModuleLoadable for #handle {
+                fn __module_ref(__query: &#sdk::QueryBuilder, __id: #sdk::IdInput<Self>) -> Self {
+                    Self::__from_query(
+                        __query.generated_lazy_reentry_builder(__id, #graphql_name),
+                    )
+                }
+
+                fn __module_load(
+                    __query: &#sdk::QueryBuilder,
+                    __id: #sdk::IdInput<Self>,
+                ) -> impl ::core::future::Future<
+                    Output = ::core::result::Result<Self, #sdk::QueryError>,
+                > + ::core::marker::Send {
+                    let __query = ::core::clone::Clone::clone(__query);
+                    async move {
+                        let __id: #sdk::Id = __query
+                            .generated_lazy_reentry_builder(__id, #graphql_name)
+                            .select("id")
+                            .execute()
+                            .await?;
+                        ::core::result::Result::Ok(Self::__from_query(
+                            __query.generated_reentry_builder(__id, #graphql_name),
+                        ))
+                    }
+                }
+            }
+        }
     }
 
     fn required_parameters(
@@ -713,7 +824,7 @@ impl<'a> Renderer<'a> {
     fn setup(
         &self,
         field: &FieldProjection,
-        receiver: TokenStream,
+        receiver: &TokenStream,
         include_options: bool,
     ) -> Result<TokenStream, Diagnostic> {
         let wire_name = field.wire_name.as_str();
@@ -1097,7 +1208,7 @@ const PRELUDE_METHODS: &[&str] = &[
 /// underscore appended when a handle already has a method of that name (see
 /// [`PRELUDE_METHODS`]). The `_opts` method keeps the projected name, which no trait
 /// method has.
-fn method_name(field: &FieldProjection) -> String {
+pub(super) fn method_name(field: &FieldProjection) -> String {
     if PRELUDE_METHODS.contains(&field.rust_name.as_str()) {
         format!("{}_", field.rust_name)
     } else {
@@ -1147,6 +1258,32 @@ fn refuse_duplicate_methods(fields: &[&FieldProjection]) -> Result<(), Diagnosti
         }
     }
     Ok(())
+}
+
+/// The fields a module's dependencies add to `Query`, each with the dependency object
+/// it constructs, in coordinate order.
+pub(super) fn constructor_fields(
+    plan: &VisibleSchemaPlan,
+) -> impl Iterator<Item = (&FieldProjection, &SchemaName)> {
+    plan.projection().fields().values().filter_map(|field| {
+        if &field.owner != plan.canonical().query()
+            || !plan.extension_coordinates().contains(&field.coordinate)
+        {
+            return None;
+        }
+        match &field.strategy {
+            FieldStrategy::LazyHandle { target }
+                if plan.is_dependency_type(target)
+                    && matches!(
+                        plan.projection().named_types().get(target),
+                        Some(TypeProjection::Object(_))
+                    ) =>
+            {
+                Some((field, target))
+            }
+            _ => None,
+        }
+    })
 }
 
 fn option_documentation(

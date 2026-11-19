@@ -14,7 +14,7 @@ use crate::projection::types::{
 };
 use crate::schema::canonical::{SchemaCoordinate, SchemaName, TypeDefinition};
 
-use super::dependency::render_dependency_type;
+use super::dependency::{BindingSurface, render_dependency_type};
 use super::model::{
     CandidateArtifact, CandidateArtifactKind, RelativeOperationPath, operation_diagnostic,
 };
@@ -27,16 +27,18 @@ pub(crate) const SDK_LIBRARY: &str = "dagger_sdk";
 /// Renders the bindings of every operation-scoped type. `sdk` is the name under which
 /// the project that compiles them reaches the SDK: a module may key its SDK dependency
 /// under any name, and the bindings must name the SDK as the rest of its generated code
-/// does.
+/// does. `surface` says what the bindings are compiled beside.
 pub(crate) fn visible_binding_artifacts(
     plan: &VisibleSchemaPlan,
     root: &RelativeOperationPath,
     sdk: &str,
+    surface: BindingSurface,
 ) -> Result<BTreeMap<RelativeOperationPath, CandidateArtifact>, DiagnosticSet> {
     let mut artifacts = BTreeMap::new();
     let mut modules = Vec::new();
     for projection in plan.projection().named_types().values() {
-        let Some((wire_name, module_name, source)) = render_extension_type(plan, projection, sdk)?
+        let Some((wire_name, module_name, source)) =
+            render_extension_type(plan, projection, sdk, surface)?
         else {
             continue;
         };
@@ -141,10 +143,11 @@ fn render_extension_type(
     plan: &VisibleSchemaPlan,
     projection: &TypeProjection,
     sdk: &str,
+    surface: BindingSurface,
 ) -> Result<Option<(String, String, Vec<u8>)>, DiagnosticSet> {
     // A dependency's type gets a typed binding. Any other type outside the reviewed
     // Core API, such as one a later engine added, keeps the untyped handle below.
-    if let Some(binding) = render_dependency_type(plan, projection, sdk)? {
+    if let Some(binding) = render_dependency_type(plan, projection, sdk, surface)? {
         let mut source = generated_header(
             plan,
             &format!(

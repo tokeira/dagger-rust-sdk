@@ -136,6 +136,28 @@ impl ::core::convert::From<Greeter> for dagger_sdk::IdInput<dagger_sdk::NodeClie
         dagger_sdk::IdInput::generated_lazy(value)
     }
 }
+impl super::ModuleLoadable for Greeter {
+    fn __module_ref(__query: &dagger_sdk::QueryBuilder, __id: dagger_sdk::IdInput<Self>) -> Self {
+        Self::__from_query(__query.generated_lazy_reentry_builder(__id, "Greeter"))
+    }
+    fn __module_load(
+        __query: &dagger_sdk::QueryBuilder,
+        __id: dagger_sdk::IdInput<Self>,
+    ) -> impl ::core::future::Future<Output = ::core::result::Result<Self, dagger_sdk::QueryError>>
+    + ::core::marker::Send {
+        let __query = ::core::clone::Clone::clone(__query);
+        async move {
+            let __id: dagger_sdk::Id = __query
+                .generated_lazy_reentry_builder(__id, "Greeter")
+                .select("id")
+                .execute()
+                .await?;
+            ::core::result::Result::Ok(Self::__from_query(
+                __query.generated_reentry_builder(__id, "Greeter"),
+            ))
+        }
+    }
+}
 impl Greeter {
     #[doc(hidden)]
     pub fn __from_query(query: dagger_sdk::QueryBuilder) -> Self {
@@ -473,6 +495,96 @@ impl Greeter {
     pub fn with_mode(&self, mode: super::GreeterMode) -> super::Greeter {
         let __query = self.query.select("withMode");
         let __query = __query.argument("mode", mode);
+        super::Greeter::__from_query(__query)
+    }
+}
+#[cfg_attr(
+    not(doctest),
+    doc = "Owned optional arguments for GraphQL operation `Query.greeter`; reuse does not mutate caller state."
+)]
+#[derive(Clone, Debug, Default)]
+#[non_exhaustive]
+pub struct QueryGreeterOpts {
+    #[cfg_attr(
+        not(doctest),
+        doc = "Client fixture argument greeting.\n\n`None` omits GraphQL field `greeting` and preserves engine default `String(\"hello\")`."
+    )]
+    pub greeting: ::core::option::Option<::std::string::String>,
+    #[cfg_attr(
+        not(doctest),
+        doc = "Client fixture argument mode.\n\n`None` omits GraphQL field `mode`."
+    )]
+    pub mode: ::core::option::Option<super::GreeterMode>,
+    #[cfg_attr(
+        not(doctest),
+        doc = "Client fixture argument source.\n\n`None` omits GraphQL field `source`."
+    )]
+    pub source: ::core::option::Option<dagger_sdk::IdInput<dagger_sdk::Directory>>,
+}
+impl QueryGreeterOpts {
+    #[cfg_attr(
+        not(doctest),
+        doc = "Sets GraphQL argument `greeting` to a concrete value instead of omitting it."
+    )]
+    #[must_use]
+    pub fn with_greeting(
+        mut self,
+        value: impl ::core::convert::Into<::std::string::String>,
+    ) -> Self {
+        self.greeting = ::core::option::Option::Some(::core::convert::Into::into(value));
+        self
+    }
+    #[cfg_attr(
+        not(doctest),
+        doc = "Sets GraphQL argument `mode` to a concrete value instead of omitting it."
+    )]
+    #[must_use]
+    pub fn with_mode(mut self, value: super::GreeterMode) -> Self {
+        self.mode = ::core::option::Option::Some(value);
+        self
+    }
+    #[cfg_attr(
+        not(doctest),
+        doc = "Sets GraphQL argument `source` to a concrete value instead of omitting it."
+    )]
+    #[must_use]
+    pub fn with_source(mut self, value: dagger_sdk::IdInput<dagger_sdk::Directory>) -> Self {
+        self.source = ::core::option::Option::Some(value);
+        self
+    }
+}
+impl super::ModuleQuery {
+    #[cfg_attr(
+        not(doctest),
+        doc = "Client fixture field greeter.\n\nSelects GraphQL field `greeter` on `Query`."
+    )]
+    #[must_use]
+    pub fn greeter(&self) -> super::Greeter {
+        let __query = self.__query_builder().select("greeter");
+        super::Greeter::__from_query(__query)
+    }
+    #[cfg_attr(
+        not(doctest),
+        doc = "Executes GraphQL operation `greeter` with a borrowed, reusable `QueryGreeterOpts` value."
+    )]
+    #[must_use]
+    pub fn greeter_opts(&self, opts: &QueryGreeterOpts) -> super::Greeter {
+        let __query = self.__query_builder().select("greeter");
+        let __query = if let ::core::option::Option::Some(__value) = &opts.greeting {
+            __query.argument("greeting", __value)
+        } else {
+            __query
+        };
+        let __query = if let ::core::option::Option::Some(__value) = &opts.mode {
+            __query.argument("mode", __value)
+        } else {
+            __query
+        };
+        let __query = if let ::core::option::Option::Some(__value) = &opts.source {
+            __query.generated_argument_id_shape("source", ::core::clone::Clone::clone(__value))
+        } else {
+            __query
+        };
         super::Greeter::__from_query(__query)
     }
 }

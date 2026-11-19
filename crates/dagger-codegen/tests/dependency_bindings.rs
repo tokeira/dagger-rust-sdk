@@ -151,7 +151,7 @@ fn short(source: &str) -> String {
 #[track_caller]
 fn assert_binds(file: &str, source: &str, expected: &str) {
     assert!(
-        short(source).contains(&tokens(expected)),
+        short(source).contains(&short(expected)),
         "{file} lacks `{expected}`"
     );
 }
@@ -921,6 +921,274 @@ fn the_generated_module_names_the_sdk_from_the_crate_root() {
     assert!(index.contains("pub use dagger_sdk::*;"));
 }
 
+// The engine adds one field to `Query` for each dependency, named after it, with the
+// arguments of the dependency's own constructor. Each is a method of the module's
+// query root, in the file of the object it constructs, with an `_opts` variant exactly
+// when the constructor has an optional argument.
+#[test]
+fn each_dependency_is_constructed_from_the_module_query_root() {
+    let generated = bindings();
+    // No arguments.
+    assert_binds(
+        "clock.rs",
+        &generated["clock.rs"],
+        "impl super::ModuleQuery {
+            #[cfg_attr(not(doctest), doc = \"Client fixture field clock.\\n\\nSelects GraphQL field `clock` on `Query`.\")]
+            #[must_use]
+            pub fn clock(&self) -> super::Clock {
+                let __query = self.__query_builder().select(\"clock\");
+                super::Clock::__from_query(__query)
+            }
+        }",
+    );
+    assert!(!generated["clock.rs"].contains("QueryClockOpts"));
+    assert!(!generated["clock.rs"].contains("clock_opts"));
+    // Required arguments, and an optional one.
+    for expected in [
+        "#[must_use] pub fn vault(&self, mount: impl Into<dagger_sdk::IdInput<dagger_sdk::Directory>>, name: impl Into<String>) -> super::Vault {
+            let __query = self.__query_builder().select(\"vault\");
+            let __query = __query.generated_argument_id_shape(\"mount\", Into::<dagger_sdk::IdInput<dagger_sdk::Directory>>::into(mount));
+            let __query = __query.argument(\"name\", Into::<String>::into(name));
+            super::Vault::__from_query(__query)
+        }",
+        "#[must_use] pub fn vault_opts(&self, mount: impl Into<dagger_sdk::IdInput<dagger_sdk::Directory>>, name: impl Into<String>, opts: &QueryVaultOpts) -> super::Vault {",
+        "let __query = if let Option::Some(__value) = &opts.ttl { __query.argument(\"ttl\", __value) } else { __query };",
+        "pub struct QueryVaultOpts {",
+        "pub fn with_ttl(mut self, value: i64) -> Self { self.ttl = Option::Some(value); self }",
+    ] {
+        assert_binds("vault.rs", &generated["vault.rs"], expected);
+    }
+    // Optional arguments only: a string, the dependency's enum and a Core object.
+    for expected in [
+        "#[must_use] pub fn greeter(&self) -> super::Greeter {
+            let __query = self.__query_builder().select(\"greeter\");
+            super::Greeter::__from_query(__query)
+        }",
+        "#[must_use] pub fn greeter_opts(&self, opts: &QueryGreeterOpts) -> super::Greeter {
+            let __query = self.__query_builder().select(\"greeter\");
+            let __query = if let Option::Some(__value) = &opts.greeting { __query.argument(\"greeting\", __value) } else { __query };
+            let __query = if let Option::Some(__value) = &opts.mode { __query.argument(\"mode\", __value) } else { __query };
+            let __query = if let Option::Some(__value) = &opts.source {
+                __query.generated_argument_id_shape(\"source\", Clone::clone(__value))
+            } else { __query };
+            super::Greeter::__from_query(__query)
+        }",
+        "pub struct QueryGreeterOpts {",
+        "pub greeting: Option<String>,",
+        "pub mode: Option<super::GreeterMode>,",
+        "pub source: Option<dagger_sdk::IdInput<dagger_sdk::Directory>>,",
+        "pub fn with_greeting(mut self, value: impl Into<String>) -> Self { self.greeting = Option::Some(Into::into(value)); self }",
+    ] {
+        assert_binds("greeter.rs", &generated["greeter.rs"], expected);
+    }
+    // An object that no `Query` field returns has no constructor.
+    assert!(!generated["greeter_message.rs"].contains("ModuleQuery"));
+}
+
+// A constructor is rendered like any function of a dependency: its locals and its
+// options parameter keep clear of the arguments, and a dependency called `clone` is
+// constructed by `clone_`, since the query root can be cloned too.
+#[test]
+fn a_constructor_keeps_clear_of_its_arguments_and_of_prelude_methods() {
+    let generated = adversarial();
+    for expected in [
+        "#[must_use] pub fn clone_(&self, opts: impl Into<String>, query: impl Into<String>) -> super::Clone {
+            let __query = self.__query_builder().select(\"clone\");
+            let __query = __query.argument(\"opts\", Into::<String>::into(opts));
+            let __query = __query.argument(\"query\", Into::<String>::into(query));
+            super::Clone::__from_query(__query)
+        }",
+        "#[must_use] pub fn clone_opts(&self, opts: impl Into<String>, query: impl Into<String>, opts_: &QueryCloneOpts) -> super::Clone {",
+        "let __query = if let Option::Some(__value) = &opts_.loud { __query.argument(\"loud\", __value) } else { __query };",
+    ] {
+        assert_binds("clone.rs", &generated["clone.rs"], expected);
+    }
+    assert_binds(
+        "into.rs",
+        &generated["into.rs"],
+        "pub fn into_(&self, opts: impl Into<String>, query: impl Into<String>) -> super::Into",
+    );
+    // A dependency called `clone_` projects to the Rust name `clone` as well, so the
+    // projection's name map refuses the pair before the escape could make them meet.
+    let schema = changed_dependency_module_schema(|document| {
+        add_constructed_object(document, Some("clone"), "Clone", "clone", vec![]);
+        add_constructed_object(document, Some("clone_"), "CloneAgain", "clone_", vec![]);
+    });
+    let refused = generate(&schema, "dagger_sdk")
+        .expect_err("two constructors cannot share a name on the query root");
+    assert!(
+        refused.diagnostics().iter().any(|diagnostic| {
+            diagnostic.code == DiagnosticCode::RustNameCollision
+                && diagnostic
+                    .coordinate
+                    .as_ref()
+                    .is_some_and(|coordinate| coordinate.as_str() == "Query.clone_")
+        }),
+        "{refused:?}"
+    );
+}
+
+// `ModuleQuery::r#ref` and `ModuleQuery::load` are generic over a trait the module
+// defines. The SDK's handles implement it through the SDK's own loading, and each
+// handle of a dependency implements it in its binding: a reference keeps no ID, and a
+// load asks for `id` through the type's inline fragment and keeps the ID it gets back.
+#[test]
+fn core_and_dependency_handles_load_from_an_id_through_one_method() {
+    let generated = bindings();
+    for expected in [
+        "pub struct ModuleQuery { root: dagger_sdk::Query, builder: dagger_sdk::QueryBuilder }",
+        "pub trait ModuleLoadable: Sized {",
+        "impl<T> ModuleLoadable for T where T: dagger_sdk::Loadable + Send + 'static {
+            fn __module_ref(query: &dagger_sdk::QueryBuilder, id: dagger_sdk::IdInput<Self>) -> Self {
+                query.generated_query_root().r#ref(id)
+            }
+            fn __module_load(query: &dagger_sdk::QueryBuilder, id: dagger_sdk::IdInput<Self>)
+                -> impl ::core::future::Future<Output = Result<Self, dagger_sdk::QueryError>> + Send {
+                let root = query.generated_query_root();
+                async move { root.load(id).await }
+            }
+        }",
+        "pub(super) fn __query_builder(&self) -> &dagger_sdk::QueryBuilder { &self.builder }",
+        "pub fn r#ref<T: ModuleLoadable>(&self, id: impl Into<dagger_sdk::IdInput<T>>) -> T {
+            T::__module_ref(self.__query_builder(), id.into())
+        }",
+        "pub async fn load<T: ModuleLoadable>(&self, id: impl Into<dagger_sdk::IdInput<T>>) -> Result<T, dagger_sdk::QueryError> {
+            T::__module_load(self.__query_builder(), id.into()).await
+        }",
+    ] {
+        assert_binds("module_context.rs", &generated["module_context.rs"], expected);
+    }
+    assert!(
+        generated["mod.rs"]
+            .contains("pub use module_context::{ModuleContext, ModuleLoadable, ModuleQuery};")
+    );
+    for (file, handle, graphql) in [
+        ("greeter.rs", "Greeter", "Greeter"),
+        ("greeter_named.rs", "GreeterNamedClient", "GreeterNamed"),
+    ] {
+        assert_binds(
+            file,
+            &generated[file],
+            &format!(
+                "impl super::ModuleLoadable for {handle} {{
+                    fn __module_ref(__query: &dagger_sdk::QueryBuilder, __id: dagger_sdk::IdInput<Self>) -> Self {{
+                        Self::__from_query(__query.generated_lazy_reentry_builder(__id, \"{graphql}\"))
+                    }}
+                    fn __module_load(__query: &dagger_sdk::QueryBuilder, __id: dagger_sdk::IdInput<Self>)
+                        -> impl Future<Output = Result<Self, dagger_sdk::QueryError>> + Send {{
+                        let __query = Clone::clone(__query);
+                        async move {{
+                            let __id: dagger_sdk::Id = __query
+                                .generated_lazy_reentry_builder(__id, \"{graphql}\")
+                                .select(\"id\")
+                                .execute()
+                                .await?;
+                            Result::Ok(Self::__from_query(__query.generated_reentry_builder(__id, \"{graphql}\")))
+                        }}
+                    }}
+                }}"
+            ),
+        );
+    }
+}
+
+// The context file depends on the SDK's name alone: apart from the descriptor its
+// header states, it is the same text with dependencies and without.
+#[test]
+fn the_module_context_does_not_depend_on_the_dependencies() {
+    let with = bindings();
+    let without = generate(&support::module_visible_schema(0), "dagger_sdk")
+        .expect("a module without dependencies must generate");
+    // The header states the descriptor, which the visible schema is part of.
+    let body = |source: &str| {
+        source
+            .lines()
+            .filter(|line| !line.starts_with("// descriptor:"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    assert_eq!(
+        body(&with["module_context.rs"]),
+        body(&without["module_context.rs"])
+    );
+    for bound in BINDINGS {
+        assert!(!without.contains_key(*bound));
+    }
+}
+
+// Bindings rendered outside a module have no query root to extend: they keep the
+// typed handles and leave out the constructors and the loading.
+#[test]
+fn bindings_outside_a_module_do_not_name_the_module_query_root() {
+    let output = RelativeOperationPath::parse("generated").expect("fixture path must parse");
+    let dependency = PublishedSdkDependency::Registry {
+        registry: "crates-io".to_owned(),
+        exact_version: "1.0.0-beta.11.rust.5".to_owned(),
+    };
+    let plan = project_operation(OperationProjectionRequest {
+        target: &target(),
+        operation: OperationKind::GenerateLibrary,
+        visible_schema_json: &dependency_core_schema(0),
+        module: None,
+        output: &output,
+        sdk_dependency: &dependency,
+        authoring: None,
+        engine_version: None,
+    })
+    .expect("the dependencies must project");
+    let module = bindings();
+    for bound in BINDINGS {
+        let path = RelativeOperationPath::parse(&format!("generated/{bound}"))
+            .expect("expected path must parse");
+        let source = String::from_utf8(plan.artifacts()[&path].content.clone())
+            .expect("generated Rust is UTF-8");
+        assert!(!source.contains("ModuleQuery"), "{bound}");
+        assert!(!source.contains("ModuleLoadable"), "{bound}");
+        // What remains is the start of the module's binding of the same type.
+        let library = tokens(&source);
+        let library = library
+            .split_once(" pub ")
+            .expect("a binding declares a type")
+            .1;
+        let shared = library
+            .split(" impl ")
+            .next()
+            .expect("a binding has a first item");
+        assert!(tokens(&module[*bound]).contains(shared), "{bound}");
+    }
+}
+
+// The constructor is a method named after the dependency, beside the methods the query
+// root has by hand. A dependency called `load` or `ref` would redefine one of them.
+#[test]
+fn a_dependency_named_like_a_query_root_method_is_refused() {
+    for (dependency, type_name, method) in [("load", "Load", "load"), ("ref", "Ref", "ref")] {
+        let schema = changed_dependency_module_schema(|document| {
+            add_constructed_object(document, Some(dependency), type_name, dependency, vec![]);
+        });
+        let refused = generate(&schema, "dagger_sdk")
+            .expect_err("a constructor that redefines a query root method must be refused");
+        let diagnostic = refused
+            .diagnostics()
+            .iter()
+            .find(|diagnostic| diagnostic.code == DiagnosticCode::RustNameCollision)
+            .unwrap_or_else(|| panic!("{dependency}: {refused:?}"));
+        assert_eq!(
+            diagnostic
+                .coordinate
+                .as_ref()
+                .map(|coordinate| coordinate.as_str()),
+            Some(format!("Query.{dependency}").as_str())
+        );
+        assert_eq!(
+            diagnostic.message,
+            format!(
+                "the constructor of module dependency `{dependency}` would be bound as `ModuleQuery::{method}`, which the module's query root defines; declare the dependency under another name"
+            )
+        );
+    }
+}
+
 // A type whose binding would take the name or the file of the module's own generated
 // support is refused where the dependency states it.
 #[test]
@@ -935,6 +1203,11 @@ fn a_dependency_type_named_like_generated_support_is_refused() {
             "ModuleQuery",
             DiagnosticCode::RustNameCollision,
             "would be bound as `ModuleQuery`",
+        ),
+        (
+            "ModuleLoadable",
+            DiagnosticCode::RustNameCollision,
+            "would be bound as `ModuleLoadable`",
         ),
         (
             "ModuleCodec",

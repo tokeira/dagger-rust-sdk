@@ -95,14 +95,18 @@ func (sdk *RustSDK) GenerateScope(
 		return nil, fmt.Errorf("SDK scope is not confined to the workspace")
 	}
 	// The engine schedules a scope without a module only to generate the clients
-	// recorded for it, and records a module scope's dependencies as its clients.
-	// Neither has a Rust generation contract under the SDK-module interface, so
-	// both are refused before any workspace edit.
+	// recorded for it, and passes a module scope the clients recorded for it as well:
+	// those that adding a client to the scope wrote to the workspace configuration
+	// (withSDKModuleClient in core/schema/workspace_sdk_module.go). They are not the
+	// module's dependencies, which the engine serves in the module's schema and
+	// generation binds. A client has no Rust generation contract under the SDK-module
+	// interface in either kind of scope, so both are refused before any workspace
+	// edit.
 	if !isModule {
 		return nil, fmt.Errorf("the Rust SDK does not generate module clients; remove the clients recorded for scope %q", scope)
 	}
 	if len(clients) > 0 {
-		return nil, fmt.Errorf("the Rust SDK does not generate module dependencies; remove the clients recorded for module scope %q", scope)
+		return nil, fmt.Errorf("the Rust SDK does not generate module clients; remove the clients recorded for module scope %q", scope)
 	}
 
 	configured := ws

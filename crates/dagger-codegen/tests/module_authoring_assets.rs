@@ -432,9 +432,11 @@ fn representative_generated_module_executes_directly_offline() {
         .current_dir(root)
         .output()
         .expect("offline fixture cargo must start");
+    // A failed assertion of the harness is on its standard output.
     assert!(
         output.status.success(),
-        "generated fixture failed:\n{}",
+        "generated fixture failed:\n{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
     // `--all-targets` leaves doctests out, and a dependency's documentation must not
@@ -750,14 +752,41 @@ use renamed_sdk::__private::{
     RegistrationView, ResultPublishError, ResultSink, handle_call, serde_json,
 };
 
+// Stands in for the engine: it records every document it is sent and answers the
+// ones a call to a module dependency sends, as the dependency would.
 #[derive(Clone)]
 struct NoEngine(Arc<Mutex<Vec<String>>>);
+
+const DEPENDENCY_DOCUMENTS: &[(&str, &str)] = &[
+    (
+        "query{greeter(greeting:\"hi\", mode:LOUD){hello(name:\"friend\")}}",
+        "{\"greeter\": {\"hello\": \"HI, FRIEND\"}}",
+    ),
+    (
+        "query{node(id:\"passed-id\"){... on Greeter{id}}}",
+        "{\"node\": {\"id\": \"greeter-id\"}}",
+    ),
+    (
+        "query{node(id:\"passed-id\"){... on Greeter{hello(name:\"lazy\")}}}",
+        "{\"node\": {\"hello\": \"hello, lazy\"}}",
+    ),
+    (
+        "query{node(id:\"passed-id\"){... on Directory{id}}}",
+        "{\"node\": {\"id\": \"directory-id\"}}",
+    ),
+];
 
 #[async_trait]
 impl EngineConnection for NoEngine {
     async fn execute(&self, request: RawRequest) -> Result<RawResponse, EngineConnectionError> {
         self.0.lock().expect("event lock").push(request.query().to_owned());
-        Ok(RawResponse::new(ResponseData::Null))
+        let data = DEPENDENCY_DOCUMENTS
+            .iter()
+            .find(|(document, _)| *document == request.query())
+            .map_or(ResponseData::Null, |(_, data)| {
+                ResponseData::Value(serde_json::from_str(data).expect("fixture answer is JSON"))
+            });
+        Ok(RawResponse::new(data))
     }
 
     async fn close(&self) -> Result<(), EngineConnectionError> { Ok(()) }
@@ -1030,6 +1059,41 @@ fn generated_registry_runs_through_the_production_wrapper_without_an_engine() {
             assert_eq!(value, expected, "{call_id}");
         }
 
+        // A call to a module dependency sends the dependency's own fields on the call's
+        // session: the constructor with its options, then the function. A handle made
+        // from an ID the caller passes loads through `node(id:)`, and only a checked
+        // load, which the engine answers with the object's ID, keeps one.
+        for (call_id, function, arguments, expected) in [
+            (
+                "dependency-call",
+                "hail",
+                vec![("name", serde_json::json!("friend"))],
+                serde_json::json!("HI, FRIEND"),
+            ),
+            (
+                "dependency-load",
+                "reload",
+                vec![("id", serde_json::json!("passed-id"))],
+                serde_json::json!(["hello, lazy", "greeter-id", "directory-id"]),
+            ),
+        ] {
+            let invocation = envelope(call_id, function, Some(parent.clone()), &arguments);
+            handle_call(
+                &GeneratedDispatchRegistry,
+                invocation.clone(),
+                context(&client, &invocation),
+                &registration_sink,
+                &result_sink,
+            )
+            .await
+            .expect("dependency invocation");
+            let value = match outcomes.lock().expect("result lock").pop().expect("value") {
+                CallOutcome::Value(value) => value.into_json(),
+                outcome => panic!("unexpected {call_id} outcome: {outcome:?}"),
+            };
+            assert_eq!(value, expected, "{call_id}");
+        }
+
         // A value outside the enum is refused before user code runs.
         let outside = envelope(
             "protocol-outside",
@@ -1082,7 +1146,14 @@ fn generated_registry_runs_through_the_production_wrapper_without_an_engine() {
         );
         assert_eq!(registrations.lock().expect("registration lock").len(), 1);
         assert!(outcomes.lock().expect("result lock").is_empty());
-        assert!(engine_events.lock().expect("event lock").is_empty());
+        // Nothing but the dependency calls reached the engine, each as one request.
+        assert_eq!(
+            engine_events.lock().expect("event lock").as_slice(),
+            DEPENDENCY_DOCUMENTS
+                .iter()
+                .map(|(document, _)| (*document).to_owned())
+                .collect::<Vec<_>>()
+        );
         client.close().await.expect("fixture client close");
     });
 }
@@ -1287,7 +1358,7 @@ fn representative_source() -> ModuleSourceSnapshot {
         .get_mut(&root_path)
         .expect("fixture root exists");
     document.contents = format!(
-        "//! A representative module.\n\npub mod dagger_generated;\n{}{}",
+        "//! A representative module.\n\npub mod dagger_generated;\n\nuse dagger_generated::{{Greeter, GreeterMode, ModuleContext, QueryGreeterOpts}};\n{}{}",
         document.contents,
         r#"
 #[renamed_sdk::methods]
@@ -1359,6 +1430,41 @@ impl Root {
     #[dagger(function)]
     pub(crate) fn marker(&self) -> Marker {
         Marker {}
+    }
+
+    // A dependency is constructed from the query root and called as Core is.
+    #[dagger(function)]
+    pub(crate) async fn hail(
+        &self,
+        name: String,
+        #[dagger(context)] context: ModuleContext,
+    ) -> Result<String, renamed_sdk::ModuleError> {
+        let options = QueryGreeterOpts::default()
+            .with_greeting("hi")
+            .with_mode(GreeterMode::Loud);
+        // The dependency has a function called `clone`, and another dependency is
+        // itself called `clone`. Cloning the handle or the query root still clones.
+        let query = context.query().clone();
+        let greeter = query.greeter_opts(&options).clone();
+        Ok(greeter.hello(name).await?)
+    }
+
+    // One pair of methods loads a dependency's object and a Core object from an ID.
+    #[dagger(function)]
+    pub(crate) async fn reload(
+        &self,
+        id: String,
+        #[dagger(context)] context: ModuleContext,
+    ) -> Result<Vec<String>, renamed_sdk::ModuleError> {
+        let id = renamed_sdk::Id::new(id);
+        let lazy: Greeter = context.query().r#ref(id.clone());
+        let loaded: Greeter = context.query().load(id.clone()).await?;
+        let directory: renamed_sdk::Directory = context.query().r#ref(id);
+        Ok(vec![
+            lazy.hello("lazy").await?,
+            loaded.id().await?.as_str().to_owned(),
+            directory.id().await?.as_str().to_owned(),
+        ])
     }
 
     #[dagger(function)]

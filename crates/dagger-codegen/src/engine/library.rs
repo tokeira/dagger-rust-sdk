@@ -2,12 +2,18 @@
 
 use crate::diagnostic::DiagnosticSet;
 
+use super::dependency::BindingSurface;
 use super::model::{ContentDomain, PostWorkPlan};
 use super::render::{SDK_LIBRARY, rust_source_paths, visible_binding_artifacts};
 use super::renderers::{LibraryRenderInput, RendererOutput};
 
 pub(crate) fn render(input: LibraryRenderInput<'_>) -> Result<RendererOutput, DiagnosticSet> {
-    let artifacts = visible_binding_artifacts(input.schema, input.output, SDK_LIBRARY)?;
+    let artifacts = visible_binding_artifacts(
+        input.schema,
+        input.output,
+        SDK_LIBRARY,
+        BindingSurface::Library,
+    )?;
     let rust_files = rust_source_paths(&artifacts);
     let mut output = RendererOutput::new(ContentDomain::VisibleSchemaBindings);
     output.artifacts = artifacts;
