@@ -20,3 +20,28 @@ pub enum GreeterMode {
     #[serde(rename = "QUIET")]
     Quiet,
 }
+impl dagger_sdk::__private::ModuleInputCodec for GreeterMode {
+    fn decode_input(
+        value: &dagger_sdk::__private::ModuleJson,
+        _context: &dagger_sdk::__private::ModuleContextBase,
+    ) -> ::core::result::Result<Self, dagger_sdk::__private::DecodeError> {
+        dagger_sdk::__private::decode_string_value(value)
+    }
+}
+impl dagger_sdk::__private::ModuleOutputCodec for GreeterMode {
+    fn encode_output<'a>(
+        self,
+        _context: &'a dagger_sdk::__private::ModuleContextBase,
+    ) -> dagger_sdk::__private::ModuleBoxFuture<
+        'a,
+        ::core::result::Result<
+            dagger_sdk::__private::ModuleJson,
+            dagger_sdk::__private::EncodeError,
+        >,
+    >
+    where
+        Self: 'a,
+    {
+        dagger_sdk::__private::encode_string_value(self)
+    }
+}

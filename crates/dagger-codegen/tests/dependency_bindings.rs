@@ -29,9 +29,10 @@ use dagger_codegen::target::CodegenTarget;
 
 use support::{
     MODULE_AUTHORING_SOURCE, PRELUDE_NAMED_TYPES, TARGET_BYTES, add_constructed_object,
-    adversarial_dependency_module_schema, apply_type_directive, changed_dependency_module_schema,
-    dependency_core_schema, dependency_field, dependency_module_schema, dependency_object_type,
-    directive_application, module_authoring_input_from,
+    add_unowned_enum, adversarial_dependency_module_schema, apply_type_directive,
+    changed_dependency_module_schema, dependency_core_schema, dependency_field,
+    dependency_module_schema, dependency_object_type, directive_application,
+    module_authoring_input_from,
 };
 
 /// The files that bind the fixture's dependency types, by the type each binds.
@@ -51,6 +52,19 @@ fn target() -> CodegenTarget {
 /// Generates a module against `schema` with its SDK dependency keyed under `alias`,
 /// and returns the files of `src/dagger_generated` by name.
 fn generate(schema: &[u8], alias: &str) -> Result<BTreeMap<String, String>, DiagnosticSet> {
+    generate_from(
+        schema,
+        alias,
+        &MODULE_AUTHORING_SOURCE.replace("dagger_sdk", alias),
+    )
+}
+
+/// Generates the module authored as `source` against `schema`.
+fn generate_from(
+    schema: &[u8],
+    alias: &str,
+    source: &str,
+) -> Result<BTreeMap<String, String>, DiagnosticSet> {
     let output = RelativeOperationPath::parse("candidate").expect("fixture path must parse");
     let module = ModuleProjectionInput {
         name: "rust-probe".to_owned(),
@@ -64,8 +78,7 @@ fn generate(schema: &[u8], alias: &str) -> Result<BTreeMap<String, String>, Diag
         registry: "crates-io".to_owned(),
         exact_version: "1.0.0-beta.11.rust.5".to_owned(),
     };
-    let mut authoring =
-        module_authoring_input_from(&MODULE_AUTHORING_SOURCE.replace("dagger_sdk", alias));
+    let mut authoring = module_authoring_input_from(source);
     authoring.sdk_dependency_alias = alias.to_owned();
     let plan = project_operation(OperationProjectionRequest {
         target: &target(),
@@ -1187,6 +1200,196 @@ fn a_dependency_named_like_a_query_root_method_is_refused() {
             )
         );
     }
+}
+
+// A handle and an enum of a dependency carry their own module codecs, since the SDK's
+// cover Core's types only: a handle decodes to the query that loads its ID and encodes
+// as its ID, and an enum crosses as the one string that names its member.
+#[test]
+fn dependency_handles_and_enums_carry_their_module_codecs() {
+    let generated = bindings();
+    for (file, handle, graphql) in [
+        ("greeter.rs", "Greeter", "Greeter"),
+        ("greeter_message.rs", "GreeterMessage", "GreeterMessage"),
+        ("greeter_named.rs", "GreeterNamedClient", "GreeterNamed"),
+        ("vault.rs", "Vault", "Vault"),
+    ] {
+        assert_binds(
+            file,
+            &generated[file],
+            &format!(
+                "impl dagger_sdk::__private::ModuleInputCodec for {handle} {{
+                    fn decode_input(
+                        value: &dagger_sdk::__private::ModuleJson,
+                        context: &dagger_sdk::__private::ModuleContextBase,
+                    ) -> Result<Self, dagger_sdk::__private::DecodeError> {{
+                        Result::map(
+                            dagger_sdk::__private::decode_handle_input(value, context, \"{graphql}\"),
+                            Self::__from_query,
+                        )
+                    }}
+                }}
+                impl dagger_sdk::__private::ModuleOutputCodec for {handle} {{
+                    fn encode_output<'a>(
+                        self,
+                        _context: &'a dagger_sdk::__private::ModuleContextBase,
+                    ) -> dagger_sdk::__private::ModuleBoxFuture<
+                        'a,
+                        Result<dagger_sdk::__private::ModuleJson, dagger_sdk::__private::EncodeError>,
+                    >
+                    where
+                        Self: 'a,
+                    {{
+                        dagger_sdk::__private::encode_handle_output(self)
+                    }}
+                }}"
+            ),
+        );
+    }
+    for expected in [
+        "impl dagger_sdk::__private::ModuleInputCodec for GreeterMode {
+            fn decode_input(
+                value: &dagger_sdk::__private::ModuleJson,
+                _context: &dagger_sdk::__private::ModuleContextBase,
+            ) -> Result<Self, dagger_sdk::__private::DecodeError> {
+                dagger_sdk::__private::decode_string_value(value)
+            }
+        }",
+        "impl dagger_sdk::__private::ModuleOutputCodec for GreeterMode {",
+        "dagger_sdk::__private::encode_string_value(self)",
+    ] {
+        assert_binds("greeter_mode.rs", &generated["greeter_mode.rs"], expected);
+    }
+}
+
+/// A module whose object keeps the named types in private state.
+fn module_with_state(state: &[(&str, &str)]) -> String {
+    let fields = state
+        .iter()
+        .map(|(name, ty)| format!("    #[dagger(state)]\n    {name}: {ty},\n"))
+        .collect::<String>();
+    format!(
+        "{MODULE_AUTHORING_SOURCE}
+#[dagger_sdk::object]
+pub struct Kept {{
+{fields}}}
+
+#[dagger_sdk::methods]
+impl Kept {{
+    #[dagger(function)]
+    pub fn label(&self) -> String {{ String::new() }}
+}}
+
+#[dagger_sdk::methods]
+impl FixtureRoot {{
+    #[dagger(function)]
+    pub fn kept(&self) -> Option<Kept> {{ None }}
+}}
+"
+    )
+}
+
+// Private state may hold a dependency's object, interface and enum, as a private field
+// of a Go module may: the authoring compiler resolves each name to its binding, and the
+// state codec reaches the codecs the binding carries.
+#[test]
+fn private_state_resolves_a_dependency_object_interface_and_enum() {
+    let source = module_with_state(&[
+        ("greeter", "dagger_generated::Greeter"),
+        ("named", "Option<dagger_generated::GreeterNamedClient>"),
+        ("modes", "Vec<dagger_generated::GreeterMode>"),
+    ]);
+    let generated = generate_from(&dependency_module_schema(0), "dagger_sdk", &source)
+        .expect("private state may hold a dependency's types");
+    let codec = &generated["module_codec.rs"];
+    for path in [
+        "crate::dagger_generated::Greeter",
+        "Option<crate::dagger_generated::GreeterNamedClient>",
+        "Vec<crate::dagger_generated::GreeterMode>",
+    ] {
+        assert!(
+            codec.contains(&format!(
+                "<{path} as super::__private::ModuleInputCodec>::decode_input"
+            )),
+            "the state codec does not decode {path}:\n{codec}"
+        );
+    }
+    // State is private, so no dependency type is registered with the engine, which
+    // refuses one in a module's own API.
+    let registration = &generated["module_registration.rs"];
+    assert!(!registration.contains("Greeter"), "{registration}");
+}
+
+// A dependency's main object may be called `Result`, `Option` or `Vec`. Written by its
+// path in the module, such a type in private state is the dependency's handle, not
+// the standard type of that name, which a bare name still means.
+#[test]
+fn private_state_resolves_a_dependency_type_named_like_a_standard_one_by_its_path() {
+    let source = module_with_state(&[
+        ("outcome", "dagger_generated::Result"),
+        ("maybe", "Option<dagger_generated::Option>"),
+        ("all", "Vec<crate::dagger_generated::Vec>"),
+        ("plain", "Option<Vec<String>>"),
+    ]);
+    let generated = generate_from(
+        &adversarial_dependency_module_schema("dagger_sdk"),
+        "dagger_sdk",
+        &source,
+    )
+    .expect("a path into the generated module names a dependency's type");
+    let codec = &generated["module_codec.rs"];
+    for path in [
+        "crate::dagger_generated::Result",
+        "Option<crate::dagger_generated::Option>",
+        "Vec<crate::dagger_generated::Vec>",
+        "Option<Vec<String>>",
+    ] {
+        assert!(
+            codec.contains(&format!(
+                "<{path} as super::__private::ModuleInputCodec>::decode_input"
+            )),
+            "the state codec does not decode {path}:\n{codec}"
+        );
+    }
+
+    // A bare `Result` is the standard one, which is a function's outcome and no data.
+    let bare = module_with_state(&[("outcome", "Result")]);
+    let refused = generate_from(
+        &adversarial_dependency_module_schema("dagger_sdk"),
+        "dagger_sdk",
+        &bare,
+    )
+    .expect_err("a bare standard name is not a dependency's type");
+    assert!(
+        refused
+            .diagnostics()
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("Result is a function outcome")),
+        "{refused:?}"
+    );
+}
+
+// An enum outside the reviewed Core API that no dependency owns has no codecs, so it
+// stays out of the registry and a module cannot name it.
+#[test]
+fn private_state_does_not_resolve_an_unowned_enum() {
+    let schema = changed_dependency_module_schema(|document| {
+        add_unowned_enum(document, "LaterMode");
+    });
+    let source = module_with_state(&[("mode", "dagger_generated::LaterMode")]);
+    let refused = generate_from(&schema, "dagger_sdk", &source)
+        .expect_err("an enum without module codecs cannot be kept");
+    // The refusal is the authoring compiler's, at the authored field.
+    assert!(
+        refused.diagnostics().iter().any(|diagnostic| {
+            diagnostic.message.contains("module.foreign-type")
+                && diagnostic
+                    .coordinate
+                    .as_ref()
+                    .is_some_and(|coordinate| coordinate.as_str().starts_with("src/lib.rs:"))
+        }),
+        "{refused:?}"
+    );
 }
 
 // A type whose binding would take the name or the file of the module's own generated

@@ -774,6 +774,14 @@ const DEPENDENCY_DOCUMENTS: &[(&str, &str)] = &[
         "query{node(id:\"passed-id\"){... on Directory{id}}}",
         "{\"node\": {\"id\": \"directory-id\"}}",
     ),
+    (
+        "query{greeter{id}}",
+        "{\"greeter\": {\"id\": \"state-id\"}}",
+    ),
+    (
+        "query{node(id:\"state-id\"){... on Greeter{withMode(mode:QUIET){hello(name:\"again\")}}}}",
+        "{\"node\": {\"withMode\": {\"hello\": \"hello, again\"}}}",
+    ),
 ];
 
 #[async_trait]
@@ -1094,6 +1102,79 @@ fn generated_registry_runs_through_the_production_wrapper_without_an_engine() {
             assert_eq!(value, expected, "{call_id}");
         }
 
+        // An object keeps a dependency's object and enum in private state. Encoding the
+        // state resolves the handle's ID with one request, and the next call loads the
+        // handle from that ID without keeping it, then calls the dependency through it.
+        let welcome = envelope("dependency-state", "welcome", Some(parent.clone()), &[]);
+        handle_call(
+            &GeneratedDispatchRegistry,
+            welcome.clone(),
+            context(&client, &welcome),
+            &registration_sink,
+            &result_sink,
+        )
+        .await
+        .expect("state invocation");
+        let state = match outcomes.lock().expect("result lock").pop().expect("state") {
+            CallOutcome::Value(value) => value.into_json(),
+            outcome => panic!("unexpected state outcome: {outcome:?}"),
+        };
+        assert_eq!(
+            state,
+            serde_json::json!({"greeter": "state-id", "mode": "QUIET", "previous": null, "outcome": null})
+        );
+        let greet = envelope_on(
+            "FixtureWelcome",
+            "dependency-state-call",
+            "greet",
+            Some(state),
+            &[("name", serde_json::json!("again"))],
+        );
+        handle_call(
+            &GeneratedDispatchRegistry,
+            greet.clone(),
+            context(&client, &greet),
+            &registration_sink,
+            &result_sink,
+        )
+        .await
+        .expect("state call");
+        match outcomes.lock().expect("result lock").pop().expect("value") {
+            CallOutcome::Value(value) => {
+                assert_eq!(value.into_json(), serde_json::json!("hello, again"));
+            }
+            outcome => panic!("unexpected state call outcome: {outcome:?}"),
+        }
+
+        // A value outside a dependency's enum is refused as one outside Core's is, and
+        // a handle's place in state accepts nothing but an ID.
+        for state in [
+            serde_json::json!({"greeter": "state-id", "mode": "SHOUTED", "previous": null, "outcome": null}),
+            serde_json::json!({"greeter": {"hello": "state-id"}, "mode": "QUIET", "previous": null, "outcome": null}),
+            serde_json::json!({"greeter": "", "mode": "QUIET", "previous": null, "outcome": null}),
+        ] {
+            let invalid = envelope_on(
+                "FixtureWelcome",
+                "dependency-state-invalid",
+                "greet",
+                Some(state),
+                &[("name", serde_json::json!("nobody"))],
+            );
+            let refused = handle_call(
+                &GeneratedDispatchRegistry,
+                invalid.clone(),
+                context(&client, &invalid),
+                &registration_sink,
+                &result_sink,
+            )
+            .await;
+            let published = outcomes.lock().expect("result lock").pop();
+            assert!(
+                refused.is_err() || matches!(published, Some(CallOutcome::Error { .. })),
+                "invalid dependency state must not reach user code: {published:?}"
+            );
+        }
+
         // A value outside the enum is refused before user code runs.
         let outside = envelope(
             "protocol-outside",
@@ -1162,7 +1243,8 @@ fn generated_registry_runs_through_the_production_wrapper_without_an_engine() {
 
 // The representative module names Core objects, enums, and scalars. `LLM` is `Llm` in
 // Rust, so the generated dispatch must name each Core type through its binding path
-// rather than its target name.
+// rather than its target name. Its private state also names an object and an enum of a
+// module it depends on, which are bound in the module's own crate.
 fn compile_representative(source: &ModuleSourceSnapshot) -> ModuleCompilation {
     let target = target(digest("checked-schema"));
     let binding =
@@ -1217,9 +1299,26 @@ fn compile_representative(source: &ModuleSourceSnapshot) -> ModuleCompilation {
             binding("Platform", "Platform", GeneratedTypeKind::Scalar, &[]),
             binding("Json", "JSON", GeneratedTypeKind::Scalar, &[]),
             binding("Bytes", "Bytes", GeneratedTypeKind::Scalar, &[]),
+            GeneratedTypeBinding {
+                rust_path: "crate::dagger_generated::Greeter".to_owned(),
+                ..binding("Greeter", "Greeter", GeneratedTypeKind::Object, &[])
+            },
+            GeneratedTypeBinding {
+                rust_path: "crate::dagger_generated::Result".to_owned(),
+                ..binding("Result", "Result", GeneratedTypeKind::Object, &[])
+            },
+            GeneratedTypeBinding {
+                rust_path: "crate::dagger_generated::GreeterMode".to_owned(),
+                ..binding(
+                    "GreeterMode",
+                    "GreeterMode",
+                    GeneratedTypeKind::Enum,
+                    &[("Loud", "LOUD"), ("Quiet", "QUIET")],
+                )
+            },
         ],
     )
-    .expect("fixture Core bindings are unique");
+    .expect("fixture bindings are unique");
     ModuleCompiler::compile(ModuleCompilationRequest {
         target: &target,
         source,
@@ -1449,6 +1548,17 @@ impl Root {
         Ok(greeter.hello(name).await?)
     }
 
+    // The dependency's object and enum leave in an object's private state.
+    #[dagger(function)]
+    pub(crate) fn welcome(&self, #[dagger(context)] context: ModuleContext) -> Welcome {
+        Welcome {
+            greeter: context.query().greeter(),
+            mode: GreeterMode::Quiet,
+            previous: None,
+            outcome: None,
+        }
+    }
+
     // One pair of methods loads a dependency's object and a Core object from an ID.
     #[dagger(function)]
     pub(crate) async fn reload(
@@ -1486,6 +1596,31 @@ pub(crate) struct Entry {
 
 #[renamed_sdk::object(rename = "FixtureMarker")]
 pub(crate) struct Marker {}
+
+// A module's own API may not name a dependency's type, but private state may hold its
+// objects and enums, bare or wrapped, between calls.
+#[renamed_sdk::object(rename = "FixtureWelcome")]
+pub(crate) struct Welcome {
+    #[dagger(state)]
+    greeter: Greeter,
+    #[dagger(state)]
+    mode: GreeterMode,
+    #[dagger(state)]
+    previous: Option<Greeter>,
+    // A dependency called `result` has the main object `Result`. Named by its path,
+    // it is that handle and not the standard type.
+    #[dagger(state)]
+    outcome: Option<dagger_generated::Result>,
+}
+
+#[renamed_sdk::methods]
+impl Welcome {
+    #[dagger(function)]
+    pub(crate) async fn greet(&self, name: String) -> Result<String, renamed_sdk::ModuleError> {
+        let _ = (&self.previous, &self.outcome);
+        Ok(self.greeter.with_mode(self.mode).hello(name).await?)
+    }
+}
 
 #[renamed_sdk::object(collection, rename = "FixtureItems")]
 #[derive(Clone)]

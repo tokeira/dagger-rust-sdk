@@ -50,6 +50,34 @@ impl super::ModuleLoadable for Vault {
         }
     }
 }
+impl dagger_sdk::__private::ModuleInputCodec for Vault {
+    fn decode_input(
+        value: &dagger_sdk::__private::ModuleJson,
+        context: &dagger_sdk::__private::ModuleContextBase,
+    ) -> ::core::result::Result<Self, dagger_sdk::__private::DecodeError> {
+        ::core::result::Result::map(
+            dagger_sdk::__private::decode_handle_input(value, context, "Vault"),
+            Self::__from_query,
+        )
+    }
+}
+impl dagger_sdk::__private::ModuleOutputCodec for Vault {
+    fn encode_output<'a>(
+        self,
+        _context: &'a dagger_sdk::__private::ModuleContextBase,
+    ) -> dagger_sdk::__private::ModuleBoxFuture<
+        'a,
+        ::core::result::Result<
+            dagger_sdk::__private::ModuleJson,
+            dagger_sdk::__private::EncodeError,
+        >,
+    >
+    where
+        Self: 'a,
+    {
+        dagger_sdk::__private::encode_handle_output(self)
+    }
+}
 impl Vault {
     #[doc(hidden)]
     pub fn __from_query(query: dagger_sdk::QueryBuilder) -> Self {

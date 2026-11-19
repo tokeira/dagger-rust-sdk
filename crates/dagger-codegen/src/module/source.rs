@@ -957,7 +957,7 @@ fn resolve_reference(
     resolved_generated: &mut BTreeMap<String, ResolvedGeneratedType>,
     diagnostics: &mut Vec<ModuleDiagnostic>,
 ) {
-    if is_builtin(reference) {
+    if is_builtin(reference) && !names_generated_binding(reference, generated) {
         return;
     }
     if let Some(scope) = scopes.get(module)
@@ -1362,6 +1362,25 @@ fn path_attribute(attributes: &[Attribute]) -> Option<String> {
         };
         Some(path.value())
     })
+}
+
+/// Whether a path of several segments, not rooted in the standard library, is or ends
+/// the path of a checked generated binding. A module dependency's main object may be
+/// called `Result`, `Option` or `Vec`; written as `dagger_generated::Result` it is that
+/// binding and not the standard type its last segment names.
+fn names_generated_binding(reference: &str, generated: &GeneratedTypeRegistry) -> bool {
+    let reference = reference.replace(' ', "");
+    let Some((first, _)) = reference.split_once("::") else {
+        return false;
+    };
+    if matches!(first, "std" | "core" | "alloc" | "") {
+        return false;
+    }
+    let suffix = format!("::{reference}");
+    generated
+        .bindings
+        .keys()
+        .any(|path| path == &reference || path.ends_with(&suffix))
 }
 
 fn is_builtin(path: &str) -> bool {

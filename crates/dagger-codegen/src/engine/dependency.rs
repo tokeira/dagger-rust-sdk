@@ -183,6 +183,7 @@ impl<'a> Renderer<'a> {
         let methods = self.inherent_methods(&fields)?;
         let interfaces = self.interface_impls(&object.wire_name, &name)?;
         let loadable = self.loadable(&object.wire_name, &name, object.has_id);
+        let codecs = self.handle_codecs(&object.wire_name, &name, object.has_id);
         let constructors = self.constructors(object)?;
         let sdk = &self.sdk;
         Ok(quote! {
@@ -195,6 +196,7 @@ impl<'a> Renderer<'a> {
             #options
             #support
             #loadable
+            #codecs
 
             impl #name {
                 #[doc(hidden)]
@@ -248,6 +250,7 @@ impl<'a> Renderer<'a> {
         let own_impl = self.trait_impl(&trait_name, &client_name, &fields)?;
         let parents = self.interface_impls(&interface.wire_name, &client_name)?;
         let loadable = self.loadable(&interface.wire_name, &client_name, interface.has_id);
+        let codecs = self.handle_codecs(&interface.wire_name, &client_name, interface.has_id);
         let sdk = &self.sdk;
         Ok(quote! {
             #trait_attributes
@@ -264,6 +267,7 @@ impl<'a> Renderer<'a> {
             #options
             #support
             #loadable
+            #codecs
 
             impl #client_name {
                 #[doc(hidden)]
@@ -333,6 +337,35 @@ impl<'a> Renderer<'a> {
             #[serde(crate = #serde_path)]
             pub enum #name {
                 #(#variants)*
+            }
+
+            // An enum crosses the module boundary as the one string that names its
+            // member, as a Core enum does through the same two functions.
+            impl #sdk::__private::ModuleInputCodec for #name {
+                fn decode_input(
+                    value: &#sdk::__private::ModuleJson,
+                    _context: &#sdk::__private::ModuleContextBase,
+                ) -> ::core::result::Result<Self, #sdk::__private::DecodeError> {
+                    #sdk::__private::decode_string_value(value)
+                }
+            }
+
+            impl #sdk::__private::ModuleOutputCodec for #name {
+                fn encode_output<'a>(
+                    self,
+                    _context: &'a #sdk::__private::ModuleContextBase,
+                ) -> #sdk::__private::ModuleBoxFuture<
+                    'a,
+                    ::core::result::Result<
+                        #sdk::__private::ModuleJson,
+                        #sdk::__private::EncodeError,
+                    >,
+                >
+                where
+                    Self: 'a,
+                {
+                    #sdk::__private::encode_string_value(self)
+                }
             }
         })
     }
@@ -781,6 +814,56 @@ impl<'a> Renderer<'a> {
                             __query.generated_reentry_builder(__id, #graphql_name),
                         ))
                     }
+                }
+            }
+        }
+    }
+
+    /// The module codecs of a handle, with which a module's object keeps it in private
+    /// state.
+    ///
+    /// The SDK implements the codecs for every Core handle at once, over a trait
+    /// sealed inside it, so a handle defined in the module's crate brings its own: the
+    /// same two SDK functions behind them validate the ID and resolve it. Dagger's Go
+    /// SDK gives every generated object the equivalent pair, `MarshalJSON` writing the
+    /// ID and `UnmarshalJSON` loading it through `node(id:)`
+    /// (cmd/codegen/generator/go/templates/src/_types/object.go.tmpl at the target).
+    /// A handle is decoded without keeping the ID: state and arguments carry IDs that
+    /// need not be in the form `id` returns.
+    fn handle_codecs(&self, wire_name: &SchemaName, handle: &Ident, has_id: bool) -> TokenStream {
+        if !has_id {
+            return TokenStream::new();
+        }
+        let sdk = &self.sdk;
+        let graphql_name = wire_name.as_str();
+        quote! {
+            impl #sdk::__private::ModuleInputCodec for #handle {
+                fn decode_input(
+                    value: &#sdk::__private::ModuleJson,
+                    context: &#sdk::__private::ModuleContextBase,
+                ) -> ::core::result::Result<Self, #sdk::__private::DecodeError> {
+                    ::core::result::Result::map(
+                        #sdk::__private::decode_handle_input(value, context, #graphql_name),
+                        Self::__from_query,
+                    )
+                }
+            }
+
+            impl #sdk::__private::ModuleOutputCodec for #handle {
+                fn encode_output<'a>(
+                    self,
+                    _context: &'a #sdk::__private::ModuleContextBase,
+                ) -> #sdk::__private::ModuleBoxFuture<
+                    'a,
+                    ::core::result::Result<
+                        #sdk::__private::ModuleJson,
+                        #sdk::__private::EncodeError,
+                    >,
+                >
+                where
+                    Self: 'a,
+                {
+                    #sdk::__private::encode_handle_output(self)
                 }
             }
         }

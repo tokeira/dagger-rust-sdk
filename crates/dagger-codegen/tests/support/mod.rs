@@ -872,6 +872,12 @@ pub(crate) fn add_constructed_object(
     add_query_object_field(document, constructor, type_name);
 }
 
+/// Adds an enum outside the reviewed Core API that carries no `@sourceMap`, as a later
+/// engine's own addition does.
+pub(crate) fn add_unowned_enum(document: &mut Value, name: &str) {
+    add_enum_type(document, name, &["FIRST", "SECOND"]);
+}
+
 /// A field as the dependency fixtures declare one: its name, type and arguments.
 pub(crate) fn dependency_field(name: &str, type_ref: Value, args: Vec<Value>) -> Value {
     object_field(name, type_ref, args)

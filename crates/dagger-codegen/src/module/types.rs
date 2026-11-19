@@ -187,6 +187,18 @@ impl<'a> TypeResolver<'a> {
                         unsupported(source.clone(), "an authored Rust path is empty")
                     })?;
                 let name = segment.ident.to_string();
+                // A path of several segments that does not begin in the standard
+                // library names an item of the module's own crate, whatever its last
+                // segment is called. A module dependency's main object may be `Result`,
+                // `Option` or `Vec`, bound at `dagger_generated::Result`: when the path
+                // resolves to a checked binding or a local declaration, that is what
+                // it means. A bare name, or a standard path, means the standard item.
+                if names_crate_item(&path.path)
+                    && let Some(resolved) =
+                        self.resolve_qualified(&path.path.to_token_stream().to_string())
+                {
+                    return Ok(resolved);
+                }
                 match name.as_str() {
                     "String" if no_arguments(&segment.arguments) => Ok(RustModuleType::String),
                     "i64" if no_arguments(&segment.arguments) => Ok(RustModuleType::Integer),
@@ -255,6 +267,36 @@ impl<'a> TypeResolver<'a> {
                 "the authored Rust type has no lossless target mapping",
             )),
         }
+    }
+
+    /// Resolves a path of several segments to the one checked generated binding whose
+    /// path it is, or ends: `dagger_generated::Result` to
+    /// `crate::dagger_generated::Result`. Unlike [`Self::resolve_named`] it never
+    /// matches on the last segment alone, since it runs before the names of standard
+    /// types are read and must not take one of those for a binding.
+    fn resolve_qualified(&self, spelling: &str) -> Option<RustModuleType> {
+        let spelling = spelling.replace(' ', "");
+        let suffix = format!("::{spelling}");
+        let mut generated = self.discovery.generated_types.values().filter(|binding| {
+            let path = binding.rust_path.replace(' ', "");
+            path == spelling || path.ends_with(&suffix)
+        });
+        let binding = generated.next()?;
+        if generated.next().is_some() {
+            return None;
+        }
+        Some(match binding.kind {
+            GeneratedTypeKind::Object => {
+                RustModuleType::GeneratedObject(binding.target_name.clone())
+            }
+            GeneratedTypeKind::Interface => {
+                RustModuleType::GeneratedInterface(binding.target_name.clone())
+            }
+            GeneratedTypeKind::Enum => RustModuleType::GeneratedEnum(binding.target_name.clone()),
+            GeneratedTypeKind::Scalar => {
+                RustModuleType::GeneratedScalar(binding.target_name.clone())
+            }
+        })
     }
 
     fn resolve_named(
@@ -442,6 +484,19 @@ fn substitute_type(ty: &mut Type, substitutions: &BTreeMap<String, Type>) {
         Type::Ptr(pointer) => substitute_type(&mut pointer.elem, substitutions),
         _ => {}
     }
+}
+
+/// Whether a path names an item by its place in the module's crate: more than one
+/// segment, none of them generic, and not rooted in the standard library.
+fn names_crate_item(path: &syn::Path) -> bool {
+    path.segments.len() > 1
+        && path
+            .segments
+            .iter()
+            .all(|segment| segment.arguments.is_none())
+        && path.segments.first().is_some_and(|first| {
+            !matches!(first.ident.to_string().as_str(), "std" | "core" | "alloc")
+        })
 }
 
 fn no_arguments(arguments: &PathArguments) -> bool {
