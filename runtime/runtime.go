@@ -49,7 +49,7 @@ func (sdk *RustSDK) ModuleRuntime(
 		if err != nil {
 			return nil, err
 		}
-		execution, err := sdk.executeOperation(ctx, request, introspectionJSON, modSource.ContextDirectory(), "generation")
+		execution, err := sdk.executeOperation(ctx, request, introspectionJSON, nil, modSource.ContextDirectory(), "generation")
 		if err != nil {
 			return nil, fmt.Errorf("generate private legacy Rust runtime source: %w", err)
 		}

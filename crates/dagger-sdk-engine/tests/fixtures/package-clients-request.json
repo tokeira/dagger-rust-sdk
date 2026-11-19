@@ -1,0 +1,41 @@
+{
+  "request": {
+    "client_root": "workspace/services/app",
+    "clients": [
+      {
+        "address": "/.dagger/modules/greeter",
+        "name": "greeter",
+        "schema": {
+          "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "path": "0.json"
+        }
+      },
+      {
+        "address": "github.com/example/modules/naming-app@v1.2.0",
+        "name": "naming-app",
+        "pin": "1e6e0d5c7ccfe1c712c692c229fe2c0b35d55a4b",
+        "schema": {
+          "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+          "path": "1.json"
+        }
+      }
+    ],
+    "format_version": 1,
+    "sdk_dependency": {
+      "exact_version": "0.8.0",
+      "package": "tokeira-dagger-sdk",
+      "registry": "crates-io",
+      "source": "registry"
+    },
+    "target": {
+      "core_schema_digest": "sha256:9511bc82fb704520cdc632da73463fc7396b1bb081e0446b61665c30764a5e7c",
+      "dagger_revision": "400b82d6f3c09ef096d2f59b3e920267b5969bf4",
+      "engine_version": "1.0.0-beta.27",
+      "format_version": 1,
+      "repository": "https://github.com/dagger/dagger",
+      "rust_sdk_version": "0.8.0",
+      "rust_toolchain": "1.99.1"
+    }
+  },
+  "request_kind": "generate-package-clients"
+}

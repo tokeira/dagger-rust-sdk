@@ -272,6 +272,40 @@ pub struct ClientSetPlan {
     pub clients: Vec<PlannedClient>,
 }
 
+/// One module a Cargo package has a typed client for.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PackageClientInput {
+    /// The module's name as its author wrote it, which names the client's Rust module.
+    pub name: StableCoordinate,
+    /// The address the engine serves the module from: a git ref, or a local module's
+    /// path from the root of its workspace.
+    pub address: StableCoordinate,
+    /// The commit a git ref is pinned to; absent for a local module.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pin: Option<FullRevision>,
+    /// The schema the engine serves for the module's client, beneath the schema
+    /// input root.
+    pub schema: SchemaInput,
+}
+
+/// Complete input to generating the typed module clients of one Cargo package.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PackageClientsRequest {
+    /// Wire-format revision.
+    pub format_version: FormatVersion,
+    /// Exact engine and Rust SDK target.
+    pub target: TargetIdentity,
+    /// Immutable SDK dependency the package must state.
+    pub sdk_dependency: PublishedSdkDependency,
+    /// The Cargo package's directory beneath the operation root.
+    pub client_root: RelativeOperationPath,
+    /// Every module the package has a client for. A client generated before and no
+    /// longer listed is removed.
+    pub clients: Vec<PackageClientInput>,
+}
+
 /// Closed request accepted by the private `execute` command.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "request_kind", content = "request", rename_all = "kebab-case")]
@@ -284,6 +318,8 @@ pub enum EngineExecutionRequest {
     PlanClientSet(PlanClientSetRequest),
     /// Execute one of the four schema-driven generation operations.
     Generate(OperationRequest),
+    /// Generate the typed module clients of one Cargo package that is not a module.
+    GeneratePackageClients(PackageClientsRequest),
 }
 
 /// Result class emitted by the private operation runner.
@@ -298,6 +334,8 @@ pub enum ExecutionResultKind {
     ClientPlan,
     /// One generated operation plus its durable ownership manifest.
     Generation,
+    /// The module clients of one Cargo package, owned by the records beside them.
+    PackageClients,
 }
 
 /// Canonical data-only result consumed by the Go engine adapter.
@@ -313,6 +351,9 @@ pub struct ExecutionResult {
     /// Exact operation-relative paths changed by a completed request.
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub touched_paths: BTreeSet<RelativeOperationPath>,
+    /// Exact operation-relative paths a completed request removed.
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub removed_paths: BTreeSet<RelativeOperationPath>,
     /// Durable generation manifest, absent for initialization-only changes.
     pub operation_manifest: Option<RelativeOperationPath>,
     /// Explicit generated VCS paths returned to the engine.

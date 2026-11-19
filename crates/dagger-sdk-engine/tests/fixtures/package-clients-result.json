@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "kind": "package-clients",
+  "operation_manifest": null,
+  "output_root": "workspace/services/app",
+  "removed_paths": [
+    "workspace/services/app/src/dagger_clients/greeter/greeter.rs"
+  ],
+  "touched_paths": [
+    "workspace/services/app/Cargo.toml",
+    "workspace/services/app/src/dagger_clients/mod.rs"
+  ],
+  "vcs_generated": [],
+  "vcs_ignored": []
+}

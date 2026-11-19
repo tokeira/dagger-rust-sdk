@@ -221,3 +221,34 @@ func TestModuleSourceFileDigestIsCanonicalAndSensitive(t *testing.T) {
 	})
 	require.Error(t, err)
 }
+
+// Module client generation reports what it wrote and what it removed. The document
+// is the one the Rust operation's tests encode a result to.
+func TestPackageClientsResultCarriesWrittenAndRemovedPaths(t *testing.T) {
+	document, err := os.ReadFile("../../../crates/dagger-sdk-engine/tests/fixtures/package-clients-result.json")
+	if err != nil {
+		t.Fatalf("read the shared result fixture: %v", err)
+	}
+	result, err := DecodeExecutionResult(document, "package-clients")
+	if err != nil {
+		t.Fatalf("decode package-clients result: %v", err)
+	}
+	if result.OutputRoot != "workspace/services/app" || len(result.TouchedPaths) != 2 ||
+		len(result.RemovedPaths) != 1 || result.RemovedPaths[0] != "workspace/services/app/src/dagger_clients/greeter/greeter.rs" {
+		t.Fatalf("result fields were not decoded: %#v", result)
+	}
+	if _, err := DecodeExecutionResult(document, "generation"); err == nil {
+		t.Fatal("a package-clients result was accepted for another operation")
+	}
+	for _, removed := range []string{"../escape", "/absolute", "workspace/../escape"} {
+		escaping := strings.Replace(string(document), "workspace/services/app/src/dagger_clients/greeter/greeter.rs", removed, 1)
+		if _, err := DecodeExecutionResult([]byte(escaping), "package-clients"); err == nil {
+			t.Fatalf("removed path %q was accepted", removed)
+		}
+	}
+	// No other operation removes files.
+	generation := strings.Replace(string(document), `"kind": "package-clients"`, `"kind": "generation"`, 1)
+	if _, err := DecodeExecutionResult([]byte(generation), "generation"); err == nil {
+		t.Fatal("a generation result that removes paths was accepted")
+	}
+}

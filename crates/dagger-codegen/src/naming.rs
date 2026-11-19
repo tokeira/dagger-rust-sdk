@@ -180,6 +180,42 @@ pub(crate) fn rust_name_from_candidate(
     }
 }
 
+/// Maps a Dagger module's name to the Rust module that holds its client in a package.
+///
+/// A module is named by its author, so the name may hold characters no identifier
+/// does: `engine-dev` becomes `engine_dev`. The words are found as for any other
+/// generated module name, and a keyword is written with `r#`, or with a suffix where
+/// Rust admits no raw form. The result may still not be an identifier, for a name
+/// with no letter or digit in it; the caller checks.
+#[must_use]
+pub fn rust_module_name(module: &str) -> String {
+    let candidate = module
+        .chars()
+        .map(|character| {
+            if character.is_alphanumeric() {
+                character
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    let mut identifier = tokenize(&candidate).join("_");
+    if identifier
+        .as_bytes()
+        .first()
+        .is_some_and(u8::is_ascii_digit)
+    {
+        identifier.insert(0, '_');
+    }
+    if is_path_keyword(&identifier) {
+        format!("{identifier}_value")
+    } else if is_keyword(&identifier) {
+        format!("r#{identifier}")
+    } else {
+        identifier
+    }
+}
+
 #[derive(Default)]
 pub(crate) struct NameRegistry {
     entries: BTreeMap<NameKey, RustName>,
@@ -401,6 +437,24 @@ mod tests {
             let projected = rust_name(&source, context);
             assert_eq!(projected.identifier, expected);
             assert_eq!(projected.token_form, token);
+        }
+    }
+
+    #[test]
+    fn a_module_name_becomes_a_rust_module_name() {
+        for (module, expected) in [
+            ("greeter", "greeter"),
+            ("engine-dev", "engine_dev"),
+            ("naming-app", "naming_app"),
+            ("HTTPFetcher", "http_fetcher"),
+            ("my.module v2", "my_module_v_2"),
+            ("gen", "r#gen"),
+            ("mod", "r#mod"),
+            ("self", "self_value"),
+            ("2fast", "_2_fast"),
+            ("--", ""),
+        ] {
+            assert_eq!(super::rust_module_name(module), expected, "{module}");
         }
     }
 

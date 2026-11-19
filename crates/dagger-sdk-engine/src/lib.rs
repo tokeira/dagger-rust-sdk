@@ -14,6 +14,7 @@ pub mod descriptor;
 pub mod diagnostic;
 pub mod initialization;
 pub mod model;
+pub mod package_clients;
 pub mod packaging;
 pub mod post_work;
 pub mod project;
@@ -41,6 +42,7 @@ pub use client::workspace::{
 pub use dagger_codegen::client::{CargoPackageName, RustIdentifier};
 pub use diagnostic::{EngineDiagnostic, EngineDiagnosticCode};
 pub use model::*;
+pub use package_clients::{execute_package_clients, execute_package_clients_with_post_work};
 pub use packaging::{
     DESCRIPTOR_PATH, PACKAGED_ASSET_MANIFEST_PATH, PackageIdentity, SecurityAuditGraph,
     SecuritySubject, SecuritySubjectKind, build_packaged_content, derive_shipped_audit_graph,

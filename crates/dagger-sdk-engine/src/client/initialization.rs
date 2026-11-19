@@ -103,6 +103,7 @@ pub fn execute_client_initialization(
         kind: ExecutionResultKind::ClientInitialization,
         output_root: request.client_root.clone(),
         touched_paths,
+        removed_paths: BTreeSet::new(),
         operation_manifest: None,
         vcs_generated: BTreeSet::new(),
         vcs_ignored: BTreeSet::new(),

@@ -6,7 +6,9 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -302,6 +304,206 @@ func TestModuleSourcePinPolicyAcceptsImmutableDirectorySnapshots(t *testing.T) {
 	}
 	if _, err := moduleSourceRequiresPin(dagger.ModuleSourceKind("UNKNOWN")); err == nil {
 		t.Fatal("unknown module source kind unexpectedly accepted")
+	}
+}
+
+// The request for a package's module clients is data alone, and exactly the
+// document the Rust request model decodes: the same file is a fixture of the Rust
+// operation's tests, which decode it and encode it back byte for byte.
+func TestPackageClientsRequestIsTheDocumentRustDecodes(t *testing.T) {
+	descriptor := metadata.EngineSource{
+		FormatVersion:    1,
+		Repository:       "https://github.com/dagger/dagger",
+		DaggerRevision:   "400b82d6f3c09ef096d2f59b3e920267b5969bf4",
+		EngineVersion:    "1.0.0-beta.27",
+		RustSDKVersion:   "0.8.0",
+		RustToolchain:    "1.99.1",
+		CoreSchemaDigest: "sha256:9511bc82fb704520cdc632da73463fc7396b1bb081e0446b61665c30764a5e7c",
+		SDKDependency: metadata.PublishedSDKDependency{
+			Source:       "registry",
+			Registry:     "crates-io",
+			Package:      "tokeira-dagger-sdk",
+			ExactVersion: "0.8.0",
+		},
+	}
+	clientRoot, err := rebasePath("services/app")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := packageClientsRequestDocument(descriptor, clientRoot, []packageClient{
+		{
+			Name:         "greeter",
+			Address:      "/.dagger/modules/greeter",
+			SchemaPath:   "0.json",
+			SchemaDigest: "sha256:" + strings.Repeat("1", 64),
+		},
+		{
+			Name:         "naming-app",
+			Address:      "github.com/example/modules/naming-app@v1.2.0",
+			Pin:          "1e6e0d5c7ccfe1c712c692c229fe2c0b35d55a4b",
+			SchemaPath:   "1.json",
+			SchemaDigest: "sha256:" + strings.Repeat("2", 64),
+		},
+	})
+	encoded, err := metadata.CanonicalJSON(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected, err := os.ReadFile("../crates/dagger-sdk-engine/tests/fixtures/package-clients-request.json")
+	if err != nil {
+		t.Fatalf("read the shared request fixture: %v", err)
+	}
+	if string(encoded) != string(expected) {
+		t.Fatalf("request document differs from the one Rust decodes:\n%s", encoded)
+	}
+
+	// With no client the document still lists none, so Rust removes what remains.
+	empty := packageClientsRequestDocument(descriptor, clientRoot, nil)
+	if clients, ok := empty["request"].(map[string]any)["clients"].([]any); !ok || len(clients) != 0 {
+		t.Fatalf("an empty client set is not an empty list: %#v", empty)
+	}
+}
+
+// A generated client serves its module from the address and pin Dagger's Go SDK
+// gives its own: a git module's reference and commit, a local module's path from
+// the workspace root with no pin. No other kind of source can be a client.
+func TestClientAddressFollowsTheSourceKind(t *testing.T) {
+	commit := "1e6e0d5c7ccfe1c712c692c229fe2c0b35d55a4b"
+	for _, test := range []struct {
+		name      string
+		kind      dagger.ModuleSourceKind
+		reference string
+		pin       string
+		subpath   string
+		address   string
+		wantPin   string
+		refused   bool
+	}{
+		{name: "git", kind: dagger.ModuleSourceKindGit, reference: "github.com/example/modules/greeter@v1.2.0", pin: commit, subpath: "greeter", address: "github.com/example/modules/greeter@v1.2.0", wantPin: commit},
+		{name: "local", kind: dagger.ModuleSourceKindLocal, reference: "ignored", pin: commit, subpath: ".dagger/modules/greeter", address: "/.dagger/modules/greeter"},
+		{name: "local at the root", kind: dagger.ModuleSourceKindLocal, subpath: ".", address: "/."},
+		{name: "local, already rooted", kind: dagger.ModuleSourceKindLocal, subpath: "/modules/greeter", address: "/modules/greeter"},
+		{name: "git without a pin", kind: dagger.ModuleSourceKindGit, reference: "github.com/example/modules/greeter", refused: true},
+		{name: "git pinned to a branch", kind: dagger.ModuleSourceKindGit, reference: "github.com/example/modules/greeter", pin: "main", refused: true},
+		{name: "git without a reference", kind: dagger.ModuleSourceKindGit, pin: commit, refused: true},
+		{name: "directory", kind: dagger.ModuleSourceKindDir, subpath: "greeter", refused: true},
+		{name: "unknown", kind: dagger.ModuleSourceKind("UNKNOWN"), refused: true},
+	} {
+		address, pin, err := clientAddress(test.kind, test.reference, test.pin, test.subpath)
+		if test.refused {
+			if err == nil {
+				t.Errorf("%s: accepted as %q, %q", test.name, address, pin)
+			}
+			continue
+		}
+		if err != nil || address != test.address || pin != test.wantPin {
+			t.Errorf("%s: clientAddress = %q, %q, %v; want %q, %q", test.name, address, pin, err, test.address, test.wantPin)
+		}
+	}
+}
+
+// The operation reads the package's manifest, the manifests above it, and its
+// clients directory, and nothing else of the workspace.
+func TestPackageClientInputsAreTheManifestsAndTheClientsDirectory(t *testing.T) {
+	for scope, want := range map[string][]string{
+		".":            {"Cargo.toml", "src/dagger_clients/**"},
+		"app":          {"app/Cargo.toml", "Cargo.toml", "app/src/dagger_clients/**"},
+		"services/app": {"services/app/Cargo.toml", "services/Cargo.toml", "Cargo.toml", "services/app/src/dagger_clients/**"},
+	} {
+		if got := packageClientInputs(scope); !reflect.DeepEqual(got, want) {
+			t.Errorf("packageClientInputs(%q) = %q; want %q", scope, got, want)
+		}
+	}
+}
+
+// What the operation reports is applied to the workspace only where generation
+// owns: the package's manifest and its clients directory, and removal in the
+// clients directory alone. Workspace configuration and authored source are out of
+// reach whatever a result says.
+func TestPackageClientChangesAreConfinedToWhatGenerationOwns(t *testing.T) {
+	for _, test := range []struct {
+		changed string
+		removed bool
+		want    string
+	}{
+		{changed: "workspace/app/Cargo.toml", want: "/app/Cargo.toml"},
+		{changed: "workspace/app/src/dagger_clients/mod.rs", want: "/app/src/dagger_clients/mod.rs"},
+		{changed: "workspace/app/src/dagger_clients/greeter/greeter.rs", removed: true, want: "/app/src/dagger_clients/greeter/greeter.rs"},
+		{changed: "workspace/app/Cargo.toml", removed: true},
+		{changed: "workspace/app/Cargo.lock"},
+		{changed: "workspace/app/src/main.rs"},
+		{changed: "workspace/app/src/dagger_clients"},
+		{changed: "workspace/app/dagger.toml"},
+		{changed: "workspace/dagger.toml"},
+		{changed: "workspace/Cargo.toml"},
+		{changed: "workspace/other/src/dagger_clients/mod.rs"},
+		{changed: "workspace/application/Cargo.toml"},
+	} {
+		got, err := packageClientChange("workspace/app", test.changed, test.removed)
+		if test.want == "" {
+			if err == nil {
+				t.Errorf("change to %q (removed %t) accepted as %q", test.changed, test.removed, got)
+			}
+			continue
+		}
+		if err != nil || got != test.want {
+			t.Errorf("packageClientChange(%q, %t) = %q, %v; want %q", test.changed, test.removed, got, err, test.want)
+		}
+	}
+	if got, err := packageClientChange("workspace", "workspace/src/dagger_clients/mod.rs", false); err != nil || got != "/src/dagger_clients/mod.rs" {
+		t.Errorf("a package at the workspace root: %q, %v", got, err)
+	}
+}
+
+// A client's schema is read through clientSchemaIntrospectionJson(clientVersion:),
+// which describes Core for the client and leaves the module named by the engine
+// version it declares. withEngineVersion makes the module declare another version
+// instead, which renames its declarations by that version's rules: a client would
+// then say NamingAppHttpFetcher where the engine serves NamingAppHTTPFetcher. So no
+// runtime source calls it; only the generated bindings define it.
+func TestNoRuntimeSourceMakesAModuleDeclareAnotherEngineVersion(t *testing.T) {
+	checked := 0
+	err := filepath.WalkDir(".", func(file string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			if filepath.ToSlash(file) == "internal/dagger" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(file, ".go") || strings.HasSuffix(file, "_test.go") || strings.HasSuffix(file, ".gen.go") {
+			return nil
+		}
+		source, err := parser.ParseFile(token.NewFileSet(), file, nil, parser.AllErrors)
+		if err != nil {
+			return err
+		}
+		checked++
+		if selectorCount(source, "WithEngineVersion") != 0 {
+			t.Errorf("%s calls WithEngineVersion; read a client through ClientSchemaIntrospectionJSON's ClientVersion instead", file)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk runtime sources: %v", err)
+	}
+	if checked < 3 {
+		t.Fatalf("only %d runtime sources were checked", checked)
+	}
+	adapter, err := parser.ParseFile(token.NewFileSet(), "main.go", nil, parser.AllErrors)
+	if err != nil {
+		t.Fatalf("parse adapter source: %v", err)
+	}
+	clients := findFunction(t, adapter, "generatedPackageClients")
+	if selectorCount(clients, "ClientSchemaIntrospectionJSON") != 1 || identifierCount(clients, "ClientVersion") != 1 {
+		t.Fatal("a client's schema is not read through clientSchemaIntrospectionJson with a client version")
+	}
+	for _, other := range []string{"IntrospectionSchemaJSON", "AsModule"} {
+		if selectorCount(clients, other) != 0 {
+			t.Fatalf("a client's schema is also read through %s", other)
+		}
 	}
 }
 

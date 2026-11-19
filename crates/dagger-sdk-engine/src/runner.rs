@@ -27,10 +27,10 @@ use crate::root::validate_path_sets;
 use crate::{
     AmendmentRecord, ArtifactKind, ArtifactOwnership, ArtifactRecord, CandidateArtifact,
     ClientManifestRecord, ClientNamespaceRecord, EngineRelease, EngineSourceDescriptor,
-    ExactVersion, ExecutionResult, ExecutionResultKind, FormatVersion, GenerationMode,
-    GeneratorIdentity, ModuleConfigFormat, OperationManifest, OperationRequest, OperationRoot,
-    PostWorkPlan, PostWorkRecord, PublishedSdkDependency, RelativeOperationPath, Sha256Digest,
-    StableCoordinate,
+    ExactRustToolchain, ExactVersion, ExecutionResult, ExecutionResultKind, FormatVersion,
+    GenerationMode, GeneratorIdentity, ModuleConfigFormat, OperationManifest, OperationRequest,
+    OperationRoot, PostWorkPlan, PostWorkRecord, PublishedSdkDependency, RelativeOperationPath,
+    Sha256Digest, StableCoordinate, TargetIdentity,
 };
 
 const TARGET_DESCRIPTOR: &[u8] = include_bytes!("../../../codegen/target.json");
@@ -92,14 +92,7 @@ pub async fn execute_operation_with_post_work<P: OperationPostWork>(
     post_work: &P,
 ) -> Result<ExecutionResult, EngineDiagnostic> {
     validate_request(request, descriptor)?;
-    let target = CodegenTarget::decode_exact(TARGET_DESCRIPTOR).map_err(|_| {
-        diagnostic(
-            EngineDiagnosticCode::OperationInputInvalid,
-            "request.target",
-            "private compiler target descriptor is invalid",
-        )
-    })?;
-    validate_compiler_target(request, &target)?;
+    let target = compiler_target(&request.target)?;
     validate_schema_identity(&request.visible_schema, schema)?;
 
     let client_snapshot = if request.operation == compiler::OperationKind::GenerateClient {
@@ -218,42 +211,16 @@ pub async fn execute_operation_with_post_work<P: OperationPostWork>(
             .iter()
             .map(engine_path)
             .collect::<Result<BTreeSet<_>, _>>()?;
-        let plan = PostWorkPlan::FormatRust {
-            toolchain: request.target.rust_toolchain.clone(),
-            files: files.clone(),
-        };
-        let environment = current_allowlisted_environment();
-        let outcome = post_work
-            .execute(&staging_root, &plan, &environment, cancel)
-            .await?;
-        if !outcome.success {
-            let coordinate =
-                first_failing_format_path(post_work, &staging_root, &plan, &environment, cancel)
-                    .await?
-                    .unwrap_or_else(|| "post-work.rustfmt".to_owned());
-            return Err(diagnostic(
-                EngineDiagnosticCode::FormatFailed,
-                &coordinate,
-                "pinned rustfmt rejected generated Rust source",
-            ));
-        }
-        let first_digest = digest_path_set(&staging_root, &files)?;
-        let convergence = post_work
-            .execute(&staging_root, &plan, &environment, cancel)
-            .await?;
-        if !convergence.success {
-            return Err(diagnostic(
-                EngineDiagnosticCode::FormatFailed,
-                "post-work.rustfmt",
-                "pinned rustfmt rejected its convergence pass",
-            ));
-        }
-        let second_digest = digest_path_set(&staging_root, &files)?;
-        require_convergence(&[first_digest, second_digest.clone()])?;
-        post_work_records.push(PostWorkRecord {
-            plan,
-            result_digest: second_digest,
-        });
+        post_work_records.push(
+            format_rust(
+                post_work,
+                &staging_root,
+                &request.target.rust_toolchain,
+                files,
+                cancel,
+            )
+            .await?,
+        );
     }
 
     let artifacts = projected
@@ -446,6 +413,7 @@ pub async fn execute_operation_with_post_work<P: OperationPostWork>(
             .map(|change| change.path.clone())
             .chain(published.manifest_changed.then(|| manifest_path.clone()))
             .collect(),
+        removed_paths: Default::default(),
         operation_manifest: Some(manifest_path),
         vcs_generated,
         vcs_ignored,
@@ -774,11 +742,15 @@ fn compiler_diagnostic(diagnostics: CompilerDiagnosticSet) -> EngineDiagnostic {
     )
 }
 
-fn validate_compiler_target(
-    request: &OperationRequest,
-    compiler_target: &CodegenTarget,
-) -> Result<(), EngineDiagnostic> {
-    let target = &request.target;
+/// Returns the checked compiler target, which a request must name exactly.
+pub(crate) fn compiler_target(target: &TargetIdentity) -> Result<CodegenTarget, EngineDiagnostic> {
+    let compiler_target = CodegenTarget::decode_exact(TARGET_DESCRIPTOR).map_err(|_| {
+        diagnostic(
+            EngineDiagnosticCode::OperationInputInvalid,
+            "request.target",
+            "private compiler target descriptor is invalid",
+        )
+    })?;
     if target.repository.as_str() != format!("https://{}", compiler_target.dagger_repository())
         || target.dagger_revision.as_str() != compiler_target.dagger_revision().as_str()
         || target.engine_version.as_str() != compiler_target.engine_version().to_string()
@@ -792,7 +764,54 @@ fn validate_compiler_target(
             "operation target differs from the checked private compiler target",
         ));
     }
-    Ok(())
+    Ok(compiler_target)
+}
+
+/// Formats staged generated Rust with the pinned formatter, twice, and requires the
+/// second pass to change nothing.
+pub(crate) async fn format_rust<P: OperationPostWork>(
+    post_work: &P,
+    staging_root: &OperationRoot,
+    toolchain: &ExactRustToolchain,
+    files: BTreeSet<RelativeOperationPath>,
+    cancel: &Cancellation,
+) -> Result<PostWorkRecord, EngineDiagnostic> {
+    let plan = PostWorkPlan::FormatRust {
+        toolchain: toolchain.clone(),
+        files: files.clone(),
+    };
+    let environment = current_allowlisted_environment();
+    let outcome = post_work
+        .execute(staging_root, &plan, &environment, cancel)
+        .await?;
+    if !outcome.success {
+        let coordinate =
+            first_failing_format_path(post_work, staging_root, &plan, &environment, cancel)
+                .await?
+                .unwrap_or_else(|| "post-work.rustfmt".to_owned());
+        return Err(diagnostic(
+            EngineDiagnosticCode::FormatFailed,
+            &coordinate,
+            "pinned rustfmt rejected generated Rust source",
+        ));
+    }
+    let first_digest = digest_path_set(staging_root, &files)?;
+    let convergence = post_work
+        .execute(staging_root, &plan, &environment, cancel)
+        .await?;
+    if !convergence.success {
+        return Err(diagnostic(
+            EngineDiagnosticCode::FormatFailed,
+            "post-work.rustfmt",
+            "pinned rustfmt rejected its convergence pass",
+        ));
+    }
+    let second_digest = digest_path_set(staging_root, &files)?;
+    require_convergence(&[first_digest, second_digest.clone()])?;
+    Ok(PostWorkRecord {
+        plan,
+        result_digest: second_digest,
+    })
 }
 
 /// Validates descriptor/request agreement and operation-specific input shape.
@@ -1021,7 +1040,7 @@ fn digest_path_set(
         .map_err(|_| generation_failed())
 }
 
-fn digest(bytes: &[u8]) -> Sha256Digest {
+pub(crate) fn digest(bytes: &[u8]) -> Sha256Digest {
     format!("sha256:{:x}", Sha256::digest(bytes))
         .parse()
         .expect("SHA-256 formatting must satisfy the digest scalar")

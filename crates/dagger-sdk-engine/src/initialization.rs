@@ -308,6 +308,7 @@ pub async fn execute_initialization(
         kind: ExecutionResultKind::Initialization,
         output_root: module_root.clone(),
         touched_paths: BTreeSet::new(),
+        removed_paths: Default::default(),
         operation_manifest: None,
         vcs_generated: BTreeSet::new(),
         vcs_ignored: BTreeSet::new(),

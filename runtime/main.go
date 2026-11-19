@@ -21,6 +21,7 @@ const (
 	runtimePolicyPath       = "dist/runtime-policy.json"
 	operationRequestPath    = "/var/lib/dagger/rust/request.json"
 	operationSchemaPath     = "/var/lib/dagger/rust/schema.json"
+	operationSchemasPath    = "/var/lib/dagger/rust/schemas"
 	operationProjectPath    = "/var/lib/dagger/rust/project"
 	operationResultPath     = "/var/lib/dagger/rust/result.json"
 	runtimePolicyMountPath  = "/usr/local/share/dagger/rust/runtime-policy.json"
@@ -30,6 +31,9 @@ const (
 	operationDescriptorPath = "/usr/local/share/dagger/rust/engine-source.json"
 	operationToolPath       = "/usr/local/bin/dagger-rust-engine"
 	operationWorkspaceRoot  = "workspace"
+	// packageClientsPath is where a Cargo package's module clients are generated,
+	// beneath the package.
+	packageClientsPath = "src/dagger_clients"
 )
 
 // RustSDK is immutable packaged state. Operation methods build fresh Dagger object
@@ -76,10 +80,15 @@ func (sdk *RustSDK) FindClientRoot(ctx context.Context, ws *dagger.Workspace) (*
 	return &root, nil
 }
 
-// GenerateScope reconciles the Rust SDK state of one workspace scope. A module
-// scope is scaffolded and given its module configuration on first use, then its
-// generated code is refreshed through the engine's module code generation, which
-// calls back into Codegen with the module's visible schema.
+// GenerateScope reconciles the Rust SDK state of one workspace scope.
+//
+// A scope that is not a module is a Cargo package with module clients: the engine
+// schedules it only to generate the clients recorded for it, and passes the scope
+// that FindClientRoot returned. Each client is generated into the package.
+//
+// A module scope is scaffolded and given its module configuration on first use,
+// then its generated code is refreshed through the engine's module code
+// generation, which calls back into Codegen with the module's visible schema.
 func (sdk *RustSDK) GenerateScope(
 	ctx context.Context,
 	ws *dagger.Workspace,
@@ -94,19 +103,16 @@ func (sdk *RustSDK) GenerateScope(
 	if !isConfinedWorkspacePath(scope) {
 		return nil, fmt.Errorf("SDK scope is not confined to the workspace")
 	}
-	// The engine schedules a scope without a module only to generate the clients
-	// recorded for it, and passes a module scope the clients recorded for it as well:
-	// those that adding a client to the scope wrote to the workspace configuration
-	// (withSDKModuleClient in core/schema/workspace_sdk_module.go). They are not the
-	// module's dependencies, which the engine serves in the module's schema and
-	// generation binds. A client has no Rust generation contract under the SDK-module
-	// interface in either kind of scope, so both are refused before any workspace
-	// edit.
 	if !isModule {
-		return nil, fmt.Errorf("the Rust SDK does not generate module clients; remove the clients recorded for scope %q", scope)
+		return sdk.generatedPackageClients(ctx, ws, scope, clients)
 	}
+	// The engine passes a module scope the clients recorded for it: those that
+	// adding a client to the scope wrote to the workspace configuration
+	// (withSDKModuleClient in core/schema/workspace_sdk_module.go). They are not yet
+	// the module's dependencies, which the engine serves in the module's schema and
+	// generation binds, so they are refused before any workspace edit.
 	if len(clients) > 0 {
-		return nil, fmt.Errorf("the Rust SDK does not generate module clients; remove the clients recorded for module scope %q", scope)
+		return nil, fmt.Errorf("the Rust SDK does not generate module clients in a module; remove the clients recorded for module scope %q", scope)
 	}
 
 	configured := ws
@@ -135,6 +141,220 @@ func (sdk *RustSDK) GenerateScope(
 		return nil, err
 	}
 	return configured.WithDirectory(".", generated), nil
+}
+
+// packageClient is one module a Cargo package has a client for, as the Rust
+// operation is told of it.
+type packageClient struct {
+	// Name is the module's name as its author wrote it.
+	Name string
+	// Address is where the engine serves the module from.
+	Address string
+	// Pin is the commit a git address is pinned to, empty for a local module.
+	Pin string
+	// SchemaPath names the client's schema among those mounted for the operation.
+	SchemaPath string
+	// SchemaDigest is the digest of the schema's exact bytes.
+	SchemaDigest string
+}
+
+// generatedPackageClients generates the scope's module clients into its Cargo
+// package and returns the workspace with what the Rust operation wrote and removed.
+//
+// A client's schema is read through clientSchemaIntrospectionJson alone, with the
+// SDK's target release as the client's version: Core is then described as the
+// generated bindings' SDK types expect, and the module keeps the names of the
+// engine version it declares. Making the module declare another version instead
+// would rename its declarations by that version's rules.
+func (sdk *RustSDK) generatedPackageClients(
+	ctx context.Context,
+	ws *dagger.Workspace,
+	scope string,
+	clients []*dagger.ModuleSource,
+) (*dagger.Workspace, error) {
+	runtime, err := installedRuntimeSource(ctx, ws)
+	if err != nil {
+		return nil, err
+	}
+	sdk, err = sdk.resolved(ctx, func(context.Context) (string, error) { return runtime, nil })
+	if err != nil {
+		return nil, err
+	}
+	descriptor, err := sdk.descriptorMetadata(ctx)
+	if err != nil {
+		return nil, err
+	}
+	clientRoot, err := rebasePath(scope)
+	if err != nil {
+		return nil, fmt.Errorf("client root: %w", err)
+	}
+	schemas := dag.Directory()
+	documents := make([]packageClient, 0, len(clients))
+	for index, client := range clients {
+		document, err := packageClientIdentity(ctx, ws, client)
+		if err != nil {
+			return nil, err
+		}
+		schema := client.ClientSchemaIntrospectionJSON(dagger.ModuleSourceClientSchemaIntrospectionJSONOpts{
+			ClientVersion: "v" + descriptor.EngineVersion,
+		})
+		contents, err := schema.Contents(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("read the client schema of module %q: %w", document.Name, err)
+		}
+		document.SchemaPath = fmt.Sprintf("%d.json", index)
+		document.SchemaDigest = metadata.DigestBytes([]byte(contents))
+		schemas = schemas.WithFile(document.SchemaPath, schema)
+		documents = append(documents, document)
+	}
+	request := packageClientsRequestDocument(descriptor, clientRoot, documents)
+	// Workspace.directory reads ignored files unless asked to filter them, so the
+	// operation sees every file already in the clients directory, tracked or not,
+	// and its ownership checks cover them all.
+	project := ws.Directory("/", dagger.WorkspaceDirectoryOpts{Include: packageClientInputs(scope)})
+	execution, err := sdk.executeOperation(ctx, request, nil, schemas, project, "package-clients")
+	if err != nil {
+		return nil, err
+	}
+	updated := ws
+	for _, touched := range execution.result.TouchedPaths {
+		target, err := packageClientChange(clientRoot, touched, false)
+		if err != nil {
+			return nil, err
+		}
+		updated = updated.WithFile(target, execution.project.File(touched))
+	}
+	for _, removed := range execution.result.RemovedPaths {
+		target, err := packageClientChange(clientRoot, removed, true)
+		if err != nil {
+			return nil, err
+		}
+		updated = updated.WithoutFile(target)
+	}
+	return updated, nil
+}
+
+// packageClientIdentity reads a client's name, and its address and pin as Go binds them.
+func packageClientIdentity(ctx context.Context, ws *dagger.Workspace, client *dagger.ModuleSource) (packageClient, error) {
+	if client == nil {
+		return packageClient{}, fmt.Errorf("module client not provided")
+	}
+	name, err := client.ModuleOriginalName(ctx)
+	if err != nil {
+		return packageClient{}, fmt.Errorf("read module client name: %w", err)
+	}
+	kind, err := client.Kind(ctx)
+	if err != nil {
+		return packageClient{}, fmt.Errorf("read the source kind of module %q: %w", name, err)
+	}
+	var reference, pin, subpath string
+	switch kind {
+	case dagger.ModuleSourceKindGit:
+		if reference, err = client.AsString(ctx); err != nil {
+			return packageClient{}, fmt.Errorf("read the reference of module %q: %w", name, err)
+		}
+		if kind, pin, subpath, err = boundGitClient(ctx, ws, client, name, reference); err != nil {
+			return packageClient{}, err
+		}
+	case dagger.ModuleSourceKindLocal:
+		if subpath, err = client.SourceRootSubpath(ctx); err != nil {
+			return packageClient{}, fmt.Errorf("read the path of module %q: %w", name, err)
+		}
+	}
+	address, pin, err := clientAddress(kind, reference, pin, subpath)
+	if err != nil {
+		return packageClient{}, fmt.Errorf("module %q: %w", name, err)
+	}
+	return packageClient{Name: name, Address: address, Pin: pin}, nil
+}
+
+// clientAddress returns the address and pin a generated client serves its module
+// from, as Dagger's Go SDK chooses them (GenerateUnifiedClient in
+// cmd/dagger-go-sdk-codegen/generator/gogenerator/generate_unified.go of
+// github.com/dagger/go-sdk at bb23e8d): a git module by its reference and the
+// commit it is pinned to, and a local module by its path from the workspace root.
+func clientAddress(kind dagger.ModuleSourceKind, reference, pin, sourceRootSubpath string) (string, string, error) {
+	switch kind {
+	case dagger.ModuleSourceKindGit:
+		if reference == "" {
+			return "", "", fmt.Errorf("git module client has no reference")
+		}
+		if err := validateOptionalRevision(pin); err != nil || pin == "" {
+			return "", "", fmt.Errorf("git module client is not pinned to a full commit")
+		}
+		return reference, pin, nil
+	case dagger.ModuleSourceKindLocal:
+		return "/" + strings.TrimPrefix(sourceRootSubpath, "/"), "", nil
+	default:
+		return "", "", fmt.Errorf("a module client is a git or a local module, not source kind %q", kind)
+	}
+}
+
+// packageClientInputs lists what the Rust operation reads for a package at scope:
+// its Cargo manifest, the manifests in the directories above it, where a Cargo
+// workspace may state an inherited dependency, and everything already in the
+// package's clients directory.
+func packageClientInputs(scope string) []string {
+	if scope == "." {
+		return []string{"Cargo.toml", packageClientsPath + "/**"}
+	}
+	inputs := []string{}
+	for directory := scope; directory != "."; directory = path.Dir(directory) {
+		inputs = append(inputs, path.Join(directory, "Cargo.toml"))
+	}
+	return append(inputs, "Cargo.toml", path.Join(scope, packageClientsPath)+"/**")
+}
+
+// packageClientChange returns the workspace path of one file the Rust operation
+// wrote or removed, from the workspace root. The operation writes the package's
+// manifest and its clients directory, and removes only within the clients
+// directory; a result that names anything else is refused, so no generated result
+// can reach workspace configuration or authored source.
+func packageClientChange(clientRoot, changed string, removed bool) (string, error) {
+	relative, ok := strings.CutPrefix(changed, clientRoot+"/")
+	inClients := ok && strings.HasPrefix(relative, packageClientsPath+"/")
+	if !inClients && (removed || !ok || relative != "Cargo.toml") {
+		return "", fmt.Errorf("module client generation changed %q, which is outside what it owns", changed)
+	}
+	stripped, err := metadata.StripOperationRoot([]string{changed}, operationWorkspaceRoot)
+	if err != nil {
+		return "", err
+	}
+	return "/" + stripped[0], nil
+}
+
+// packageClientsRequestDocument is data only: Rust owns naming, layout, ownership
+// of generated files and the Cargo manifest edit.
+func packageClientsRequestDocument(
+	descriptor metadata.EngineSource,
+	clientRoot string,
+	clients []packageClient,
+) map[string]any {
+	documents := make([]any, 0, len(clients))
+	for _, client := range clients {
+		document := map[string]any{
+			"name":    client.Name,
+			"address": client.Address,
+			"schema": map[string]any{
+				"path":   client.SchemaPath,
+				"digest": client.SchemaDigest,
+			},
+		}
+		if client.Pin != "" {
+			document["pin"] = client.Pin
+		}
+		documents = append(documents, document)
+	}
+	return map[string]any{
+		"request_kind": "generate-package-clients",
+		"request": map[string]any{
+			"format_version": 1,
+			"target":         targetIdentity(descriptor),
+			"sdk_dependency": descriptor.SDKDependency,
+			"client_root":    clientRoot,
+			"clients":        documents,
+		},
+	}
 }
 
 // initializedModuleScope scaffolds a new Rust module in the scope and writes its
@@ -194,7 +414,7 @@ func (sdk *RustSDK) moduleScaffold(
 			"sdk_dependency": descriptor.SDKDependency,
 		},
 	}
-	execution, err := sdk.executeOperation(ctx, request, nil, ws.Directory("/"), "initialization")
+	execution, err := sdk.executeOperation(ctx, request, nil, nil, ws.Directory("/"), "initialization")
 	if err != nil {
 		return nil, err
 	}
@@ -205,10 +425,10 @@ func (sdk *RustSDK) moduleScaffold(
 	return initialized.Directory(scope), nil
 }
 
-// installedRuntimeSource names the runtime a new module loads: the reference this
-// SDK module was installed from. Modules resolve a local runtime path against
-// their own directory, so only a remote reference keeps its meaning when copied
-// into a module configuration.
+// installedRuntimeSource names the reference this SDK module was installed from:
+// the runtime a new module loads, and the SDK release or commit a Cargo package's
+// clients depend on. A module would resolve a local path against its own
+// directory, and a local path names no release or commit, so it is refused.
 func installedRuntimeSource(ctx context.Context, ws *dagger.Workspace) (string, error) {
 	moduleName, err := dag.CurrentModule().Name(ctx)
 	if err != nil {
@@ -219,7 +439,7 @@ func installedRuntimeSource(ctx context.Context, ws *dagger.Workspace) (string, 
 		return "", fmt.Errorf("read the workspace installation of %q: %w", moduleName, err)
 	}
 	if !isRemoteModuleReference(source) {
-		return "", fmt.Errorf("Rust SDK %q is installed from a local path; install it from a Git reference to initialize modules", moduleName)
+		return "", fmt.Errorf("Rust SDK %q is installed from a local path; install it from a Git reference to initialize modules or generate clients", moduleName)
 	}
 	return source, nil
 }
@@ -425,7 +645,7 @@ func (sdk *RustSDK) Codegen(
 	if err != nil {
 		return nil, err
 	}
-	execution, err := sdk.executeOperation(ctx, request, introspectionJSON, modSource.ContextDirectory(), "generation")
+	execution, err := sdk.executeOperation(ctx, request, introspectionJSON, nil, modSource.ContextDirectory(), "generation")
 	if err != nil {
 		return nil, err
 	}
@@ -478,7 +698,7 @@ func (sdk *RustSDK) GenerateClient(
 	if err != nil {
 		return nil, err
 	}
-	execution, err := sdk.executeOperation(ctx, request, introspectionJSON, modSource.ContextDirectory(), "generation")
+	execution, err := sdk.executeOperation(ctx, request, introspectionJSON, nil, modSource.ContextDirectory(), "generation")
 	if err != nil {
 		return nil, err
 	}
@@ -499,10 +719,14 @@ type operationExecution struct {
 	result  metadata.ExecutionResult
 }
 
+// executeOperation runs one request of the packaged Rust tool over a private copy
+// of project. An operation on one module is given that module's schema; module
+// client generation is given a directory holding one schema for each client.
 func (sdk *RustSDK) executeOperation(
 	ctx context.Context,
 	request any,
 	schema *dagger.File,
+	schemas *dagger.Directory,
 	project *dagger.Directory,
 	expectedKind string,
 ) (operationExecution, error) {
@@ -545,6 +769,10 @@ func (sdk *RustSDK) executeOperation(
 	if schema != nil {
 		container = container.WithFile(operationSchemaPath, schema)
 		args = append(args, "--schema", operationSchemaPath)
+	}
+	if schemas != nil {
+		container = container.WithDirectory(operationSchemasPath, schemas)
+		args = append(args, "--schemas", operationSchemasPath)
 	}
 	executed, err := container.WithExec(args).Sync(ctx)
 	if err != nil {

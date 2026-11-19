@@ -15,6 +15,7 @@ use crate::client::initialization::execute_client_initialization;
 use crate::client::workspace::plan_client_set;
 use crate::diagnostic::{EngineDiagnostic, EngineDiagnosticCode};
 use crate::initialization::execute_initialization;
+use crate::package_clients::execute_package_clients;
 use crate::post_work::Cancellation;
 use crate::runner::execute_operation;
 use crate::runtime::{finalize_runtime, verify_runtime};
@@ -66,6 +67,19 @@ async fn execute(matches: &clap::ArgMatches) -> Result<(), EngineDiagnostic> {
         )
     })?;
     let root = OperationRoot::open(project_path)?;
+    // One schema for an operation on one module; a directory of them for a package's
+    // clients, one for each. Neither is accepted where the other belongs.
+    let package_clients = matches!(request, EngineExecutionRequest::GeneratePackageClients(_));
+    if matches.get_one::<String>("schemas").is_some() != package_clients {
+        return Err(invalid(
+            "schemas",
+            if package_clients {
+                "module client generation requires the directory of client schemas"
+            } else {
+                "only module client generation receives a directory of client schemas"
+            },
+        ));
+    }
     let result = match request {
         EngineExecutionRequest::InitializeModule(request) => {
             if matches.get_one::<String>("schema").is_some() {
@@ -99,6 +113,7 @@ async fn execute(matches: &clap::ArgMatches) -> Result<(), EngineDiagnostic> {
                 kind: ExecutionResultKind::ClientPlan,
                 output_root,
                 touched_paths: Default::default(),
+                removed_paths: Default::default(),
                 operation_manifest: None,
                 vcs_generated: Default::default(),
                 vcs_ignored: Default::default(),
@@ -117,6 +132,23 @@ async fn execute(matches: &clap::ArgMatches) -> Result<(), EngineDiagnostic> {
                 &root,
                 &request,
                 &schema,
+                &descriptor,
+                &Cancellation::default(),
+            )
+            .await?
+        }
+        EngineExecutionRequest::GeneratePackageClients(request) => {
+            if matches.get_one::<String>("schema").is_some() {
+                return Err(invalid(
+                    "schema",
+                    "module client generation receives its schemas as a directory",
+                ));
+            }
+            let schemas = OperationRoot::open(required_path(matches, "schemas")?)?;
+            execute_package_clients(
+                &root,
+                &schemas,
+                &request,
                 &descriptor,
                 &Cancellation::default(),
             )
@@ -202,6 +234,7 @@ pub fn command() -> Command {
                 .about("Execute one typed Rust SDK generation operation")
                 .arg(required("request"))
                 .arg(optional("schema"))
+                .arg(optional("schemas"))
                 .arg(required("descriptor"))
                 .arg(required("project"))
                 .arg(required("result")),

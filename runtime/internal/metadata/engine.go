@@ -56,6 +56,7 @@ type ExecutionResult struct {
 	Kind              string         `json:"kind"`
 	OutputRoot        string         `json:"output_root"`
 	TouchedPaths      []string       `json:"touched_paths,omitempty"`
+	RemovedPaths      []string       `json:"removed_paths,omitempty"`
 	OperationManifest *string        `json:"operation_manifest"`
 	VCSGenerated      []string       `json:"vcs_generated"`
 	VCSIgnored        []string       `json:"vcs_ignored"`
@@ -135,10 +136,16 @@ func DecodeExecutionResult(data []byte, expectedKind string) (ExecutionResult, e
 		return ExecutionResult{}, fmt.Errorf("execution result differs from the requested operation")
 	}
 	paths := append(append(append([]string{}, value.TouchedPaths...), value.VCSGenerated...), value.VCSIgnored...)
+	paths = append(paths, value.RemovedPaths...)
 	for _, candidate := range paths {
 		if !isNormalizedRelativePath(candidate) {
 			return ExecutionResult{}, fmt.Errorf("execution result path %q is not confined", candidate)
 		}
+	}
+	// Only module client generation removes files: its ownership records say which
+	// it may. Every other operation replaces what its manifest owns.
+	if expectedKind != "package-clients" && len(value.RemovedPaths) != 0 {
+		return ExecutionResult{}, fmt.Errorf("execution result removes paths its operation does not own")
 	}
 	if expectedKind == "client-plan" {
 		if value.ClientPlan == nil || value.OperationManifest != nil || len(value.TouchedPaths) != 0 ||
