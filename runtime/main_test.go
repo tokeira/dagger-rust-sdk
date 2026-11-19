@@ -172,7 +172,7 @@ func TestNewModuleManifestQuotesEveryValue(t *testing.T) {
 	want := "name = \"gate\"\n" +
 		"engineVersion = \"v1.0.0-beta.27\"\n\n" +
 		"[runtime]\n" +
-		"  source = \"github.com/acme/sdk/\\\"rust\\\"\\\\runtime@" + strings.Repeat("a", 40) + "\\u0001\"\n"
+		"source = \"github.com/acme/sdk/\\\"rust\\\"\\\\runtime@" + strings.Repeat("a", 40) + "\\u0001\"\n"
 	if got != want {
 		t.Fatalf("moduleManifest rendered\n%s\nwant\n%s", got, want)
 	}
@@ -402,13 +402,17 @@ func TestClientAddressFollowsTheSourceKind(t *testing.T) {
 	}
 }
 
-// The operation reads the package's manifest, the manifests above it, and its
-// clients directory, and nothing else of the workspace.
+// The operation reads the Cargo manifest and dagger.json of the package's directory
+// and of each directory above it, and its clients directory, and nothing else of
+// the workspace.
 func TestPackageClientInputsAreTheManifestsAndTheClientsDirectory(t *testing.T) {
 	for scope, want := range map[string][]string{
-		".":            {"Cargo.toml", "src/dagger_clients/**"},
-		"app":          {"app/Cargo.toml", "Cargo.toml", "app/src/dagger_clients/**"},
-		"services/app": {"services/app/Cargo.toml", "services/Cargo.toml", "Cargo.toml", "services/app/src/dagger_clients/**"},
+		".":   {"Cargo.toml", "dagger.json", "src/dagger_clients/**"},
+		"app": {"app/Cargo.toml", "app/dagger.json", "Cargo.toml", "dagger.json", "app/src/dagger_clients/**"},
+		"services/app": {
+			"services/app/Cargo.toml", "services/app/dagger.json", "services/Cargo.toml", "services/dagger.json",
+			"Cargo.toml", "dagger.json", "services/app/src/dagger_clients/**",
+		},
 	} {
 		if got := packageClientInputs(scope); !reflect.DeepEqual(got, want) {
 			t.Errorf("packageClientInputs(%q) = %q; want %q", scope, got, want)

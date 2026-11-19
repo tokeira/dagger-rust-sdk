@@ -15,6 +15,7 @@ use crate::client::initialization::execute_client_initialization;
 use crate::client::workspace::plan_client_set;
 use crate::diagnostic::{EngineDiagnostic, EngineDiagnosticCode};
 use crate::initialization::execute_initialization;
+use crate::module_dependencies::execute_module_dependencies;
 use crate::package_clients::execute_package_clients;
 use crate::post_work::Cancellation;
 use crate::runner::execute_operation;
@@ -153,6 +154,15 @@ async fn execute(matches: &clap::ArgMatches) -> Result<(), EngineDiagnostic> {
                 &Cancellation::default(),
             )
             .await?
+        }
+        EngineExecutionRequest::WriteModuleDependencies(request) => {
+            if matches.get_one::<String>("schema").is_some() {
+                return Err(invalid(
+                    "schema",
+                    "writing module dependencies must not receive a visible schema",
+                ));
+            }
+            execute_module_dependencies(&root, &request)?
         }
     };
     write_control(

@@ -86,9 +86,10 @@ func (sdk *RustSDK) FindClientRoot(ctx context.Context, ws *dagger.Workspace) (*
 // schedules it only to generate the clients recorded for it, and passes the scope
 // that FindClientRoot returned. Each client is generated into the package.
 //
-// A module scope is scaffolded and given its module configuration on first use,
-// then its generated code is refreshed through the engine's module code
-// generation, which calls back into Codegen with the module's visible schema.
+// A module scope is scaffolded and given its module configuration on first use.
+// Its dependencies are then made exactly the clients recorded for it, and its
+// generated code is refreshed through the engine's module code generation, which
+// calls back into Codegen with the module's visible schema.
 func (sdk *RustSDK) GenerateScope(
 	ctx context.Context,
 	ws *dagger.Workspace,
@@ -103,16 +104,11 @@ func (sdk *RustSDK) GenerateScope(
 	if !isConfinedWorkspacePath(scope) {
 		return nil, fmt.Errorf("SDK scope is not confined to the workspace")
 	}
+	// The engine passes each scope its recorded clients (withSDKModuleClient in
+	// core/schema/workspace_sdk_module.go of dagger/dagger at v1.0.0-beta.27). A Cargo
+	// package that is not a module has them generated; a module has them as dependencies.
 	if !isModule {
 		return sdk.generatedPackageClients(ctx, ws, scope, clients)
-	}
-	// The engine passes a module scope the clients recorded for it: those that
-	// adding a client to the scope wrote to the workspace configuration
-	// (withSDKModuleClient in core/schema/workspace_sdk_module.go). They are not yet
-	// the module's dependencies, which the engine serves in the module's schema and
-	// generation binds, so they are refused before any workspace edit.
-	if len(clients) > 0 {
-		return nil, fmt.Errorf("the Rust SDK does not generate module clients in a module; remove the clients recorded for module scope %q", scope)
 	}
 
 	configured := ws
@@ -121,8 +117,8 @@ func (sdk *RustSDK) GenerateScope(
 		return nil, err
 	}
 	if !hasManifest {
-		// Only scaffolding runs a Rust operation here; regeneration reaches Codegen
-		// through the engine, which resolves the content root in that call.
+		// A new module names the runtime this SDK module was installed from. An
+		// existing one names its own, which is the reference Codegen resolves too.
 		runtime, err := installedRuntimeSource(ctx, ws)
 		if err != nil {
 			return nil, err
@@ -135,6 +131,15 @@ func (sdk *RustSDK) GenerateScope(
 		if err != nil {
 			return nil, err
 		}
+	} else {
+		sdk, err = sdk.resolved(ctx, moduleRuntimeSource(scopeModuleSource(ws, scope)))
+		if err != nil {
+			return nil, err
+		}
+	}
+	configured, err = sdk.moduleScopeDependencies(ctx, configured, scope, clients)
+	if err != nil {
+		return nil, err
 	}
 	generated, err := generatedModuleCode(ctx, configured, scope)
 	if err != nil {
@@ -291,18 +296,18 @@ func clientAddress(kind dagger.ModuleSourceKind, reference, pin, sourceRootSubpa
 }
 
 // packageClientInputs lists what the Rust operation reads for a package at scope:
-// its Cargo manifest, the manifests in the directories above it, where a Cargo
-// workspace may state an inherited dependency, and everything already in the
-// package's clients directory.
+// the Cargo manifest and any dagger.json in its directory and each directory above
+// it, where a Cargo workspace may state an inherited dependency and a dagger.json
+// may make the package a module's source, and everything in its clients directory.
 func packageClientInputs(scope string) []string {
 	if scope == "." {
-		return []string{"Cargo.toml", packageClientsPath + "/**"}
+		return []string{"Cargo.toml", "dagger.json", packageClientsPath + "/**"}
 	}
 	inputs := []string{}
 	for directory := scope; directory != "."; directory = path.Dir(directory) {
-		inputs = append(inputs, path.Join(directory, "Cargo.toml"))
+		inputs = append(inputs, path.Join(directory, "Cargo.toml"), path.Join(directory, "dagger.json"))
 	}
-	return append(inputs, "Cargo.toml", path.Join(scope, packageClientsPath)+"/**")
+	return append(inputs, "Cargo.toml", "dagger.json", path.Join(scope, packageClientsPath)+"/**")
 }
 
 // packageClientChange returns the workspace path of one file the Rust operation
@@ -491,7 +496,8 @@ func isRemoteModuleReference(source string) bool {
 }
 
 // moduleManifest renders the configuration of a new Rust module in the layout
-// the engine wrote when it authored module configuration. The engine version is
+// Dagger's manifest helper writes, without indentation (tomlContents in main.dang
+// of github.com/dagger/sdk-helpers at v1.0.12). The engine version is
 // the SDK's target release rather than the running engine's: a module is served
 // the API view its engineVersion names, and the Rust bindings are compiled
 // against the target's view, so a module created on a later engine still gets
@@ -500,7 +506,7 @@ func moduleManifest(name string, targetRelease string, runtime string) string {
 	return "name = " + tomlString(name) + "\n" +
 		"engineVersion = " + tomlString("v"+targetRelease) + "\n\n" +
 		"[runtime]\n" +
-		"  source = " + tomlString(runtime) + "\n"
+		"source = " + tomlString(runtime) + "\n"
 }
 
 // tomlString encodes a TOML basic string, escaping every character the format

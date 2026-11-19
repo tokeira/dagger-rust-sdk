@@ -320,6 +320,8 @@ pub enum EngineExecutionRequest {
     Generate(OperationRequest),
     /// Generate the typed module clients of one Cargo package that is not a module.
     GeneratePackageClients(PackageClientsRequest),
+    /// Make a module's dependencies exactly the clients recorded for its scope.
+    WriteModuleDependencies(crate::module_dependencies::ModuleDependenciesRequest),
 }
 
 /// Result class emitted by the private operation runner.
@@ -336,6 +338,8 @@ pub enum ExecutionResultKind {
     Generation,
     /// The module clients of one Cargo package, owned by the records beside them.
     PackageClients,
+    /// A module configuration whose dependencies are its scope's clients.
+    ModuleDependencies,
 }
 
 /// Canonical data-only result consumed by the Go engine adapter.

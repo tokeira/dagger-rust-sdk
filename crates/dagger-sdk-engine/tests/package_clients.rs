@@ -823,6 +823,120 @@ async fn a_client_root_that_is_not_a_cargo_package_is_refused() {
     assert!(!package.exists("src"));
 }
 
+// A module still on `dagger.json` reaches generation as a package, and gets no
+// clients: the package's directory holds `dagger.json`, or a `dagger.json` above it
+// names the package as the module's source. The advice names the module's directory
+// from the workspace root, and nothing is written. Without clients there is nothing
+// to refuse.
+#[tokio::test]
+async fn a_module_on_dagger_json_gets_no_clients_with_nothing_written() {
+    let advice = |configured: &str, module: &str, then: &str| {
+        format!(
+            "{configured}, where the Rust SDK does not write dependencies; run `dagger module migrate {module}`, which moves its configuration to dagger-module.toml and records its dependencies as clients, then {then}; a coding agent passes `-y` to apply each, or `--no-apply` to preview the migration"
+        )
+    };
+
+    let package = Package::new(MANIFEST);
+    package.write(
+        "dagger.json",
+        r#"{"name": "app", "sdk": {"source": "rust"}}"#,
+    );
+    let before = package.snapshot();
+    let error = package.generate(&[greeter()]).await.unwrap_err();
+    assert_eq!(error.code, EngineDiagnosticCode::OperationInputInvalid);
+    assert_eq!(
+        error.coordinate.as_deref(),
+        Some("workspace/app/dagger.json")
+    );
+    assert_eq!(
+        error.message,
+        advice(
+            "the module is configured by dagger.json",
+            "/app",
+            "`dagger module client add` again"
+        )
+    );
+    assert_eq!(package.snapshot(), before);
+    let result = package.generate(&[]).await.unwrap();
+    assert!(result.touched_paths.is_empty() && result.removed_paths.is_empty());
+
+    let package = Package::new(MANIFEST);
+    package.write(
+        "../dagger.json",
+        r#"{"name": "ci", "sdk": {"source": "rust"}, "source": "./app/"}"#,
+    );
+    let before = package.snapshot();
+    let error = package.generate(&[greeter()]).await.unwrap_err();
+    assert_eq!(error.coordinate.as_deref(), Some("workspace/dagger.json"));
+    assert_eq!(
+        error.message,
+        advice(
+            "this package is the source of the module configured by /dagger.json",
+            "/",
+            "`dagger module client add` again from the module's directory, the workspace root, not from this package"
+        )
+    );
+    assert_eq!(package.snapshot(), before);
+
+    let package = Package::bare();
+    fs::create_dir_all(package.project().join("workspace/ci/rust")).unwrap();
+    fs::write(
+        package.project().join("workspace/ci/rust/Cargo.toml"),
+        MANIFEST,
+    )
+    .unwrap();
+    fs::write(
+        package.project().join("workspace/ci/dagger.json"),
+        r#"{"name": "ci", "sdk": {"source": "rust"}, "source": "rust"}"#,
+    )
+    .unwrap();
+    let mut nested = request(package.schemas(&[greeter()]));
+    nested.client_root = path("workspace/ci/rust");
+    let before = package.snapshot();
+    let error = package.generate_request(nested).await.unwrap_err();
+    assert_eq!(
+        error.coordinate.as_deref(),
+        Some("workspace/ci/dagger.json")
+    );
+    assert_eq!(
+        error.message,
+        advice(
+            "this package is the source of the module configured by /ci/dagger.json",
+            "/ci",
+            "`dagger module client add` again from the module's directory, /ci, not from this package"
+        )
+    );
+    assert_eq!(package.snapshot(), before);
+}
+
+// A `dagger.json` above the package whose source is another directory is another
+// module's, as Dagger resolves a source: from the file's directory, and never
+// absolute or outside the workspace. The package gets its clients. One that is not
+// JSON cannot say, and is refused.
+#[tokio::test]
+async fn a_dagger_json_above_the_package_with_another_source_is_another_modules() {
+    for source in [".dagger", "app/src", "../app", "/app"] {
+        let package = Package::new(MANIFEST);
+        package.write(
+            "../dagger.json",
+            format!(r#"{{"name": "ci", "sdk": {{"source": "rust"}}, "source": "{source}"}}"#),
+        );
+        package.generate(&[greeter()]).await.unwrap();
+        assert!(
+            package.exists("src/dagger_clients/greeter/mod.rs"),
+            "{source}"
+        );
+    }
+    let package = Package::new(MANIFEST);
+    package.write("../dagger.json", r#"{"name": "ci""#);
+    let before = package.snapshot();
+    let error = package.generate(&[greeter()]).await.unwrap_err();
+    assert_eq!(error.code, EngineDiagnosticCode::OperationInputInvalid);
+    assert_eq!(error.coordinate.as_deref(), Some("workspace/dagger.json"));
+    assert_eq!(error.message, "module configuration is not JSON");
+    assert_eq!(package.snapshot(), before);
+}
+
 // The dependency a package inherits is its workspace's to state. The workspace
 // manifest is found in a directory above the package, and is never written.
 #[tokio::test]

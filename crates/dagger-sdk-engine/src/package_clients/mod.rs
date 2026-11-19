@@ -16,9 +16,10 @@
 //! `ownership` module). A client that is no longer recorded is removed the same
 //! way, and `mod.rs` with the last of them.
 //!
-//! Every check runs before the first write: each schema against its digest, the
-//! names, the manifest, the rendering, and every directory's ownership. A request
-//! that is refused therefore leaves the package as it was.
+//! Every check runs before the first write: that the package is not a module on
+//! `dagger.json`, each schema against its digest, the names, the manifest, the
+//! rendering, and every directory's ownership. A request that is refused therefore
+//! leaves the package as it was.
 //!
 //! This is what Dagger's Go SDK does for a Go module that is not a Dagger module
 //! (`generateStandaloneClients` in go-sdk.dang and `runPruneClients` in
@@ -35,6 +36,7 @@ use dagger_codegen::engine as compiler;
 use dagger_codegen::naming::rust_module_name;
 
 use crate::diagnostic::{EngineDiagnostic, EngineDiagnosticCode};
+use crate::module_dependencies::{LEGACY_MODULE_MANIFEST, legacy_manifest_refusal};
 use crate::post_work::Cancellation;
 use crate::runner::{OperationPostWork, PackagedPostWork, compiler_target, digest, format_rust};
 use crate::{
@@ -82,10 +84,11 @@ pub async fn execute_package_clients(
 /// # Errors
 ///
 /// Returns a diagnostic, with nothing written, when the request differs from the
-/// packaged target, when a schema differs from its digest, when two clients would
-/// take one Rust module name or a name is no Rust identifier, when the package's
-/// manifest cannot take the SDK dependency, when a client cannot be rendered, and
-/// when a file to replace holds its author's changes.
+/// packaged target, when the request has clients and the package is a module still
+/// configured by `dagger.json`, when a schema differs from its digest, when two
+/// clients would take one Rust module name or a name is no Rust identifier, when the
+/// package's manifest cannot take the SDK dependency, when a client cannot be
+/// rendered, and when a file to replace holds its author's changes.
 pub async fn execute_package_clients_with_post_work<P: OperationPostWork>(
     root: &OperationRoot,
     schemas: &OperationRoot,
@@ -96,6 +99,7 @@ pub async fn execute_package_clients_with_post_work<P: OperationPostWork>(
 ) -> Result<ExecutionResult, EngineDiagnostic> {
     validate_target(request, descriptor)?;
     let target = compiler_target(&request.target)?;
+    refuse_legacy_module(root, request)?;
 
     let mut schema_bytes = Vec::with_capacity(request.clients.len());
     for (index, client) in request.clients.iter().enumerate() {
@@ -413,6 +417,101 @@ fn ancestor_manifests(
         }
     }
     Ok(manifests)
+}
+
+// A package that is a module still configured by `dagger.json` gets no clients.
+// `dagger module client add` takes a scope that `dagger.toml` does not record yet
+// for a package, so in such a module it asks for package clients, as it does of Go.
+// A module's clients are its dependencies, which this SDK writes only in
+// `dagger-module.toml`, so the refusal advises the migration. The module is the
+// package's directory when that holds `dagger.json`, or else the nearest directory
+// above, as far as the workspace root, whose `dagger.json` names the package as its
+// source. The migration records that directory as the module's scope, and `client
+// add` run there then reaches the module; run in a package below it, the command
+// still asks for package clients.
+fn refuse_legacy_module(
+    root: &OperationRoot,
+    request: &PackageClientsRequest,
+) -> Result<(), EngineDiagnostic> {
+    if request.clients.is_empty() {
+        return Ok(());
+    }
+    let package = request.client_root.as_str().split('/').collect::<Vec<_>>();
+    for depth in (1..=package.len()).rev() {
+        let directory = &package[..depth];
+        let legacy_path = RelativeOperationPath::parse(&format!(
+            "{}/{LEGACY_MODULE_MANIFEST}",
+            directory.join("/")
+        ))
+        .map_err(|_| generation_failed())?;
+        if !root.exists(&legacy_path) {
+            continue;
+        }
+        // The operation root's first directory is the workspace root.
+        let module = format!("/{}", directory[1..].join("/"));
+        if depth == package.len() {
+            return Err(legacy_manifest_refusal(
+                &legacy_path,
+                &format!("the module is configured by {LEGACY_MODULE_MANIFEST}"),
+                &module,
+                "`dagger module client add` again",
+            ));
+        }
+        let legacy: serde_json::Value =
+            serde_json::from_slice(&root.read(&legacy_path)?).map_err(|_| {
+                diagnostic(
+                    EngineDiagnosticCode::OperationInputInvalid,
+                    legacy_path.as_str(),
+                    "module configuration is not JSON",
+                )
+            })?;
+        let source = legacy
+            .get("source")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or(".");
+        if !source_is(directory, source, &package) {
+            continue;
+        }
+        let from = if depth == 1 {
+            "the workspace root"
+        } else {
+            module.as_str()
+        };
+        return Err(legacy_manifest_refusal(
+            &legacy_path,
+            &format!(
+                "this package is the source of the module configured by {}/{LEGACY_MODULE_MANIFEST}",
+                module.trim_end_matches('/')
+            ),
+            &module,
+            &format!(
+                "`dagger module client add` again from the module's directory, {from}, not from \
+                 this package"
+            ),
+        ));
+    }
+    Ok(())
+}
+
+// Whether a module's `source`, a path from the directory that holds its
+// `dagger.json`, names the package. The path is resolved lexically, and one that is
+// absolute or leaves the workspace names no package.
+fn source_is(directory: &[&str], source: &str, package: &[&str]) -> bool {
+    if source.starts_with('/') {
+        return false;
+    }
+    let mut resolved = directory.to_vec();
+    for component in source.split('/') {
+        match component {
+            "" | "." => {}
+            ".." if resolved.len() > 1 => {
+                resolved.pop();
+            }
+            ".." => return false,
+            name => resolved.push(name),
+        }
+    }
+    resolved == package
 }
 
 fn merge(changes: &mut OwnedChanges, more: OwnedChanges) {
