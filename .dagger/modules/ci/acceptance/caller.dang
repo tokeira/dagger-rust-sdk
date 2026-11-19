@@ -1,0 +1,8 @@
+type Caller {
+  """
+  Greets a name through the gate module, which asks its greeter.
+  """
+  pub relay(name: String!): String! {
+    gate.greet(name)
+  }
+}

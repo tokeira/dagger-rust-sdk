@@ -1,5 +1,5 @@
 {
-  "descriptor_digest": "sha256:60e903786d0612b4fd296fa4a1090ccc9e8b48b56a27cb21af8530dfe1139f02",
+  "descriptor_digest": "sha256:1d66f6754ad2958e3b25db3cfc4606c95ac5e43794918c4908e2f384e2e79e9a",
   "documentation": "Continuous integration for the Rust SDK for Dagger, built with the SDK itself.\n\nEvery function runs inside the Dagger engine, so the same calls work from a laptop, a CI\nrunner, or a managed engine. Orchestration, secrets, and engine provisioning stay outside\nthe module, in `.dagger/engine.sh` and the pipelines that call it. The one engine the\nmodule starts itself is the later-engine step's, a service of the engine that runs it.\nPublishing stays outside too: `package` prepares a release's archives, and `published`\nproves the release afterwards.",
   "format_version": 1,
   "types": {
@@ -21,7 +21,7 @@
               "optional": false,
               "source": {
                 "column": 9,
-                "line": 115,
+                "line": 116,
                 "path": "src/lib.rs"
               },
               "ty": {
@@ -37,7 +37,7 @@
           },
           "constructor": false,
           "deprecation": null,
-          "documentation": "Runs the stock-engine acceptance of docs/engine-integration.md for a pushed commit:\nthe runtime installed from it, a module that depends on another module initialized,\nregenerated, loaded and called, collections, plain clients, a refused client scope,\nan existing crate adopted, the refusals of broken modules and unsafe initializations,\na legacy module, the README module's test and build, a plain client's query through a\nlost keepalive reply, and the later-engine step. It needs an engine of the release the\ncommit targets.",
+          "documentation": "Runs the stock-engine acceptance of docs/engine-integration.md for a pushed commit:\nthe runtime installed from it, a module that depends on another module initialized,\nregenerated, loaded and called, its calls to that module, a module that depends on\nit, collections, plain clients, a refused client scope, an existing crate adopted,\nthe refusals of broken modules and unsafe initializations,\na legacy module, the README module's test and build, a plain client's query through a\nlost keepalive reply, and the later-engine step. It needs an engine of the release the\ncommit targets.",
           "return_type": {
             "kind": "named",
             "name": "String",
@@ -46,7 +46,7 @@
           "role": "ordinary",
           "source": {
             "column": 18,
-            "line": 111,
+            "line": 112,
             "path": "src/lib.rs"
           },
           "wire_name": "acceptance"
@@ -84,7 +84,7 @@
               "optional": false,
               "source": {
                 "column": 9,
-                "line": 175,
+                "line": 180,
                 "path": "src/lib.rs"
               },
               "ty": {
@@ -109,7 +109,7 @@
           "role": "ordinary",
           "source": {
             "column": 18,
-            "line": 171,
+            "line": 176,
             "path": "src/lib.rs"
           },
           "wire_name": "laterEngine"
@@ -126,7 +126,7 @@
               "optional": false,
               "source": {
                 "column": 9,
-                "line": 201,
+                "line": 206,
                 "path": "src/lib.rs"
               },
               "ty": {
@@ -151,7 +151,7 @@
           "role": "ordinary",
           "source": {
             "column": 18,
-            "line": 195,
+            "line": 200,
             "path": "src/lib.rs"
           },
           "wire_name": "package"
@@ -168,7 +168,7 @@
               "optional": false,
               "source": {
                 "column": 89,
-                "line": 220,
+                "line": 225,
                 "path": "src/lib.rs"
               },
               "ty": {
@@ -193,7 +193,7 @@
           "role": "ordinary",
           "source": {
             "column": 18,
-            "line": 217,
+            "line": 222,
             "path": "src/lib.rs"
           },
           "wire_name": "published"

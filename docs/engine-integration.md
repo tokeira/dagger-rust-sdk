@@ -168,22 +168,34 @@ needs a Git workspace:
 3. Author exports that take and return Core types: objects, enums, and scalars, with
    defaults, an agent function, and a collection. Give the module a dependency on a Dang
    module in the workspace, declared under `[[dependencies]]` in its
-   `dagger-module.toml`. One of the dependency's functions takes a directory that the
-   engine fills in when a call omits it, so the engine serves the function's argument
-   with `@defaultPath` and `@ignorePatterns`. Loading the module before regeneration
-   fails with a diagnostic that names `dagger generate`.
-4. `dagger generate` regenerates, and the generated files bind the dependency's object
-   type. A second run changes nothing, and the module's `.gitattributes` stays scoped to
-   the module.
+   `dagger-module.toml`. The dependency has a constructor with an optional argument, a
+   function with a required and an optional argument, an object of its own with fields,
+   an enum, an interface that the object implements and a function returns, and a
+   function that takes and returns a Core object. Another of its functions takes a
+   directory that the engine fills in when a call omits it, so the engine serves the
+   function's argument with `@defaultPath` and `@ignorePatterns`. Author exports that
+   call each of them, and an object that keeps the dependency's object and enum in
+   private state. Loading the module before regeneration fails with a diagnostic that
+   names `dagger generate`.
+4. `dagger generate` regenerates, and the generated files bind the dependency's types.
+   A second run changes nothing, and the module's `.gitattributes` stays scoped to the
+   module.
 5. `dagger call gate <function>` loads the module and calls each export, with and
    without the arguments that have defaults. The engine describes the module with its
    crate documentation. `dagger agent --list` lists the agent function, and composing it
    gives a conversation the module's functions as tools, with no model involved. The
-   module's collection answers the engine's `keys`, `list`, `get` and `subset`; values
-   derived from it, and one passed back by its ID, keep their base, so the engine computes
-   their delta against it; and the collection's item flag selects which items
-   `dagger check` runs a check for. A second module, whose main object is a collection
-   keyed by an enum, answers the same operations.
+   exports that call the dependency answer with what it returns: its greeting from a
+   constructor with and without the optional argument, the fields of its object, the
+   name its interface gives that object, its enum's members, a Core directory it
+   changed, and the workspace's root as the engine fills it in, without the files the
+   ignore patterns name. The dependency's object is loaded again from its ID. The
+   object that keeps the dependency's object and enum in private state answers a
+   second and a third call with them. A Dang module that depends on the Rust module
+   calls one of its functions. The module's collection answers the engine's `keys`,
+   `list`, `get` and `subset`; values derived from it, and one passed back by its ID,
+   keep their base, so the engine computes their delta against it; and the collection's
+   item flag selects which items `dagger check` runs a check for. A second module, whose
+   main object is a collection keyed by an enum, answers the same operations.
 6. Plain clients built against the commit's crates run under `dagger run`. One makes
    Void calls and exports an image; the other makes each kind of generated Core call and
    meets each kind of failure the client reports.
@@ -199,7 +211,9 @@ needs a Git workspace:
    `GENERATED_STALE`. One whose `rust-toolchain.toml` names a release older than the
    SDK's minimum fails to load with `TOOLCHAIN_UNSUPPORTED`, even after
    `dagger generate`, and one whose agent function does not return the conversation it
-   extends with the engine's reason. One whose `dagger-module.toml` declares an earlier
+   extends with the engine's reason. One whose function takes an object of a module it
+   depends on regenerates, and fails to load with the engine's reason: a module's own
+   functions and fields may not name a dependency's types. One whose `dagger-module.toml` declares an earlier
    release as its `engineVersion` fails `dagger generate` with `TARGET_IDENTITY_INVALID`,
    and the message names the `engineVersion` to declare.
 10. `dagger module init` writes nothing outside the workspace. A `--path` that climbs out
@@ -220,7 +234,8 @@ needs a Git workspace:
 13. An engine of the target release that reports itself as `v1.0.0-beta.28+1a2b3c4d`
     while it serves the target's API view, as a later release does, runs the runtime and
     a client. On it, `dagger module init` declares the target as `engineVersion`, and the
-    module regenerates without changes and answers calls, a collection query and a check.
+    module regenerates without changes beside the Dang module it depends on, and answers
+    calls, a collection query and a check.
     A module that declares `v1.0.0-beta.28` fails `dagger generate` with
     `TARGET_IDENTITY_INVALID`, and the message names the `engineVersion` to declare. A
     plain client built from the commit accepts the engine under `dagger run`.

@@ -1,15 +1,93 @@
+"""
+How a greeting is styled.
+"""
+enum Style {
+  PLAIN
+  LOUD
+}
+
+"""
+Something with a name.
+"""
+interface Named {
+  pub name: String!
+}
+
 type Greeter {
+  let greeting: String! = "hello"
+
   """
-  Returns a greeting for the name.
+  Makes a greeter that says hello, or another greeting.
   """
-  hello(name: String!): String! {
-    "hello, " + name
+  new(greeting: String! = "hello") {
+    self.greeting = greeting
+    self
+  }
+
+  """
+  Returns a greeting for the name, with an ending when one is given.
+  """
+  pub hello(name: String!, ending: String! = ""): String! {
+    greeting + ", " + name + ending
+  }
+
+  """
+  Returns a message that greets the name.
+  """
+  pub message(name: String!): Message! {
+    Message(name, greeting + ", " + name)
+  }
+
+  """
+  Returns what it is given, as something with a name.
+  """
+  pub named(subject: Named!): Named! {
+    subject
+  }
+
+  """
+  Returns the other style.
+  """
+  pub restyle(style: Style!): Style! {
+    if (style == Style.PLAIN) {
+      Style.LOUD
+    } else {
+      Style.PLAIN
+    }
+  }
+
+  """
+  Returns the directory with the greeting written to greeting.txt.
+  """
+  pub stamp(source: Directory!): Directory! {
+    source.withNewFile("greeting.txt", greeting)
   }
 
   """
   Lists the entries at the root of a directory.
   """
-  entries(source: Directory! @defaultPath(path: "/") @ignorePatterns(patterns: ["*.md"])): [String!]! {
+  pub entries(source: Directory! @defaultPath(path: "/") @ignorePatterns(patterns: ["*.md"])): [String!]! {
     source.entries
+  }
+}
+
+"""
+A greeting for one name.
+"""
+type Message implements Named {
+  """
+  Whom the message greets.
+  """
+  pub name: String!
+
+  """
+  The greeting.
+  """
+  pub text: String!
+
+  new(name: String!, text: String!) {
+    self.name = name
+    self.text = text
+    self
   }
 }

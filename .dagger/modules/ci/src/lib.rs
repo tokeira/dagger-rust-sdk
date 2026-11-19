@@ -102,8 +102,9 @@ impl Ci {
 
     /// Runs the stock-engine acceptance of docs/engine-integration.md for a pushed commit:
     /// the runtime installed from it, a module that depends on another module initialized,
-    /// regenerated, loaded and called, collections, plain clients, a refused client scope,
-    /// an existing crate adopted, the refusals of broken modules and unsafe initializations,
+    /// regenerated, loaded and called, its calls to that module, a module that depends on
+    /// it, collections, plain clients, a refused client scope, an existing crate adopted,
+    /// the refusals of broken modules and unsafe initializations,
     /// a legacy module, the README module's test and build, a plain client's query through a
     /// lost keepalive reply, and the later-engine step. It needs an engine of the release the
     /// commit targets.
@@ -142,13 +143,17 @@ impl Ci {
         Ok(format!(
             "{commit} passed on {engine}: the runtime installed; a module that depends on \
              another module initialized, regenerated, loaded and answered calls, Core enums, \
-             scalars and defaults included, and its agent was listed and composed; its \
+             scalars and defaults included, and its agent was listed and composed; it \
+             constructed its dependency and called it, kept the dependency's object and \
+             enum in private state between calls, and answered a module that depends on \
+             it; its \
              collections answered the engine's operations, kept their bases and had their \
              items selected by a check, as did a module whose main object is an enum-keyed collection; plain clients \
              made each kind of Core call, \
              met each kind of failure and exported an image; a Rust client scope was refused; an \
              existing crate was adopted and one without a root object refused; modules with \
-             missing or stale generated files, too old a toolchain or a misshapen agent \
+             missing or stale generated files, too old a toolchain, a misshapen agent or \
+             a function that takes its dependency's object \
              failed to load, and one that declares an earlier release's engineVersion failed \
              to regenerate; \
              initialization wrote nothing outside the workspace and refused to overwrite a file \
@@ -461,7 +466,8 @@ async fn dagger_cli(dag: &Query) -> Result<Container, ModuleError> {
 
 /// Steps 1 to 5 and 7 of the acceptance: install the runtime, initialize a module that
 /// depends on another module, load it before regeneration, regenerate it twice, call its
-/// exports, and refuse a client scope.
+/// exports, among them the ones that call its dependency, call it from a module that
+/// depends on it, and refuse a client scope.
 async fn module_flows(
     cli: &Container,
     fixtures: &Directory,
@@ -488,8 +494,18 @@ async fn module_flows(
             "/ws/.dagger/modules/gate/src/lib.rs",
             fixtures.file("gate.rs"),
         )
-        .with_new_file("rust module gate\n", "/ws/gate-input/note.txt");
-    let workspace = with_greeter(&workspace, fixtures, "/ws", "gate").await?;
+        .with_new_file("rust module gate\n", "/ws/gate-input/note.txt")
+        // The greeter's default directory leaves Markdown files out.
+        .with_new_file(
+            "left out of the greeter's default directory\n",
+            "/ws/notes.md",
+        );
+    let workspace = with_caller(
+        &with_greeter(&workspace, fixtures, "/ws", "gate").await?,
+        fixtures,
+        "/ws",
+        "gate",
+    );
     let note = ["call", "gate", "note", "--source", "gate-input", "contents"];
     refused(&workspace, &note, "run `dagger generate`").await?;
 
@@ -559,8 +575,137 @@ async fn module_flows(
         ),
         composed(&workspace, &["flip"], &["expert"]),
     )?;
+    dependency_calls(&workspace).await?;
     collections(&workspace).await?;
     client_scope_refused(&workspace).await
+}
+
+/// Step 5: the gate module constructs the greeter, the Dang module it depends on, with and
+/// without the constructor's optional argument, and calls it through its generated
+/// bindings: a function with and without its optional argument, one that returns an object
+/// of the greeter's with fields, one that takes that object as the greeter's interface and
+/// returns the interface, one that takes and returns the greeter's enum, one that takes and
+/// returns a Core object, and one whose directory the engine fills in. It loads the
+/// greeter's object from its ID, and its own object keeps a greeter and the greeter's enum
+/// in private state from one call to the next. A Dang module that depends on the gate
+/// module calls it in turn.
+async fn dependency_calls(workspace: &Container) -> Result<(), ModuleError> {
+    tokio::try_join!(
+        prints(
+            workspace,
+            &["call", "gate", "greet", "--name", "gate"],
+            "hello, gate"
+        ),
+        prints(
+            workspace,
+            &[
+                "call",
+                "gate",
+                "salute",
+                "--name",
+                "gate",
+                "--greeting",
+                "hi",
+                "--ending",
+                "!"
+            ],
+            "hi, gate!"
+        ),
+        prints(
+            workspace,
+            &["call", "gate", "message", "--name", "gate"],
+            "gate\nhello, gate"
+        ),
+        prints(
+            workspace,
+            &["call", "gate", "named", "--name", "gate"],
+            "gate\ngate"
+        ),
+        prints(
+            workspace,
+            &["call", "gate", "reloaded", "--name", "gate"],
+            "hello, gate\nhello, gate"
+        ),
+        prints(workspace, &["call", "gate", "restyle"], "LOUD\nPLAIN"),
+        prints(
+            workspace,
+            &[
+                "call",
+                "gate",
+                "stamped",
+                "--source",
+                "gate-input",
+                "file",
+                "--path",
+                "greeting.txt",
+                "contents"
+            ],
+            "hello"
+        ),
+        default_directory_listed(workspace),
+        // Each call after `welcome` decodes the state that the call before it returned.
+        prints(
+            workspace,
+            &[
+                "call",
+                "gate",
+                "welcome",
+                "--greeting",
+                "hi",
+                "greet",
+                "--name",
+                "gate"
+            ],
+            "hi, gate"
+        ),
+        prints(
+            workspace,
+            &[
+                "call",
+                "gate",
+                "welcome",
+                "--greeting",
+                "hi",
+                "restyled",
+                "greet",
+                "--name",
+                "gate"
+            ],
+            "HI, GATE"
+        ),
+        prints(
+            workspace,
+            &[
+                "-m",
+                ".dagger/modules/caller",
+                "call",
+                "relay",
+                "--name",
+                "gate"
+            ],
+            "hello, gate"
+        ),
+    )?;
+    Ok(())
+}
+
+/// The greeter lists the directory that the engine gives it when a call passes none: the
+/// workspace's root, without its Markdown files.
+async fn default_directory_listed(workspace: &Container) -> Result<(), ModuleError> {
+    let args = ["call", "gate", "listed"];
+    let output = dagger(workspace, &args)
+        .stdout()
+        .await
+        .map_err(step_failure)?;
+    let entries: Vec<&str> = output.lines().collect();
+    if entries.contains(&"gate-input/") && !entries.contains(&"notes.md") {
+        Ok(())
+    } else {
+        Err(check_failed(
+            &format!("dagger {}", args.join(" ")),
+            format!("listed {entries:?}, not the workspace's root without notes.md"),
+        ))
+    }
 }
 
 /// Step 5: the gate module's collection answers the engine's `keys`, `list`, `get` and
@@ -1032,7 +1177,8 @@ async fn adoption(
 
 /// Step 9: a module whose generated files are missing, or which changed after its last
 /// generation, fails to load; so does one whose toolchain is older than the SDK's minimum,
-/// even once regenerated, and one whose agent function does not return the conversation.
+/// even once regenerated, one whose agent function does not return the conversation, and
+/// one whose function takes an object of the module it depends on.
 /// One that declares an earlier release as its engineVersion fails to regenerate, with a
 /// message that names the engineVersion to declare.
 async fn load_refusals(
@@ -1097,6 +1243,26 @@ async fn load_refusals(
         .await
     };
 
+    // The engine refuses a dependency's type in a module's own function when it loads the
+    // module, as it does for every SDK, and the author sees its reason. Generation binds
+    // the type and accepts the function.
+    let external = async {
+        let module = initialized(cli, "lender", runtime).with_file(
+            "/lender/.dagger/modules/lender/src/lib.rs",
+            fixtures.file("lender.rs"),
+        );
+        let module = dagger(
+            &with_greeter(&module, fixtures, "/lender", "lender").await?,
+            &["generate", "-y"],
+        );
+        refused(
+            &module,
+            &["functions", "lender"],
+            "arg \"greeter\" cannot reference external type from dependency module \"greeter\"",
+        )
+        .await
+    };
+
     // A module made for an earlier release keeps that release's engineVersion, so the
     // engine serves it that release's API view, which generation refuses.
     let earlier = async {
@@ -1123,7 +1289,7 @@ async fn load_refusals(
         .await
     };
 
-    tokio::try_join!(ungenerated, stale, toolchain, agent, earlier)?;
+    tokio::try_join!(ungenerated, stale, toolchain, agent, external, earlier)?;
     Ok(())
 }
 
@@ -1530,9 +1696,9 @@ fn on_later_engine(container: &Container, engine: &Service) -> Container {
 
 /// The module half of the later-engine step. `dagger module init` declares the target
 /// release, so the engine serves the module the target's API view: it regenerates without
-/// changes, and answers calls, a collection query and a check. A module that declares the
-/// later release is served that release's view, which generation refuses with the
-/// engineVersion to declare instead.
+/// changes beside the Dang module it depends on, and answers calls, a collection query and
+/// a check. A module that declares the later release is served that release's view, which
+/// generation refuses with the engineVersion to declare instead.
 async fn later_module(
     cli: &Container,
     fixtures: &Directory,
@@ -1553,6 +1719,8 @@ async fn later_module(
                 fixtures.file("gate.rs"),
             )
             .with_new_file("rust module gate\n", "/gate/gate-input/note.txt");
+        // The gate module's source calls the greeter, so it is generated beside it here too.
+        let workspace = with_greeter(&workspace, fixtures, "/gate", "gate").await?;
         let workspace = commit_all(
             &dagger_via(via, &workspace, &["generate", "-y"]),
             "regenerate gate module",
@@ -2117,6 +2285,23 @@ async fn with_greeter(
             ),
             path,
         ))
+}
+
+/// Adds `caller`, the acceptance's Dang module, to the repository at `root`, with a
+/// dependency on the module `name` there. No workspace configuration names it, so a
+/// command loads it with `-m`.
+fn with_caller(workspace: &Container, fixtures: &Directory, root: &str, name: &str) -> Container {
+    let caller = format!("{root}/.dagger/modules/caller");
+    workspace
+        .with_new_file(
+            format!(
+                "name = \"caller\"\n{}\n[runtime]\n  source = \"dang\"\n\n[[dependencies]]\n  \
+                 name = \"{name}\"\n  source = \"../{name}\"\n",
+                target_declaration()
+            ),
+            format!("{caller}/dagger-module.toml"),
+        )
+        .with_file(format!("{caller}/main.dang"), fixtures.file("caller.dang"))
 }
 
 /// The manifest of a crate named `name` with no dependencies.

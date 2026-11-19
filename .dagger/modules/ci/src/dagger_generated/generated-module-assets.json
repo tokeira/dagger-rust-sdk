@@ -1,7 +1,7 @@
 {
   "assets": {
     "src/bin/dagger-module.rs": {
-      "digest": "sha256:f3eee05cd12795b804ba58d615b4be53ef586e4d600ac66932a03cb0f024d558",
+      "digest": "sha256:7e097d3d645826636484c9c319b75aa68609de896e355e95efba591634c32718",
       "input_digest": "sha256:e94d027af4dfc278a25bf5c8c1bbec2666c9f7c7ad60ba313b7d040d2b771e14",
       "owner": "entrypoint",
       "path": "src/bin/dagger-module.rs",
@@ -15,57 +15,57 @@
       "regeneration": "visible-schema"
     },
     "src/dagger_generated/mod.rs": {
-      "digest": "sha256:40f97fe97a784bb19708efd77d40d01758f3833751d75aeb7d175c943d5091fd",
-      "input_digest": "sha256:0ab7f654a65c3435b6959224f8641a2f707ef422f33e672972c858cb39a8e1dc",
+      "digest": "sha256:95b08f5d8f92cfe5422495e694d1062e44860908cc485da34bc7fe6a91ebb4bc",
+      "input_digest": "sha256:6624936a7110915c803fbc710d8abaec1f2fa6094de7e323b4d892f49ac0d8e2",
       "owner": "descriptor",
       "path": "src/dagger_generated/mod.rs",
       "regeneration": "authoring"
     },
     "src/dagger_generated/module-introspection.json": {
-      "digest": "sha256:23235090bc0ac332e01801280b71a9cc5eeea44210a413094c47a90f37d14c19",
-      "input_digest": "sha256:60e903786d0612b4fd296fa4a1090ccc9e8b48b56a27cb21af8530dfe1139f02",
+      "digest": "sha256:de70a4eddc854ba09c3aabc8012e748b823d2d7d45abf5c54d5732baf2bd0347",
+      "input_digest": "sha256:1d66f6754ad2958e3b25db3cfc4606c95ac5e43794918c4908e2f384e2e79e9a",
       "owner": "introspection",
       "path": "src/dagger_generated/module-introspection.json",
       "regeneration": "authoring"
     },
     "src/dagger_generated/module_codec.rs": {
-      "digest": "sha256:db3d8a40aa027d65bae3e8fd3cc42fd7488644d8a65d0ed570776baeffeb59c2",
-      "input_digest": "sha256:60e903786d0612b4fd296fa4a1090ccc9e8b48b56a27cb21af8530dfe1139f02",
+      "digest": "sha256:406248c9525a11aefa7d2203e1dbc5bc50b628b9bc3dba60c7598481abef8366",
+      "input_digest": "sha256:1d66f6754ad2958e3b25db3cfc4606c95ac5e43794918c4908e2f384e2e79e9a",
       "owner": "dispatch",
       "path": "src/dagger_generated/module_codec.rs",
       "regeneration": "authoring"
     },
     "src/dagger_generated/module_context.rs": {
-      "digest": "sha256:21fb9b85c094264df53aab9c14709c75b25a18c77e17daf67dd0f304643ff73b",
+      "digest": "sha256:cec7f7468f626e21da92ab64a1ff9e062437cd329ae66610900391f5df16063f",
       "input_digest": "sha256:6d56f1ef0ed4cb316769d219a29631c4385bb16329e9ee09f06f96bc74e74bef",
       "owner": "context",
       "path": "src/dagger_generated/module_context.rs",
       "regeneration": "visible-schema"
     },
     "src/dagger_generated/module_descriptor.rs": {
-      "digest": "sha256:7b0c2dddde21bddc43b14b16a7a2a3cd6a16a5529d3bc32d62f9713cf856e206",
-      "input_digest": "sha256:60e903786d0612b4fd296fa4a1090ccc9e8b48b56a27cb21af8530dfe1139f02",
+      "digest": "sha256:96e6844d9466d4fc35be45a8f7778b1965dbd9c7278bca152906c08df1b08b69",
+      "input_digest": "sha256:1d66f6754ad2958e3b25db3cfc4606c95ac5e43794918c4908e2f384e2e79e9a",
       "owner": "descriptor",
       "path": "src/dagger_generated/module_descriptor.rs",
       "regeneration": "authoring"
     },
     "src/dagger_generated/module_dispatch.rs": {
-      "digest": "sha256:2b05b5acad576871fc819e783b2b33b479680b7eff726a5d8fd28b23d2fa35ee",
-      "input_digest": "sha256:60e903786d0612b4fd296fa4a1090ccc9e8b48b56a27cb21af8530dfe1139f02",
+      "digest": "sha256:d6ec588f7cc9f7dad289f4c5537c4896906a5988bc670b03cf7e02b32571d4e6",
+      "input_digest": "sha256:1d66f6754ad2958e3b25db3cfc4606c95ac5e43794918c4908e2f384e2e79e9a",
       "owner": "dispatch",
       "path": "src/dagger_generated/module_dispatch.rs",
       "regeneration": "authoring"
     },
     "src/dagger_generated/module_registration.rs": {
-      "digest": "sha256:a62359d898f4fcbcbb1244d812a7bd5b3d2a9b55b10a665e89ca2900eb502d63",
-      "input_digest": "sha256:60e903786d0612b4fd296fa4a1090ccc9e8b48b56a27cb21af8530dfe1139f02",
+      "digest": "sha256:fd47ef2b84ce6eb8469468ed8eef9d6fa171f69d67c81dc3691e6816fbb1b601",
+      "input_digest": "sha256:1d66f6754ad2958e3b25db3cfc4606c95ac5e43794918c4908e2f384e2e79e9a",
       "owner": "registration",
       "path": "src/dagger_generated/module_registration.rs",
       "regeneration": "authoring"
     }
   },
-  "descriptor_digest": "sha256:60e903786d0612b4fd296fa4a1090ccc9e8b48b56a27cb21af8530dfe1139f02",
-  "digest": "sha256:73d3780b7eba6a98db3b5ec84fb3e072bce4c5c7ab2ce38798fceaa90524e830",
+  "descriptor_digest": "sha256:1d66f6754ad2958e3b25db3cfc4606c95ac5e43794918c4908e2f384e2e79e9a",
+  "digest": "sha256:53db8a5e8f2a0418f37df295219f3635cefd70897bb5499f6eccf75c5b8fb951",
   "format_version": 1,
   "manifest_path": "src/dagger_generated/generated-module-assets.json",
   "target": {
