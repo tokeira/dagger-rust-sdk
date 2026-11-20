@@ -19,11 +19,12 @@ use codegen_support::{
 use dagger_sdk_engine::initialization::{InitializationInputs, plan_initialization};
 use dagger_sdk_engine::post_work::{Cancellation, ProcessOutcome};
 use dagger_sdk_engine::{
-    CanonicalRegistry, CanonicalRepositoryUrl, EngineRelease, EngineSourceDescriptor,
-    ExactRustToolchain, ExactVersion, FormatVersion, FullRevision, ModuleConfigFormat,
-    ModuleOperationInput, OperationKind, OperationPostWork, OperationRequest, OperationRoot,
-    PostWorkPlan, PublishedSdkDependency, RelativeOperationPath, SchemaInput, SdkPackageName,
-    Sha256Digest, StableCoordinate, TargetIdentity, ToolchainSelection,
+    CanonicalRegistry, CanonicalRepositoryUrl, EngineDiagnostic, EngineDiagnosticCode,
+    EngineRelease, EngineSourceDescriptor, ExactRustToolchain, ExactVersion, ExecutionResult,
+    FormatVersion, FullRevision, ModuleConfigFormat, ModuleOperationInput, OperationKind,
+    OperationPostWork, OperationRequest, OperationRoot, PostWorkPlan, PublishedSdkDependency,
+    RelativeOperationPath, SchemaInput, SdkPackageName, Sha256Digest, StableCoordinate,
+    TargetIdentity, ToolchainSelection,
 };
 use sha2::{Digest as _, Sha256};
 
@@ -31,6 +32,9 @@ const REVISION: &str = "400b82d6f3c09ef096d2f59b3e920267b5969bf4";
 const CORE_SCHEMA_DIGEST: &str =
     "sha256:9511bc82fb704520cdc632da73463fc7396b1bb081e0446b61665c30764a5e7c";
 const MODULE_ROOT: &str = "workspace/greeter";
+/// The binding of the enum that `add_dependency_extension` gives the module, as a
+/// dependency contributes it, from the module's directory.
+const BINDING: &str = "src/dagger_generated/rust_mode.rs";
 
 #[derive(Clone, Copy, Debug)]
 struct HostRustfmt;
@@ -296,6 +300,139 @@ async fn regeneration_after_a_generator_upgrade_replaces_owned_files() {
     assert_eq!(snapshot(temporary.path()), upgraded_snapshot);
 }
 
+// A binding generation still writes is written again when its file was deleted.
+#[tokio::test]
+async fn a_deleted_binding_is_written_again() {
+    let temporary = tempfile::tempdir().unwrap();
+    let authored = initialize(temporary.path());
+    let root = OperationRoot::open(temporary.path()).unwrap();
+    let schema = add_dependency_extension(&module_visible_schema(0));
+    let dependent = request(&schema, authored.as_bytes(), dependency());
+    execute(&root, &dependent, &schema, &descriptor()).await;
+    let binding = temporary.path().join(MODULE_ROOT).join(BINDING);
+    let generated = snapshot(temporary.path());
+    fs::remove_file(&binding).unwrap();
+
+    let restored = execute(&root, &dependent, &schema, &descriptor()).await;
+    assert_eq!(restored, [format!("{MODULE_ROOT}/{BINDING}")]);
+    assert_eq!(snapshot(temporary.path()), generated);
+}
+
+// When a module loses a dependency, generation removes the dependency's bindings that
+// are as it wrote them: the module is then exactly as if it never had the dependency.
+#[tokio::test]
+async fn the_unchanged_bindings_of_a_removed_dependency_are_removed() {
+    let temporary = tempfile::tempdir().unwrap();
+    let authored = initialize(temporary.path());
+    let root = OperationRoot::open(temporary.path()).unwrap();
+    let alone = module_visible_schema(0);
+    let dependent = add_dependency_extension(&alone);
+    execute(
+        &root,
+        &request(&alone, authored.as_bytes(), dependency()),
+        &alone,
+        &descriptor(),
+    )
+    .await;
+    let without = snapshot(temporary.path());
+    execute(
+        &root,
+        &request(&dependent, authored.as_bytes(), dependency()),
+        &dependent,
+        &descriptor(),
+    )
+    .await;
+    assert!(temporary.path().join(MODULE_ROOT).join(BINDING).exists());
+
+    execute(
+        &root,
+        &request(&alone, authored.as_bytes(), dependency()),
+        &alone,
+        &descriptor(),
+    )
+    .await;
+    assert_eq!(snapshot(temporary.path()), without);
+}
+
+// Go's rule: a binding its author edited stays as they left it when its dependency
+// goes, the manifest no longer records it, and generation carries on. The file is the
+// author's from then on, so adding the dependency again refuses to overwrite it.
+#[tokio::test]
+async fn an_edited_binding_of_a_removed_dependency_stays_and_leaves_the_record() {
+    let temporary = tempfile::tempdir().unwrap();
+    let authored = initialize(temporary.path());
+    let root = OperationRoot::open(temporary.path()).unwrap();
+    let alone = module_visible_schema(0);
+    let dependent = add_dependency_extension(&alone);
+    let with = request(&dependent, authored.as_bytes(), dependency());
+    let without = request(&alone, authored.as_bytes(), dependency());
+    execute(&root, &with, &dependent, &descriptor()).await;
+    let binding = temporary.path().join(MODULE_ROOT).join(BINDING);
+    let edited = fs::read_to_string(&binding).unwrap() + "// Kept by its author.\n";
+    fs::write(&binding, &edited).unwrap();
+
+    let touched = execute(&root, &without, &alone, &descriptor()).await;
+    assert!(!touched.is_empty());
+    assert_eq!(fs::read_to_string(&binding).unwrap(), edited);
+    assert!(!recorded_artifacts(temporary.path()).contains(&format!("{MODULE_ROOT}/{BINDING}")));
+    let converged = execute(&root, &without, &alone, &descriptor()).await;
+    assert!(
+        converged.is_empty(),
+        "converged replay touched {converged:?}"
+    );
+
+    let before = snapshot(temporary.path());
+    let error = generate(&root, &with, &dependent, &descriptor())
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, EngineDiagnosticCode::OwnershipConflict);
+    assert_eq!(
+        error.message,
+        format!("{BINDING} contains user changes; refusing to overwrite it")
+    );
+    assert_eq!(snapshot(temporary.path()), before);
+}
+
+// Go's rule: a generated file its author edited is refused when generation would
+// rewrite it, and nothing is written.
+#[tokio::test]
+async fn an_edited_generated_file_that_generation_would_rewrite_is_refused() {
+    let temporary = tempfile::tempdir().unwrap();
+    let authored = initialize(temporary.path());
+    let root = OperationRoot::open(temporary.path()).unwrap();
+    let alone = module_visible_schema(0);
+    let dependent = add_dependency_extension(&alone);
+    execute(
+        &root,
+        &request(&alone, authored.as_bytes(), dependency()),
+        &alone,
+        &descriptor(),
+    )
+    .await;
+    let declarations = temporary
+        .path()
+        .join(MODULE_ROOT)
+        .join("src/dagger_generated/mod.rs");
+    let edited = fs::read_to_string(&declarations).unwrap() + "// Edited by hand.\n";
+    fs::write(&declarations, &edited).unwrap();
+    let before = snapshot(temporary.path());
+
+    let error = generate(
+        &root,
+        &request(&dependent, authored.as_bytes(), dependency()),
+        &dependent,
+        &descriptor(),
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(error.code, EngineDiagnosticCode::OwnershipConflict);
+    assert_eq!(
+        error.message,
+        "src/dagger_generated/mod.rs contains user changes; refusing to overwrite it"
+    );
+    assert_eq!(snapshot(temporary.path()), before);
+}
+
 /// Initializes the module and authors one function, returning the authored source.
 fn initialize(directory: &Path) -> String {
     let module_root = RelativeOperationPath::parse(MODULE_ROOT).unwrap();
@@ -335,6 +472,21 @@ async fn execute(
     schema: &[u8],
     descriptor: &EngineSourceDescriptor,
 ) -> Vec<String> {
+    generate(root, request, schema, descriptor)
+        .await
+        .unwrap()
+        .touched_paths
+        .iter()
+        .map(ToString::to_string)
+        .collect()
+}
+
+async fn generate(
+    root: &OperationRoot,
+    request: &OperationRequest,
+    schema: &[u8],
+    descriptor: &EngineSourceDescriptor,
+) -> Result<ExecutionResult, EngineDiagnostic> {
     dagger_sdk_engine::execute_operation_with_post_work(
         root,
         request,
@@ -344,11 +496,6 @@ async fn execute(
         &HostRustfmt,
     )
     .await
-    .unwrap()
-    .touched_paths
-    .iter()
-    .map(ToString::to_string)
-    .collect()
 }
 
 // The adapter's semantic source digest changes exactly when authored source changes;
@@ -434,6 +581,20 @@ fn recorded_digests(manifest: &Path) -> (String, String) {
             .unwrap()
             .to_owned(),
     )
+}
+
+/// The paths the module's operation manifest records.
+fn recorded_artifacts(directory: &Path) -> Vec<String> {
+    let manifest = directory
+        .join(MODULE_ROOT)
+        .join(".dagger/rust/operation-manifest.json");
+    let document: serde_json::Value = serde_json::from_slice(&fs::read(manifest).unwrap()).unwrap();
+    document["artifacts"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .cloned()
+        .collect()
 }
 
 fn hash(bytes: &[u8]) -> Sha256Digest {

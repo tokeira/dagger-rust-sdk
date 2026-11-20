@@ -232,14 +232,6 @@ pub async fn execute_operation_with_post_work<P: OperationPostWork>(
                 "prior operation manifest is not canonical or is incompatible",
             )
         })?;
-    let previous_paths = previous
-        .as_ref()
-        .map(|manifest| manifest.artifacts.keys().cloned().collect::<BTreeSet<_>>())
-        .unwrap_or_default();
-    let removed = previous_paths
-        .difference(&artifacts.keys().cloned().collect())
-        .cloned()
-        .collect();
     let manifest = OperationManifest {
         format_version: crate::FormatVersion,
         operation: request.operation,
@@ -273,7 +265,6 @@ pub async fn execute_operation_with_post_work<P: OperationPostWork>(
     };
     let candidate = OperationCandidate {
         artifacts,
-        removed,
         manifest,
         manifest_path: manifest_path.clone(),
         previous_manifest_digest: previous_bytes.as_deref().map(digest),

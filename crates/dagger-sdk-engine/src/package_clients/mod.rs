@@ -45,7 +45,8 @@ use crate::{
 };
 
 use dependency::{AncestorManifest, plan_package_dependency};
-use ownership::{GENERATED_MARKER, OwnedChanges, has_record, plan_owned_overlay};
+pub(crate) use ownership::GENERATED_MARKER;
+use ownership::{OwnedChanges, has_record, plan_owned_overlay};
 
 /// The directory of a package's module clients, beneath the package.
 const CLIENTS_DIRECTORY: &str = "src/dagger_clients";

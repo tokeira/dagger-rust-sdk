@@ -1,8 +1,10 @@
 //! Manifest-authorized ownership and failure-atomic publication.
 //!
-//! A prior operation manifest is the sole authority for replacement or removal.
-//! Complete candidates are staged beside their destinations, flushed, journaled in
-//! memory, and renamed in stable path order; the acyclic manifest is always last.
+//! A prior operation manifest records what generation wrote, and a file it records is
+//! replaced or removed only while it still has its recorded bytes, as Dagger's Go
+//! generator treats the files it records. Complete candidates are staged beside their
+//! destinations, flushed, journaled in memory, and renamed in stable path order; the
+//! acyclic manifest is always last.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, File, OpenOptions};
@@ -18,6 +20,7 @@ use dagger_codegen::module::{
 
 use crate::canonical::canonical_bytes;
 use crate::diagnostic::{EngineDiagnostic, EngineDiagnosticCode};
+use crate::package_clients::GENERATED_MARKER;
 use crate::{
     CandidateArtifact, OperationManifest, OperationRoot, RelativeOperationPath, Sha256Digest,
 };
@@ -29,8 +32,6 @@ static TRANSACTION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 pub struct OperationCandidate {
     /// Generated artifacts keyed by their normalized destination.
     pub artifacts: BTreeMap<RelativeOperationPath, CandidateArtifact>,
-    /// Previously owned paths no longer present in the candidate.
-    pub removed: BTreeSet<RelativeOperationPath>,
     /// Acyclic ownership record published after every artifact.
     pub manifest: OperationManifest,
     /// Fixed operation-relative control-manifest destination.
@@ -126,16 +127,48 @@ pub trait PublicationObserver {
 
 impl PublicationObserver for () {}
 
-/// Validates manifest ownership and computes the complete sorted transaction.
+/// Validates ownership and computes the complete sorted transaction, before anything
+/// is written.
+///
+/// The rule is the one Dagger's Go generator applies to the files it records
+/// (ownedOverlay in cmd/dagger-go-sdk-codegen/generator/ownership.go of
+/// github.com/dagger/go-sdk), with the prior operation manifest as the record:
+///
+/// - A destination that does not exist is written, so a generated file that was
+///   deleted is written again.
+/// - A destination that holds other bytes is replaced when the prior manifest records
+///   it and it still has its recorded digest, or when the manifest does not record it
+///   and it begins with `// @generated`. Any other is refused, because it contains user
+///   changes, and nothing is written.
+/// - A file the prior manifest records and the candidate no longer generates is removed
+///   while it still has its recorded digest. An edited one is left as it is, and the
+///   new manifest no longer records it.
+///
+/// Go also requires its marker before it replaces a file, and before it removes one,
+/// except the files of its compilation helper, which cannot carry the marker and which
+/// it removes on their digest alone. A module's dependency bindings begin with their
+/// documentation and its JSON control files cannot carry a comment, so a file the
+/// manifest records is replaced or removed on its digest alone.
 pub fn verify_ownership(
     root: &OperationRoot,
     previous: Option<&OperationManifest>,
     candidate: &OperationCandidate,
 ) -> Result<PublicationPlan, EngineDiagnostic> {
+    // Every path the prior manifest records and the candidate does not generate, each
+    // to be removed or left to its author.
+    let obsolete = previous
+        .map(|manifest| {
+            manifest
+                .artifacts
+                .iter()
+                .filter(|(path, _)| !candidate.artifacts.contains_key(*path))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
     let addressed = candidate
         .artifacts
         .keys()
-        .chain(candidate.removed.iter())
+        .chain(obsolete.iter().map(|(path, _)| *path))
         .chain(std::iter::once(&candidate.manifest_path))
         .collect::<Vec<_>>();
     OperationRoot::validate_distinct(addressed.iter().copied())?;
@@ -198,20 +231,6 @@ pub fn verify_ownership(
                 "prior operation manifest changed after it was loaded",
             ));
         }
-        for (path, record) in &previous.artifacts {
-            let current = root.read(path).map_err(|_| {
-                stale(
-                    path.as_str(),
-                    "previously owned artifact is missing or not regular",
-                )
-            })?;
-            if digest(&current) != record.digest {
-                return Err(stale(
-                    path.as_str(),
-                    "previously owned artifact digest is stale",
-                ));
-            }
-        }
     } else if root.exists(&candidate.manifest_path) {
         return Err(ownership(
             candidate.manifest_path.as_str(),
@@ -219,22 +238,21 @@ pub fn verify_ownership(
         ));
     }
 
-    let prior_paths: BTreeSet<RelativeOperationPath> = previous
-        .map(|manifest| manifest.artifacts.keys().cloned().collect())
-        .unwrap_or_default();
+    let recorded = previous.map(|manifest| &manifest.artifacts);
     let mut writes = BTreeMap::new();
     let mut changes = Vec::new();
     for (path, artifact) in &candidate.artifacts {
-        if root.exists(path) && !prior_paths.contains(path) {
-            return Err(ownership(
-                path.as_str(),
-                "unknown bytes occupy a generated artifact destination",
-            ));
-        }
-        let kind = if prior_paths.contains(path) {
+        let kind = if root.exists(path) {
             let current = root.read(path)?;
             if current == artifact.content {
                 continue;
+            }
+            let replaceable = match recorded.and_then(|records| records.get(path)) {
+                Some(record) => digest(&current) == record.digest,
+                None => current.starts_with(GENERATED_MARKER.as_bytes()),
+            };
+            if !replaceable {
+                return Err(user_changes(path, &candidate.manifest.output_root));
             }
             PublicationChangeKind::Change
         } else {
@@ -247,20 +265,14 @@ pub fn verify_ownership(
         });
     }
     let mut removals = BTreeSet::new();
-    for path in prior_paths {
-        if !candidate.artifacts.contains_key(&path) {
+    for (path, record) in obsolete {
+        if root.exists(path) && digest(&root.read(path)?) == record.digest {
             removals.insert(path.clone());
             changes.push(PublicationChange {
-                path,
+                path: path.clone(),
                 kind: PublicationChangeKind::Remove,
             });
         }
-    }
-    if removals != candidate.removed {
-        return Err(stale(
-            "operation-candidate.removed",
-            "candidate removal set is not the complete prior-owned difference",
-        ));
     }
     changes.sort();
     let manifest_bytes = canonical_bytes(&candidate.manifest).map_err(|_| {
@@ -709,6 +721,23 @@ fn ownership(coordinate: &str, message: &str) -> EngineDiagnostic {
         EngineDiagnosticCode::OwnershipConflict,
         Some(coordinate),
         message,
+    )
+}
+
+/// Go's refusal of a destination that generation would overwrite without owning its
+/// bytes, naming the file as it is within the output root.
+fn user_changes(
+    path: &RelativeOperationPath,
+    output_root: &RelativeOperationPath,
+) -> EngineDiagnostic {
+    let shown = path
+        .as_str()
+        .strip_prefix(output_root.as_str())
+        .and_then(|rest| rest.strip_prefix('/'))
+        .unwrap_or(path.as_str());
+    ownership(
+        path.as_str(),
+        &format!("{shown} contains user changes; refusing to overwrite it"),
     )
 }
 

@@ -132,9 +132,10 @@ construction and execution occur only in the engine-backed integration matrix.
 - All paths cross one lexical validator and one symlink-aware filesystem validator.
   Paths become typed relative paths before entering a plan; raw strings cannot become
   artifact destinations later.
-- `OperationManifest` is the sole ownership authority for generated replacement and
-  removal. Directory membership, filename prefixes, and generated-looking headers are
-  not sufficient authority.
+- `OperationManifest` is the ownership authority for removal and for replacing a path
+  it records. An unrecorded path is replaced only when it begins with `// @generated`,
+  as Dagger's Go generator replaces one. Directory membership and filename prefixes are
+  not authority.
 - Current module configuration selects committed generation. Legacy configuration
   selects private runtime generation. No environment switch can change that choice.
 - Runtime compilation selects an engine-approved Cargo package and binary. User input
@@ -981,7 +982,7 @@ documents the exact regeneration command.
 
 Starter source is created only when no Rust source target exists. Existing `.rs` files
 are never passed to a renderer or formatter by initialization. Generated roots are
-replaced only through previous manifest ownership.
+replaced only as the ownership rule of publication allows.
 
 ### CLI and operation runner (`dagger-sdk-engine/src/cli.rs`)
 
@@ -1047,7 +1048,6 @@ the second must converge. A third candidate is `GENERATION_NON_CONVERGENT`.
 ```rust
 pub struct OperationCandidate {
     pub artifacts: BTreeMap<RelativeOperationPath, CandidateArtifact>,
-    pub removed: BTreeSet<RelativeOperationPath>,
     pub manifest: OperationManifest,
 }
 
@@ -1063,10 +1063,17 @@ pub fn publish(
 ) -> Result<PublicationOutcome, EngineDiagnostic>;
 ```
 
-Ownership validation requires every previous artifact's current digest before it may
-be changed or removed. An unknown file at a candidate path, a symlink at any traversed
-component, path alias, case-fold collision, escaped output, or changed previous
-manifest rejects the candidate. The operation root is an explicit directory
+Ownership validation follows the rule Dagger's Go generator applies to the files it
+records (`ownedOverlay` in `cmd/dagger-go-sdk-codegen/generator/ownership.go` of
+`github.com/dagger/go-sdk`), with the previous manifest as the record. A missing
+artifact is written. An existing file with other bytes is replaced only while the
+previous manifest records it with its current digest, or, when the manifest does not
+record it, while it begins with `// @generated`; any other is refused with
+`<path> contains user changes; refusing to overwrite it`. A previous artifact the
+candidate no longer generates is removed only while it has its recorded digest; an
+edited one is kept and leaves the record. A symlink at any traversed component, path
+alias, case-fold collision, escaped output, or changed previous manifest rejects the
+candidate. The operation root is an explicit directory
 capability; the library accepts no ambient cwd.
 
 Publication reuses the failure-atomic transaction pattern established by Feature 4's
@@ -1462,7 +1469,8 @@ as either an exact registry version or immutable Git full revision.
 
 *For any* mixture of authored files, compatible prior generated manifests, unknown
 content at generated paths, and VCS rules, planning SHALL preserve every authored byte,
-replace only paths owned by the compatible manifest, reject unknown collisions, amend
+replace only paths the compatible manifest records with their recorded digests and
+unrecorded paths that begin with `// @generated`, reject every other collision, amend
 VCS policy without removing unrelated entries, and document every generated path's
 regeneration command.
 

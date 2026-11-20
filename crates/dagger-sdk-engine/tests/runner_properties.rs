@@ -9,8 +9,8 @@ use std::path::Path;
 
 use dagger_sdk_engine::post_work::{Cancellation, command_spec, execute, require_convergence};
 use dagger_sdk_engine::publication::{
-    OperationCandidate, PublicationCheckpoint, PublicationObserver, publish, publish_with,
-    verify_ownership,
+    OperationCandidate, PublicationChangeKind, PublicationCheckpoint, PublicationObserver, publish,
+    publish_with, verify_ownership,
 };
 use dagger_sdk_engine::*;
 use proptest::prelude::*;
@@ -20,7 +20,8 @@ use support::fixed_model_corpus;
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(256))]
 
-    // Only a compatible prior manifest can grant replacement authority.
+    // Only a compatible prior manifest that records a file with its current bytes
+    // grants authority to replace it; an unrecorded file needs Go's generated marker.
     #[test]
     fn property_09_authored_generated_ownership_never_cross(
         seed in any::<u8>(),
@@ -45,10 +46,13 @@ proptest! {
             ).unwrap();
         }
         let result = verify_ownership(&root, previous, &candidate);
-        if unknown_collision {
-            prop_assert_eq!(result.unwrap_err().code, EngineDiagnosticCode::OwnershipConflict);
-        } else if stale_owned_bytes {
-            prop_assert_eq!(result.unwrap_err().code, EngineDiagnosticCode::OperationManifestStale);
+        if unknown_collision || stale_owned_bytes {
+            let error = result.unwrap_err();
+            prop_assert_eq!(error.code, EngineDiagnosticCode::OwnershipConflict);
+            prop_assert_eq!(
+                error.message,
+                "client.rs contains user changes; refusing to overwrite it"
+            );
         } else {
             prop_assert!(result.is_ok());
         }
@@ -252,6 +256,127 @@ proptest! {
     }
 }
 
+// The fixture's prior manifest records client.rs and obsolete.rs, which hold their
+// recorded bytes and no generated marker; the candidate generates client.rs alone. A
+// recorded file is replaced and removed by its digest, without the marker.
+#[test]
+fn an_unchanged_recorded_file_that_is_no_longer_generated_is_removed() {
+    let setup = publication_setup(7);
+    let root = OperationRoot::open(setup.temporary.path()).unwrap();
+    let plan = verify_ownership(&root, Some(&setup.previous), &setup.candidate).unwrap();
+    let obsolete = RelativeOperationPath::parse("module/generated/obsolete.rs").unwrap();
+    assert!(
+        plan.changes()
+            .iter()
+            .any(|change| change.path == obsolete && change.kind == PublicationChangeKind::Remove)
+    );
+    publish(&root, plan).unwrap();
+    assert!(!root.exists(&obsolete));
+    assert_eq!(
+        fs::read(setup.artifact_path.join_lexically(setup.temporary.path())).unwrap(),
+        b"new-7\n"
+    );
+    assert_eq!(recorded(&setup), setup.candidate.manifest);
+}
+
+// Go's rule: a file generation no longer writes and its author edited stays as they left
+// it, the new manifest no longer records it, and generation carries on.
+#[test]
+fn an_edited_recorded_file_that_is_no_longer_generated_stays_and_leaves_the_record() {
+    let setup = publication_setup(7);
+    let obsolete = RelativeOperationPath::parse("module/generated/obsolete.rs").unwrap();
+    let edited = obsolete.join_lexically(setup.temporary.path());
+    fs::write(&edited, b"obsolete-7\n// kept by its author\n").unwrap();
+    let root = OperationRoot::open(setup.temporary.path()).unwrap();
+    let plan = verify_ownership(&root, Some(&setup.previous), &setup.candidate).unwrap();
+    assert!(plan.changes().iter().all(|change| change.path != obsolete));
+    publish(&root, plan).unwrap();
+    assert_eq!(
+        fs::read(&edited).unwrap(),
+        b"obsolete-7\n// kept by its author\n"
+    );
+    let manifest = recorded(&setup);
+    assert!(!manifest.artifacts.contains_key(&obsolete));
+    assert_eq!(manifest, setup.candidate.manifest);
+}
+
+// A recorded file that was deleted is written again, and one that is gone and no longer
+// generated needs nothing.
+#[test]
+fn a_deleted_recorded_file_is_written_again() {
+    let setup = publication_setup(7);
+    let obsolete = RelativeOperationPath::parse("module/generated/obsolete.rs").unwrap();
+    fs::remove_file(setup.artifact_path.join_lexically(setup.temporary.path())).unwrap();
+    fs::remove_file(obsolete.join_lexically(setup.temporary.path())).unwrap();
+    let root = OperationRoot::open(setup.temporary.path()).unwrap();
+    let plan = verify_ownership(&root, Some(&setup.previous), &setup.candidate).unwrap();
+    assert_eq!(
+        plan.changes()
+            .iter()
+            .map(|change| (change.path.as_str(), change.kind))
+            .collect::<Vec<_>>(),
+        [(setup.artifact_path.as_str(), PublicationChangeKind::Add)]
+    );
+    publish(&root, plan).unwrap();
+    assert_eq!(
+        fs::read(setup.artifact_path.join_lexically(setup.temporary.path())).unwrap(),
+        b"new-7\n"
+    );
+}
+
+// Without a record, a destination is replaced only when it begins with Go's generated
+// marker, `// @generated`, and identical bytes are kept as they are.
+#[test]
+fn an_unrecorded_destination_is_replaced_only_when_it_begins_with_the_marker() {
+    for (existing, replaced) in [
+        (&b"// @generated by an earlier generation\n"[..], true),
+        (&b"//! @generated\n"[..], false),
+        (&b"// generated by hand\n"[..], false),
+        (&b"{\"assets\":{}}\n"[..], false),
+    ] {
+        let setup = publication_setup(7);
+        fs::remove_file(setup.manifest_path.join_lexically(setup.temporary.path())).unwrap();
+        let destination = setup.artifact_path.join_lexically(setup.temporary.path());
+        fs::write(&destination, existing).unwrap();
+        let mut candidate = setup.candidate.clone();
+        candidate.previous_manifest_digest = None;
+        let root = OperationRoot::open(setup.temporary.path()).unwrap();
+        let result = verify_ownership(&root, None, &candidate);
+        if replaced {
+            publish(&root, result.unwrap()).unwrap();
+            assert_eq!(fs::read(&destination).unwrap(), b"new-7\n");
+        } else {
+            let error = result.unwrap_err();
+            assert_eq!(error.code, EngineDiagnosticCode::OwnershipConflict);
+            assert_eq!(
+                error.message,
+                "client.rs contains user changes; refusing to overwrite it"
+            );
+            assert_eq!(fs::read(&destination).unwrap(), existing);
+        }
+    }
+
+    let setup = publication_setup(7);
+    fs::remove_file(setup.manifest_path.join_lexically(setup.temporary.path())).unwrap();
+    fs::write(
+        setup.artifact_path.join_lexically(setup.temporary.path()),
+        b"new-7\n",
+    )
+    .unwrap();
+    let mut candidate = setup.candidate.clone();
+    candidate.previous_manifest_digest = None;
+    let root = OperationRoot::open(setup.temporary.path()).unwrap();
+    let plan = verify_ownership(&root, None, &candidate).unwrap();
+    assert!(plan.changes().is_empty());
+}
+
+fn recorded(setup: &PublicationSetup) -> OperationManifest {
+    decode_canonical::<OperationManifest>(
+        &fs::read(setup.manifest_path.join_lexically(setup.temporary.path())).unwrap(),
+    )
+    .unwrap()
+}
+
 fn publication_setup(seed: u8) -> PublicationSetup {
     let temporary = tempfile::tempdir().unwrap();
     let artifact_path = RelativeOperationPath::parse("module/generated/client.rs").unwrap();
@@ -271,7 +396,7 @@ fn publication_setup(seed: u8) -> PublicationSetup {
     let corpus = fixed_model_corpus(seed, true, 0);
     let mut previous = operation_manifest(&corpus, &artifact_path, &old_bytes);
     previous.artifacts.insert(
-        obsolete_path.clone(),
+        obsolete_path,
         ArtifactRecord {
             kind: ArtifactKind::RustSource,
             digest: hash(&obsolete_bytes),
@@ -295,7 +420,6 @@ fn publication_setup(seed: u8) -> PublicationSetup {
     )]);
     let candidate = OperationCandidate {
         artifacts,
-        removed: BTreeSet::from([obsolete_path]),
         manifest,
         manifest_path: manifest_path.clone(),
         previous_manifest_digest: Some(hash(&previous_bytes)),
