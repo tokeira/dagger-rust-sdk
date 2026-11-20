@@ -1,7 +1,0 @@
-kind: Removed
-body: |
-    The runtime's `generateClient` and `requiredClientGenerationFiles` functions are removed, with the generator behind them, which wrote one Cargo library for each client. No command of a Dagger `v1.0.0-beta.27` engine reached them: `dagger module client add` generates through `generateScope`, which now writes a package's clients and a module's dependencies. An engine that still asks the runtime for a client through `generateClient` reports that the SDK does not support client generation.
-time: 2026-11-19T22:03:00Z
-custom:
-    Author: iw
-    PR: "61"

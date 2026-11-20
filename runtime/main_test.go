@@ -265,14 +265,14 @@ func TestPackageClientsRequestIsTheDocumentRustDecodes(t *testing.T) {
 		Repository:       "https://github.com/dagger/dagger",
 		DaggerRevision:   "400b82d6f3c09ef096d2f59b3e920267b5969bf4",
 		EngineVersion:    "1.0.0-beta.27",
-		RustSDKVersion:   "0.8.0",
+		RustSDKVersion:   "0.9.0",
 		RustToolchain:    "1.99.1",
 		CoreSchemaDigest: "sha256:9511bc82fb704520cdc632da73463fc7396b1bb081e0446b61665c30764a5e7c",
 		SDKDependency: metadata.PublishedSDKDependency{
 			Source:       "registry",
 			Registry:     "crates-io",
 			Package:      "tokeira-dagger-sdk",
-			ExactVersion: "0.8.0",
+			ExactVersion: "0.9.0",
 		},
 	}
 	clientRoot, err := rebasePath("services/app")
