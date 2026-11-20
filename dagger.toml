@@ -6,7 +6,7 @@
 [modules]
 
 [modules.rust-sdk]
-source = "github.com/tokeira/dagger-rust-sdk/runtime@v0.8.0"
+source = "github.com/tokeira/dagger-rust-sdk/runtime@v0.9.0"
 
 [sdks.rust]
 module = "rust-sdk"
