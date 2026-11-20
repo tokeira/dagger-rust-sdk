@@ -204,9 +204,18 @@ func TestPackageClientsResultCarriesWrittenAndRemovedPaths(t *testing.T) {
 			t.Fatalf("removed path %q was accepted", removed)
 		}
 	}
-	// No other operation removes files.
+	// Module generation removes files as package clients do, and no other operation
+	// removes any.
 	generation := strings.Replace(string(document), `"kind": "package-clients"`, `"kind": "generation"`, 1)
-	if _, err := DecodeExecutionResult([]byte(generation), "generation"); err == nil {
-		t.Fatal("a generation result that removes paths was accepted")
+	removed, err := DecodeExecutionResult([]byte(generation), "generation")
+	if err != nil {
+		t.Fatalf("decode a generation result that removes paths: %v", err)
+	}
+	require.Equal(t, result.RemovedPaths, removed.RemovedPaths)
+	for _, kind := range []string{"initialization", "module-dependencies"} {
+		other := strings.Replace(string(document), `"kind": "package-clients"`, `"kind": "`+kind+`"`, 1)
+		if _, err := DecodeExecutionResult([]byte(other), kind); err == nil {
+			t.Fatalf("a %s result that removes paths was accepted", kind)
+		}
 	}
 }

@@ -18,7 +18,7 @@ use crate::post_work::{
     Cancellation, ProcessOutcome, current_allowlisted_environment, require_convergence,
 };
 use crate::project::source_snapshot::{SourceSnapshotBuilder, SourceSnapshotRequest};
-use crate::publication::{OperationCandidate, publish, verify_ownership};
+use crate::publication::{OperationCandidate, PublicationChangeKind, publish, verify_ownership};
 use crate::root::validate_path_sets;
 use crate::{
     ArtifactKind, ArtifactOwnership, ArtifactRecord, CandidateArtifact, EngineRelease,
@@ -278,10 +278,16 @@ pub async fn execute_operation_with_post_work<P: OperationPostWork>(
         touched_paths: published
             .changes
             .iter()
+            .filter(|change| change.kind != PublicationChangeKind::Remove)
             .map(|change| change.path.clone())
             .chain(published.manifest_changed.then(|| manifest_path.clone()))
             .collect(),
-        removed_paths: Default::default(),
+        removed_paths: published
+            .changes
+            .iter()
+            .filter(|change| change.kind == PublicationChangeKind::Remove)
+            .map(|change| change.path.clone())
+            .collect(),
         operation_manifest: Some(manifest_path),
         vcs_generated,
         vcs_ignored,

@@ -7,7 +7,7 @@
 #[path = "../../dagger-codegen/tests/support/mod.rs"]
 mod codegen_support;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 use std::process::Command;
@@ -319,7 +319,9 @@ async fn a_deleted_binding_is_written_again() {
 }
 
 // When a module loses a dependency, generation removes the dependency's bindings that
-// are as it wrote them: the module is then exactly as if it never had the dependency.
+// are as it wrote them and names them in its result, from which the engine adapter
+// removes them from the workspace: the module is then exactly as if it never had the
+// dependency.
 #[tokio::test]
 async fn the_unchanged_bindings_of_a_removed_dependency_are_removed() {
     let temporary = tempfile::tempdir().unwrap();
@@ -344,13 +346,17 @@ async fn the_unchanged_bindings_of_a_removed_dependency_are_removed() {
     .await;
     assert!(temporary.path().join(MODULE_ROOT).join(BINDING).exists());
 
-    execute(
+    let result = generate(
         &root,
         &request(&alone, authored.as_bytes(), dependency()),
         &alone,
         &descriptor(),
     )
-    .await;
+    .await
+    .unwrap();
+    let binding = format!("{MODULE_ROOT}/{BINDING}");
+    assert_eq!(paths(&result.removed_paths), [binding.as_str()]);
+    assert!(!paths(&result.touched_paths).contains(&binding));
     assert_eq!(snapshot(temporary.path()), without);
 }
 
@@ -371,8 +377,11 @@ async fn an_edited_binding_of_a_removed_dependency_stays_and_leaves_the_record()
     let edited = fs::read_to_string(&binding).unwrap() + "// Kept by its author.\n";
     fs::write(&binding, &edited).unwrap();
 
-    let touched = execute(&root, &without, &alone, &descriptor()).await;
-    assert!(!touched.is_empty());
+    let result = generate(&root, &without, &alone, &descriptor())
+        .await
+        .unwrap();
+    assert!(!result.touched_paths.is_empty());
+    assert!(result.removed_paths.is_empty());
     assert_eq!(fs::read_to_string(&binding).unwrap(), edited);
     assert!(!recorded_artifacts(temporary.path()).contains(&format!("{MODULE_ROOT}/{BINDING}")));
     let converged = execute(&root, &without, &alone, &descriptor()).await;
@@ -472,13 +481,12 @@ async fn execute(
     schema: &[u8],
     descriptor: &EngineSourceDescriptor,
 ) -> Vec<String> {
-    generate(root, request, schema, descriptor)
-        .await
-        .unwrap()
-        .touched_paths
-        .iter()
-        .map(ToString::to_string)
-        .collect()
+    paths(
+        &generate(root, request, schema, descriptor)
+            .await
+            .unwrap()
+            .touched_paths,
+    )
 }
 
 async fn generate(
@@ -584,6 +592,11 @@ fn recorded_digests(manifest: &Path) -> (String, String) {
 }
 
 /// The paths the module's operation manifest records.
+/// A result's paths as the operation names them.
+fn paths(paths: &BTreeSet<RelativeOperationPath>) -> Vec<String> {
+    paths.iter().map(ToString::to_string).collect()
+}
+
 fn recorded_artifacts(directory: &Path) -> Vec<String> {
     let manifest = directory
         .join(MODULE_ROOT)

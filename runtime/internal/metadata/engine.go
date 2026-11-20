@@ -127,9 +127,10 @@ func DecodeExecutionResult(data []byte, expectedKind string) (ExecutionResult, e
 			return ExecutionResult{}, fmt.Errorf("execution result path %q is not confined", candidate)
 		}
 	}
-	// Only module client generation removes files: its ownership records say which
-	// it may. Every other operation replaces what its manifest owns.
-	if expectedKind != "package-clients" && len(value.RemovedPaths) != 0 {
+	// Package clients and module generation remove files, each only those its
+	// ownership record holds with their recorded bytes. Initialization and module
+	// dependencies never remove a file.
+	if expectedKind != "package-clients" && expectedKind != "generation" && len(value.RemovedPaths) != 0 {
 		return ExecutionResult{}, fmt.Errorf("execution result removes paths its operation does not own")
 	}
 	return value, nil

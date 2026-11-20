@@ -144,7 +144,7 @@ func (sdk *RustSDK) GenerateScope(
 	if err != nil {
 		return nil, err
 	}
-	return configured.WithDirectory(".", generated), nil
+	return withGeneratedModuleCode(ctx, configured, generated)
 }
 
 // packageClient is one module a Cargo package has a client for, as the Rust
@@ -643,7 +643,11 @@ func (sdk *RustSDK) Codegen(
 	if err != nil {
 		return nil, err
 	}
-	return dag.GeneratedCode(execution.project.Directory(operationWorkspaceRoot)).
+	code, err := withRemovedModuleCode(ctx, execution.project.Directory(operationWorkspaceRoot), modSource, execution.result.RemovedPaths)
+	if err != nil {
+		return nil, err
+	}
+	return dag.GeneratedCode(code).
 		WithVCSGeneratedPaths(generated).
 		WithVCSIgnoredPaths(ignored), nil
 }
